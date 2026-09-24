@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 180" role="img" aria-labelledby="title desc">
+  <title id="title">Identidad institucional de muestra</title>
+  <desc id="desc">Escudo abstracto utilizado como marcador visual en el prototipo.</desc>
+  <path fill="#123f68" d="M80 4 148 28v55c0 43-26 75-68 93C38 158 12 126 12 83V28L80 4Z"/>
+  <path fill="#0e7c72" d="M80 18 135 38v44c0 34-19 60-55 77-36-17-55-43-55-77V38l55-20Z"/>
+  <path fill="#fff" d="M48 61h64v10H48zm8 19h48v38H56z" opacity=".95"/>
+  <path fill="#d6a11d" d="m80 38 37 16H43l37-16Zm-17 50h8v24h-8zm26 0h8v24h-8z"/>
+  <path fill="#fff" d="M48 120h64v9H48z"/>
+</svg>
