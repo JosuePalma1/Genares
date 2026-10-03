@@ -11,7 +11,7 @@
     "start:prod": "node dist/main.js",
     "test": "jest --runInBand",
     "test:watch": "jest --watch",
-    "typeorm": "typeorm-ts-node-commonjs -d src/database/data-source.ts",
+    "typeorm": "typeorm-ts-node-commonjs -d src/base-datos/fuente-datos.ts",
     "migration:run": "npm run typeorm -- migration:run",
     "migration:revert": "npm run typeorm -- migration:revert"
   },

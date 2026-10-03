@@ -1,13 +1,13 @@
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { ModuloAplicacion } from './aplicacion.module';
 
-async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
-  app.enableShutdownHooks();
-  app.setGlobalPrefix('api');
+async function iniciarAplicacion(): Promise<void> {
+  const aplicacion = await NestFactory.create(ModuloAplicacion);
+  aplicacion.enableShutdownHooks();
+  aplicacion.setGlobalPrefix('api');
 
-  const port = Number(process.env.PORT ?? 3001);
-  await app.listen(port);
+  const puerto = Number(process.env.PORT ?? 3001);
+  await aplicacion.listen(puerto);
 }
 
-void bootstrap();
+void iniciarAplicacion();

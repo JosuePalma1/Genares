@@ -41,7 +41,11 @@ npm run migration:run
 npm run start:dev
 ```
 
-El backend expone `GET /api/health`. No debe conectarse a infraestructura institucional sin la definición técnica correspondiente.
+El backend expone `GET /api/salud`. No debe conectarse a infraestructura institucional sin la definición técnica correspondiente.
+
+## Convención de nombres
+
+El código propio del dominio utiliza nombres en español sin tildes ni `ñ`. Se conservan en inglés las APIs y convenciones exigidas por JavaScript, React, NestJS, TypeORM, HTML y npm. Por decisión del proyecto, `login`, `dashboard`, `LoginPage` y `DashboardPage` también se mantienen en inglés.
 
 ## PostgreSQL local opcional
 
