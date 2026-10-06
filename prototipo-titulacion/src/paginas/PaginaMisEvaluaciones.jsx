@@ -1,15 +1,12 @@
 import { Link } from 'react-router-dom';
 import { CalendarClock, FileText, Printer } from 'lucide-react';
-import { ESTADO_EVALUACION, ROL } from '../datos/datosPrototipo';
+import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import { estanCerradasRevisionesEscritas, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 
 export default function PaginaMisEvaluaciones() {
-  const { estado, actorActual, personaActual } = usarPrototipo();
-  if (!actorActual.roles.includes(ROL.TRIBUNAL)) {
-    return <><EncabezadoPagina title="Mis evaluaciones" description="Trabajos asignados a la identidad activa como miembro del tribunal." breadcrumbs={['Inicio', 'Mis evaluaciones']} /><EstadoVacio title="Este perfil no actúa como tribunal" description="Seleccione a María López o José Mendoza en el encabezado para comprobar este flujo." /></>;
-  }
+  const { estado, personaActual } = usarPrototipo();
 
   const asignaciones = estado.trabajos.filter((trabajo) => trabajo.idsTribunal.includes(personaActual.id)).map((trabajo) => ({
     trabajo,

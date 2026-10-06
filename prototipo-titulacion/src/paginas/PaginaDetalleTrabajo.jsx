@@ -18,7 +18,7 @@ export default function PaginaDetalleTrabajo() {
   const evaluaciones = obtenerEvaluacionesTrabajo(estado, trabajo.id);
   const estadoProceso = derivarEstadoTrabajo(estado, trabajo);
   const puedeGestionar = actorActual.roles.some((role) => [ROL.COMISION, ROL.ADMIN].includes(role));
-  const isAssignedMember = actorActual.roles.includes(ROL.TRIBUNAL) && trabajo.idsTribunal.includes(personaActual?.id);
+  const isAssignedMember = trabajo.idsTribunal.includes(personaActual?.id);
   const ownEvaluation = evaluaciones.find((evaluacion) => evaluacion.idMiembro === personaActual?.id);
   const writtenReady = estanCerradasRevisionesEscritas(estado, trabajo);
   const tribunalEditable = puedeEditarTribunal(estado, trabajo);

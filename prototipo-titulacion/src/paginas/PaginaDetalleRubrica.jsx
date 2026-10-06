@@ -8,7 +8,7 @@ import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../
 
 const statusPresentation = {
   ACTIVA: { etiqueta: 'Activa e inmutable', tono: 'success' },
-  BORRADOR: { etiqueta: 'Borrador esEditable', tono: 'progress' },
+  BORRADOR: { etiqueta: 'Borrador editable', tono: 'progress' },
   ARCHIVADA: { etiqueta: 'Histórica e inmutable', tono: 'neutral' },
 };
 
@@ -43,8 +43,8 @@ export default function PaginaDetalleRubrica() {
     setDraftStages((etapas) => etapas.map((etapa) => etapa.id === idEtapa ? { ...etapa, [field]: value } : etapa));
   };
 
-  const updateCategoryName = (categoryId, name) => {
-    setDraftCategories((categorias) => categorias.map((categoria) => categoria.id === categoryId ? { ...categoria, name } : categoria));
+  const actualizarNombreCategoria = (idCategoria, nombre) => {
+    setDraftCategories((categorias) => categorias.map((categoria) => categoria.id === idCategoria ? { ...categoria, nombre } : categoria));
   };
 
   const updateIndicator = (categoryId, indicatorId, field, value) => {
@@ -115,7 +115,7 @@ export default function PaginaDetalleRubrica() {
 
       <section className="card"><div className="card-header"><h2>Identificación de la versión</h2><InsigniaEstado estado={presentation.etiqueta} tono={presentation.tono} /></div><div className="card-body"><dl className="info-list"><div><dt>Modalidad</dt><dd>{rubrica.modalidad}</dd></div><div><dt>Período de vigencia</dt><dd>{rubrica.periodo}</dd></div><div><dt>Versión</dt><dd>{rubrica.version}</dd></div><div><dt>Puntaje máximo</dt><dd>{maximumTotal.toFixed(2)} puntos</dd></div><div><dt>Vigente desde</dt><dd>{formatearFecha(rubrica.vigenteDesde)}</dd></div><div><dt>Vigente hasta</dt><dd>{rubrica.vigenteHasta ? formatearFecha(rubrica.vigenteHasta) : 'Sin fecha de cierre'}</dd></div></dl></div></section>
 
-      <div className={`alert ${canEdit ? 'alert-info' : 'alert-warning'}`}><span aria-hidden="true">{canEdit ? 'ⓘ' : '!'}</span><div><strong>{canEdit ? 'Borrador esEditable' : 'Versión protegida'}</strong>{canEdit ? 'Los cambios solo afectan este borrador. Debe guardarlo y activarlo para usarlo en trabajos nuevos.' : 'Esta estructura no se modifica. Una nueva versión se crea como copia independiente.'}</div></div>
+      <div className={`alert ${canEdit ? 'alert-info' : 'alert-warning'}`}><span aria-hidden="true">{canEdit ? 'ⓘ' : '!'}</span><div><strong>{canEdit ? 'Borrador editable' : 'Versión protegida'}</strong>{canEdit ? 'Los cambios solo afectan este borrador. Debe guardarlo y activarlo para usarlo en trabajos nuevos.' : 'Esta estructura no se modifica. Una nueva versión se crea como copia independiente.'}</div></div>
 
       {visibleStages.map((etapa) => {
         const categorias = visibleCategories.filter((categoria) => categoria.etapa === etapa.id);
@@ -125,7 +125,7 @@ export default function PaginaDetalleRubrica() {
             <div className="rubrica-section-header"><div><span className="prototype-note">{String(etapa.codigo).replaceAll('_', ' ')}</span>{canEdit ? <><input className="input" aria-label={`Nombre de la etapa ${etapa.codigo}`} value={etapa.nombre} onChange={(evento) => updateStage(etapa.id, 'nombre', evento.target.value)} /><input className="input mt-2" aria-label={`Descripción de la etapa ${etapa.codigo}`} value={etapa.descripcion ?? ''} onChange={(evento) => updateStage(etapa.id, 'descripcion', evento.target.value)} /></> : <><h2>{etapa.nombre}</h2><p className="text-muted mb-0">{etapa.descripcion}</p></>}</div><InsigniaEstado estado={`${stageTotal.toFixed(2)} puntos`} tono="info" /></div>
             {categorias.map((categoria) => (
               <article key={categoria.id}>
-                <div className="card-header"><div><span className="prototype-note">Categoría {categoria.codigo}</span>{canEdit ? <input className="input" aria-label={`Nombre de la categoría ${categoria.codigo}`} value={categoria.nombre} onChange={(evento) => updateCategoryName(categoria.id, evento.target.value)} /> : <h3 className="mb-0">{categoria.nombre}</h3>}</div><InsigniaEstado estado={`${categoryMaximum(categoria).toFixed(2)} puntos`} tono="neutral" /></div>
+                <div className="card-header"><div><span className="prototype-note">Categoría {categoria.codigo}</span>{canEdit ? <input className="input" aria-label={`Nombre de la categoría ${categoria.codigo}`} value={categoria.nombre} onChange={(evento) => actualizarNombreCategoria(categoria.id, evento.target.value)} /> : <h3 className="mb-0">{categoria.nombre}</h3>}</div><InsigniaEstado estado={`${categoryMaximum(categoria).toFixed(2)} puntos`} tono="neutral" /></div>
                 {categoria.indicadores.map((indicador, indice) => <div className="criterion" key={indicador.id}><div className="criterion-title"><strong>{categoria.codigo}.{indice + 1}</strong>{canEdit ? <input className="input" aria-label={`Nombre del indicador ${categoria.codigo}.${indice + 1}`} value={indicador.etiqueta} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'etiqueta', evento.target.value)} /> : <p>{indicador.etiqueta}</p>}</div><div className="calificacion-control"><label htmlFor={`maximo-${categoria.id}-${indicador.id}`}>Valoración máxima</label><input className="calificacion-input" id={`maximo-${categoria.id}-${indicador.id}`} type="number" min="0" step="0.01" value={indicador.maximo} readOnly={!canEdit} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'maximo', evento.target.value)} /></div><div className="criterion-note"><InsigniaEstado estado={canEdit ? 'Editable en borrador' : 'Conservado'} tono={canEdit ? 'progress' : 'success'} /></div></div>)}
                 <div className="rubrica-subtotal"><span>Total categoría {categoria.codigo}</span><span>{categoryMaximum(categoria).toFixed(2)} puntos</span></div>
               </article>

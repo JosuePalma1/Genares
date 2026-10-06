@@ -24,7 +24,7 @@ const NAVEGACION = [
     elementos: [
       { to: '/dashboard', etiqueta: 'Dashboard', icon: LayoutDashboard, roles: TODOS_LOS_ROLES, end: true },
       { to: '/trabajos', etiqueta: 'Trabajos de titulación', icon: FileText, roles: TODOS_LOS_ROLES },
-      { to: '/mis-evaluaciones', etiqueta: 'Mis evaluaciones', icon: ClipboardCheck, roles: [ROL.TRIBUNAL] },
+      { to: '/mis-evaluaciones', etiqueta: 'Mis evaluaciones', icon: ClipboardCheck, roles: [ROL.TRIBUNAL], admiteAsignacionTribunal: true },
       { to: '/consulta', etiqueta: 'Consulta e historial', icon: FileSearch, roles: TODOS_LOS_ROLES },
     ],
   },
@@ -44,10 +44,13 @@ const NAVEGACION = [
   },
 ];
 
-function NavegacionRol({ roles, movil = false, alNavegar }) {
+function NavegacionRol({ roles, tieneAsignacionesTribunal = false, movil = false, alNavegar }) {
   const grupos = NAVEGACION.map((grupo) => ({
     ...grupo,
-    elementos: grupo.elementos.filter((elemento) => elemento.roles.some((role) => roles.includes(role))),
+    elementos: grupo.elementos.filter((elemento) => (
+      elemento.roles.some((rol) => roles.includes(rol))
+      || (elemento.admiteAsignacionTribunal && tieneAsignacionesTribunal)
+    )),
   })).filter((grupo) => grupo.elementos.length > 0);
 
   return (
@@ -58,9 +61,9 @@ function NavegacionRol({ roles, movil = false, alNavegar }) {
       {grupos.map((grupo) => (
         <div className="nav-group" key={grupo.etiqueta}>
           <p className="nav-label">{grupo.etiqueta}</p>
-          {grupo.elementos.map(({ icon: Icon, ...elemento }) => (
+          {grupo.elementos.map(({ icon: Icon, admiteAsignacionTribunal, ...elemento }) => (
             <NavLink
-              className={({ estaActivo }) => (estaActivo ? 'active' : undefined)}
+              className={({ isActive: estaActivo }) => (estaActivo ? 'active' : undefined)}
               end={elemento.end}
               key={elemento.to}
               onClick={alNavegar}
@@ -82,6 +85,7 @@ export function EstructuraAplicacion({ children }) {
   const referenciaNavegacionMovil = useRef(null);
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
   const rolesDisponibles = actorActual?.roles ?? [];
+  const tieneAsignacionesTribunal = estado.trabajos.some((trabajo) => trabajo.idsTribunal.includes(personaActual?.id));
   const nombrePersona = nombreCompleto(personaActual);
   const rolActor = etiquetasRol[actorActual?.rolActivo] ?? 'Perfil simulado';
 
@@ -103,7 +107,7 @@ export function EstructuraAplicacion({ children }) {
             <small>Facultad de Ciencias de la Vida y Tecnologías</small>
           </div>
         </NavLink>
-        <NavegacionRol roles={rolesDisponibles} />
+        <NavegacionRol roles={rolesDisponibles} tieneAsignacionesTribunal={tieneAsignacionesTribunal} />
         <div className="sidebar-foot">
           <span className="sidebar-foot-badge">Modo Demostración</span>
           <span>Datos simulados para validación</span>
@@ -158,6 +162,7 @@ export function EstructuraAplicacion({ children }) {
         <summary>Menú del sistema</summary>
         <NavegacionRol
           roles={rolesDisponibles}
+          tieneAsignacionesTribunal={tieneAsignacionesTribunal}
           movil
           alNavegar={() => {
             if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;

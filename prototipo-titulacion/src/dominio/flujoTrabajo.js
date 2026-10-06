@@ -18,7 +18,7 @@ export function obtenerEtapasRubrica(rubrica) {
   const idsEtapas = [...new Set((rubrica?.categorias ?? []).map((categoria) => categoria.etapa).filter(Boolean))];
   return idsEtapas.map((id, indice) => {
     const categorias = obtenerCategoriasEtapa(rubrica, id);
-    const max = redondearCalificacion(categorias.reduce((suma, categoria) => suma + Number(categoria.maximo || 0), 0));
+    const maximo = redondearCalificacion(categorias.reduce((suma, categoria) => suma + Number(categoria.maximo || 0), 0));
     const escrita = id === 'ESCRITA';
     return {
       id,
@@ -30,7 +30,7 @@ export function obtenerEtapasRubrica(rubrica) {
         : 'La calificación corresponde individualmente al estudiante seleccionado.',
       alcance: escrita ? ALCANCE_ETAPA_RUBRICA.TRABAJO_COMPARTIDO : ALCANCE_ETAPA_RUBRICA.ESTUDIANTE_INDIVIDUAL,
       orden: indice + 1,
-      max,
+      maximo,
       porcentaje: null,
     };
   });
@@ -159,8 +159,8 @@ export function iniciales(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((parte) => parte[0]).join('').toUpperCase();
 }
 
-export function formatearFecha(dateValue) {
-  if (!dateValue) return 'Sin fecha';
-  return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: '2-digit', year: 'numerico' })
-    .format(new Date(`${dateValue}T12:00:00`));
+export function formatearFecha(valorFecha) {
+  if (!valorFecha) return 'Sin fecha';
+  return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    .format(new Date(`${valorFecha}T12:00:00`));
 }

@@ -43,8 +43,8 @@ export default function Aplicacion() {
         <Route path="/trabajos/:idTrabajo/tribunal" element={<RequerirRol roles={[ROL.COMISION, ROL.ADMIN]}><PaginaAsignacionTribunal /></RequerirRol>} />
         <Route path="/trabajos/:idTrabajo/sustentacion" element={<RequerirRol roles={[ROL.COMISION, ROL.ADMIN]}><PaginaProgramacionSustentacion /></RequerirRol>} />
         <Route path="/mis-evaluaciones" element={<PaginaMisEvaluaciones />} />
-        <Route path="/evaluaciones/:idTrabajo/escrita" element={<RequerirRol roles={[ROL.TRIBUNAL]}><PaginaEvaluacionEscrita /></RequerirRol>} />
-        <Route path="/evaluaciones/:idTrabajo/oral/:idEstudiante" element={<RequerirRol roles={[ROL.TRIBUNAL]}><PaginaEvaluacionOral /></RequerirRol>} />
+        <Route path="/evaluaciones/:idTrabajo/escrita" element={<PaginaEvaluacionEscrita />} />
+        <Route path="/evaluaciones/:idTrabajo/oral/:idEstudiante" element={<PaginaEvaluacionOral />} />
         <Route path="/resultados/:idTrabajo/:idEstudiante" element={<PaginaResultados />} />
         <Route path="/rubrica/:idTrabajo/:idEstudiante/:idMiembro" element={<PaginaImpresionRubrica />} />
         <Route path="/consulta" element={<PaginaConsulta />} />

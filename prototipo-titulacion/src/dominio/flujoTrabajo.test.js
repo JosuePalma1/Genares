@@ -1,11 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import { crearEstadoInicial } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante } from './flujoTrabajo';
+import { estanCerradasRevisionesEscritas, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante, formatearFecha, obtenerEtapasRubrica } from './flujoTrabajo';
 
 describe('reglas del flujo de evaluación', () => {
   it('impide superar el máximo de un indicador', () => {
     expect(limitarCalificacion(0.7, 0.33)).toBe(0.33);
     expect(limitarCalificacion(-1, 0.33)).toBe(0);
+  });
+
+  it('formatea fechas con valores válidos para Intl.DateTimeFormat', () => {
+    expect(() => formatearFecha('2026-10-05')).not.toThrow();
+    expect(formatearFecha('2026-10-05')).toMatch(/05.*10.*2026/);
+  });
+
+  it('normaliza el máximo de etapas antiguas con la propiedad en español', () => {
+    const [etapa] = obtenerEtapasRubrica({
+      categorias: [{ etapa: 'ESCRITA', maximo: 5 }],
+    });
+
+    expect(etapa.maximo).toBe(5);
+    expect(etapa).not.toHaveProperty('max');
   });
 
   it('bloquea la sustentación si falta una revisión escrita', () => {

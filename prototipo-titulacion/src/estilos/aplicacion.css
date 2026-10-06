@@ -535,12 +535,12 @@ button {
   font-weight: 800;
 }
 
-.rubrica-form .rubrica-indicador {
+.rubrica-formulario .rubrica-indicador {
   grid-template-columns: minmax(220px, 1fr) minmax(175px, .38fr) minmax(230px, .8fr);
 }
 
-.rubrica-form .calificacion-control label,
-.rubrica-form .criterion-note > label {
+.rubrica-formulario .calificacion-control label,
+.rubrica-formulario .criterion-note > label {
   display: block;
   margin-bottom: .4rem;
   color: #34485c;
@@ -549,7 +549,7 @@ button {
   text-transform: uppercase;
 }
 
-.rubrica-form .criterion-note > label span {
+.rubrica-formulario .criterion-note > label span {
   color: var(--color-muted);
   font-weight: 600;
   text-transform: none;
@@ -587,17 +587,17 @@ button {
   font-weight: 750;
 }
 
-.rubrica-form .criterion-note .textarea {
+.rubrica-formulario .criterion-note .textarea {
   min-height: 72px;
 }
 
-.rubrica-form.is-read-only :is(.calificacion-input, .textarea) {
+.rubrica-formulario.is-read-only :is(.calificacion-input, .textarea) {
   background: #f4f7f9;
   color: #33485b;
   cursor: default;
 }
 
-.rubrica-form .rubrica-subtotal strong {
+.rubrica-formulario .rubrica-subtotal strong {
   min-width: 130px;
   color: var(--color-primary);
   text-align: right;
@@ -882,7 +882,7 @@ input.calificacion-input {
 }
 
 /* Banner de avance del tribunal en Mis Evaluaciones */
-.tribunal-status-banner {
+.tribunal-estado-banner {
   margin-top: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: #f8fafc;
@@ -890,7 +890,7 @@ input.calificacion-input {
   border-radius: var(--radius-sm);
 }
 
-.tribunal-status-heading {
+.tribunal-estado-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -930,7 +930,7 @@ input.calificacion-input {
   color: var(--color-muted);
 }
 
-.tribunal-status-note {
+.tribunal-estado-note {
   margin: 0;
   font-size: var(--text-xs);
   color: var(--color-muted);
@@ -1103,13 +1103,13 @@ input.calificacion-input {
     box-shadow: none;
   }
 
-  .rubrica-form .rubrica-indicador {
+  .rubrica-formulario .rubrica-indicador {
     grid-template-columns: minmax(0, 1fr) 110px minmax(150px, .7fr);
     padding: 8px 10px;
   }
 
   .calificacion-input-wrap,
-  .rubrica-form .textarea {
+  .rubrica-formulario .textarea {
     border-color: #777;
     box-shadow: none;
   }
