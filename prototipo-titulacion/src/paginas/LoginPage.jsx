@@ -30,7 +30,7 @@ export default function LoginPage() {
         <p className="login-foot">No se conecta con DIT, SGA, Microsoft 365 ni servicios de correo.</p>
       </section>
       <section className="login-panel" aria-label="Acceso simulado">
-        <formulario className="login-card" onSubmit={enter}>
+        <form className="login-card" onSubmit={enter}>
           <span className="badge badge-info">Modo Demostración · Simulación</span>
           <h2 className="mt-4">Acceso a la simulación</h2>
           <p>Seleccione una identidad ficticia para comprobar las acciones y permisos disponibles según el rol.</p>
@@ -53,7 +53,7 @@ export default function LoginPage() {
             </div>
           </div>
           <p className="login-note"><strong>Datos ficticios</strong><br />Uso exclusivo para validación del flujo del proceso de titulación.</p>
-        </formulario>
+        </form>
       </section>
     </main>
   );

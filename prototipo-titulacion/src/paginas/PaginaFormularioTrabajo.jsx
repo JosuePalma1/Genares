@@ -64,7 +64,7 @@ export default function PaginaFormularioTrabajo() {
   return (
     <>
       <EncabezadoPagina title="Registrar trabajo de titulación" description="La información del trabajo se registra en este sistema; no proviene de una API institucional." breadcrumbs={['Trabajos', 'Nuevo trabajo']} />
-      <formulario onSubmit={enviar}>
+      <form onSubmit={enviar}>
         <section className="card">
           <div className="card-header"><h2>Datos del trabajo</h2><span className="badge badge-neutral">Estado inicial: Registrado</span></div>
           <div className="card-body form-grid">
@@ -93,7 +93,7 @@ export default function PaginaFormularioTrabajo() {
           </div>
         </section>
         <div className="form-actions"><button className="button button-outline" type="button" onClick={() => navegar('/trabajos')}>Cancelar</button><button className="button button-primary" type="submit">Registrar trabajo</button></div>
-      </formulario>
+      </form>
     </>
   );
 }
