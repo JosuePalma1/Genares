@@ -23,9 +23,9 @@ const TONOS_ESTADO = {
   UNREAD: 'info',
 };
 
-export function InsigniaEstado({ estado, tone, children, className = '', ...props }) {
+export function InsigniaEstado({ estado, tono, tone, children, className = '', ...props }) {
   const etiqueta = children ?? ETIQUETAS_ESTADO[estado] ?? estado ?? 'Sin estado';
-  const tonoResuelto = tone ?? TONOS_ESTADO[estado] ?? tonoEstado(estado);
+  const tonoResuelto = tono ?? tone ?? TONOS_ESTADO[estado] ?? tonoEstado(estado);
 
   return (
     <span

@@ -1,9 +1,17 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { InsigniaEstado } from '../componentes/interfaz';
 
 const leer = (ruta) => readFileSync(new URL(ruta, import.meta.url), 'utf8');
 
 describe('contratos técnicos después de la traducción', () => {
+  it('conserva colores diferentes para los estados de evaluación', () => {
+    expect(InsigniaEstado({ estado: 'CERRADA' }).props.className).toContain('badge-success');
+    expect(InsigniaEstado({ estado: 'BORRADOR' }).props.className).toContain('badge-progress');
+    expect(InsigniaEstado({ estado: 'PENDIENTE' }).props.className).toContain('badge-pending');
+    expect(InsigniaEstado({ estado: 'Personalizado', tono: 'info' }).props.className).toContain('badge-info');
+  });
+
   it('actualiza el campo nombre de las categorías de rúbrica', () => {
     const pagina = leer('../paginas/PaginaDetalleRubrica.jsx');
 
