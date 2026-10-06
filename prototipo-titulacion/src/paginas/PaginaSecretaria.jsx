@@ -160,7 +160,7 @@ export default function PaginaSecretaria() {
               </thead>
               <tbody>
                 {estado.trabajos.map((trabajo) => {
-                  const estado = derivarEstadoTrabajo(estado, trabajo);
+                  const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
                   const escrita = avanceEscrita(estado, trabajo);
                   const oral = avanceOral(estado, trabajo);
                   return (
@@ -189,7 +189,7 @@ export default function PaginaSecretaria() {
                         <InsigniaEstado estado={oral.etiqueta} tono={oral.tono} />
                       </td>
                       <td data-label="Estado">
-                        <InsigniaEstado estado={estado} tono={tonoEstado(estado)} />
+                        <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
                       </td>
                       <td data-label="Resultados / consulta">
                         <div className="table-actions">

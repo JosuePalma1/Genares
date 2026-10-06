@@ -189,7 +189,7 @@ export default function PaginaCoordinacion() {
               </thead>
               <tbody>
                 {filteredWorks.map((trabajo) => {
-                  const estado = derivarEstadoTrabajo(estado, trabajo);
+                  const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
                   return (
                     <tr key={trabajo.id}>
                       <td data-label="Trabajo / estudiante(s)">
@@ -213,7 +213,7 @@ export default function PaginaCoordinacion() {
                         ) : 'Sin programar'}
                       </td>
                       <td data-label="Estado">
-                        <InsigniaEstado estado={estado} tono={tonoEstado(estado)} />
+                        <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
                       </td>
                       <td data-label="Resultado">
                         <div className="stack">

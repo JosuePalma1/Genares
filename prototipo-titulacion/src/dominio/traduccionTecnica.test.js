@@ -51,4 +51,16 @@ describe('contratos técnicos después de la traducción', () => {
     expect(detalle).toContain('const isAssignedMember = trabajo.idsTribunal.includes(personaActual?.id);');
     expect(evaluaciones).not.toContain('actorActual.roles.includes(ROL.TRIBUNAL)');
   });
+
+  it('evita ocultar el estado global al calcular el estado de cada trabajo', () => {
+    const paginasSeguimiento = [
+      leer('../paginas/PaginaSecretaria.jsx'),
+      leer('../paginas/PaginaCoordinacion.jsx'),
+    ];
+
+    paginasSeguimiento.forEach((pagina) => {
+      expect(pagina).not.toContain('const estado = derivarEstadoTrabajo(estado, trabajo)');
+      expect(pagina).toContain('const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo)');
+    });
+  });
 });
