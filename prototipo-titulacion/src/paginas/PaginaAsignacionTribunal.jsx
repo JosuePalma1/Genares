@@ -24,7 +24,7 @@ export default function PaginaAsignacionTribunal() {
     }
     const respuesta = await Swal.fire({
       icon: 'question', title: '¿Confirmar asignación?',
-      html: `Se notificará internamente a <strong>${seleccionado.map(nombreCompleto).join('</strong> y <strong>')}</strong>.`,
+      text: `Se notificará internamente a ${seleccionado.map(nombreCompleto).join(' y ')}.`,
       showCancelButton: true, confirmButtonText: 'Confirmar asignación', cancelButtonText: 'Volver y revisar', reverseButtons: true,
       confirmButtonColor: '#123f68',
     });

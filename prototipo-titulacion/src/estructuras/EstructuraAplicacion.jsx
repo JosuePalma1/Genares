@@ -15,6 +15,7 @@ import { CampanaNotificaciones } from '../componentes/CampanaNotificaciones';
 import { ROL, etiquetasRol } from '../datos/datosPrototipo';
 import { nombreCompleto, iniciales } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { confirmarDescarteCambios } from '../dominio/cambiosSinGuardar';
 
 const TODOS_LOS_ROLES = Object.values(ROL);
 
@@ -55,7 +56,7 @@ function NavegacionRol({ roles, tieneAsignacionesTribunal = false, movil = false
 
   return (
     <nav
-      className={movil ? 'movil-links' : 'side-nav'}
+      className={movil ? 'mobile-links' : 'side-nav'}
       aria-label={movil ? 'Navegación móvil' : 'Navegación principal'}
     >
       {grupos.map((grupo) => (
@@ -137,7 +138,10 @@ export function EstructuraAplicacion({ children }) {
             <select
               id="actor-switch"
               value={actorActual?.id ?? ''}
-              onChange={(evento) => establecerActorActual(evento.target.value)}
+              onChange={(evento) => {
+                if (confirmarDescarteCambios()) establecerActorActual(evento.target.value);
+                else evento.currentTarget.value = actorActual?.id ?? '';
+              }}
               title="Cambiar identidad ficticia para probar roles"
             >
               {actores.map((actor) => (

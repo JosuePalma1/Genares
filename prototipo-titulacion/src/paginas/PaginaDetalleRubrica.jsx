@@ -5,6 +5,7 @@ import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/in
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../dominio/flujoTrabajo';
+import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 
 const statusPresentation = {
   ACTIVA: { etiqueta: 'Activa e inmutable', tono: 'success' },
@@ -24,10 +25,13 @@ export default function PaginaDetalleRubrica() {
   const rubrica = estado.versionesRubrica.find((elemento) => elemento.id === idRubrica);
   const [draftCategories, setDraftCategories] = useState([]);
   const [draftStages, setDraftStages] = useState([]);
+  const [tieneCambios, setTieneCambios] = useState(false);
+  usarAdvertenciaCambiosSinGuardar(tieneCambios, () => setTieneCambios(false));
 
   useEffect(() => {
     setDraftCategories(clonar(rubrica?.categorias));
     setDraftStages(clonar(rubrica ? obtenerEtapasRubrica(rubrica) : []));
+    setTieneCambios(false);
   }, [rubrica?.id]);
 
   const puedeGestionar = actorActual?.roles.some((role) => role === ROL.COMISION || role === ROL.ADMIN);
@@ -40,14 +44,17 @@ export default function PaginaDetalleRubrica() {
   );
 
   const updateStage = (idEtapa, field, value) => {
+    setTieneCambios(true);
     setDraftStages((etapas) => etapas.map((etapa) => etapa.id === idEtapa ? { ...etapa, [field]: value } : etapa));
   };
 
   const actualizarNombreCategoria = (idCategoria, nombre) => {
+    setTieneCambios(true);
     setDraftCategories((categorias) => categorias.map((categoria) => categoria.id === idCategoria ? { ...categoria, nombre } : categoria));
   };
 
   const updateIndicator = (categoryId, indicatorId, field, value) => {
+    setTieneCambios(true);
     setDraftCategories((categorias) => categorias.map((categoria) => {
       if (categoria.id !== categoryId) return categoria;
       return {
@@ -72,6 +79,7 @@ export default function PaginaDetalleRubrica() {
   const saveDraft = async () => {
     const normalized = normalizedDraft();
     despachar({ tipo: 'GUARDAR_VERSION_RUBRICA', idRubrica: rubrica.id, ...normalized });
+    setTieneCambios(false);
     await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Borrador guardado', showConfirmButton: false, timer: 1600 });
   };
 
@@ -93,6 +101,7 @@ export default function PaginaDetalleRubrica() {
       confirmButtonColor: '#123f68',
     });
     if (!respuesta.isConfirmed) return;
+    setTieneCambios(false);
     despachar({ tipo: 'GUARDAR_VERSION_RUBRICA', idRubrica: rubrica.id, ...normalized });
     despachar({ tipo: 'ACTIVAR_VERSION_RUBRICA', idRubrica: rubrica.id });
   };

@@ -21,6 +21,9 @@ export function CampanaNotificaciones() {
   const { estado, actorActual, despachar } = usarPrototipo();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
+  const triggerRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const wasOpenRef = useRef(false);
   const idActor = actorActual?.id ?? estado.idActorActual;
 
   const notificaciones = useMemo(
@@ -33,7 +36,14 @@ export function CampanaNotificaciones() {
   const unreadCount = notificaciones.filter((notificacion) => !notificacion.leidoEn).length;
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!isOpen) {
+      if (wasOpenRef.current) triggerRef.current?.focus();
+      wasOpenRef.current = false;
+      return undefined;
+    }
+
+    wasOpenRef.current = true;
+    closeButtonRef.current?.focus();
 
     const closeOnOutsideClick = (evento) => {
       if (!containerRef.current?.contains(evento.target)) setIsOpen(false);
@@ -63,6 +73,7 @@ export function CampanaNotificaciones() {
       <button
         type="button"
         className="icon-button notificacion-trigger"
+        ref={triggerRef}
         aria-label={unreadCount > 0
           ? `Notificaciones: ${unreadCount} sin leer`
           : 'Notificaciones: ninguna sin leer'}
@@ -82,16 +93,18 @@ export function CampanaNotificaciones() {
         <section
           id="notificacion-panel"
           className="notificacion-panel"
-          aria-label="Centro de notificaciones"
+          role="region"
+          aria-labelledby="notificacion-panel-title"
         >
           <header className="notificacion-panel-header">
             <div>
-              <h2>Notificaciones</h2>
+              <h2 id="notificacion-panel-title">Notificaciones</h2>
               <p>{unreadCount > 0 ? `${unreadCount} sin leer` : 'Todo está al día'}</p>
             </div>
             <button
               type="button"
               className="icon-button notificacion-close"
+              ref={closeButtonRef}
               aria-label="Cerrar notificaciones"
               onClick={() => setIsOpen(false)}
             >

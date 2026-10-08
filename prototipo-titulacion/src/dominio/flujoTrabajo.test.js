@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { crearEstadoInicial } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante, formatearFecha, obtenerEtapasRubrica } from './flujoTrabajo';
+import { estanCerradasRevisionesEscritas, fechaHoraLocalISO, fechaLocalISO, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante, formatearFecha, obtenerEtapasRubrica } from './flujoTrabajo';
 
 describe('reglas del flujo de evaluación', () => {
   it('impide superar el máximo de un indicador', () => {
@@ -11,6 +11,12 @@ describe('reglas del flujo de evaluación', () => {
   it('formatea fechas con valores válidos para Intl.DateTimeFormat', () => {
     expect(() => formatearFecha('2026-10-05')).not.toThrow();
     expect(formatearFecha('2026-10-05')).toMatch(/05.*10.*2026/);
+  });
+
+  it('obtiene la fecha local sin convertirla a UTC cerca de medianoche', () => {
+    const cercaDeMedianoche = new Date(2026, 9, 7, 0, 5);
+    expect(fechaLocalISO(cercaDeMedianoche)).toBe('2026-10-07');
+    expect(fechaHoraLocalISO(cercaDeMedianoche)).toBe('2026-10-07T00:05');
   });
 
   it('normaliza el máximo de etapas antiguas con la propiedad en español', () => {

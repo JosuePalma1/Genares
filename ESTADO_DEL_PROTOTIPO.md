@@ -310,14 +310,14 @@ Por ejemplo:
 
 #### 5. Completar la administración de rúbricas
 
-Actualmente se pueden consultar las versiones y modificar visualmente un borrador, pero esos cambios no se guardan.
+Actualmente se pueden consultar las versiones, crear copias, modificar borradores y activar versiones. Estos cambios se persisten únicamente en el `localStorage` del navegador; todavía no se guardan en PostgreSQL ni se comparten entre equipos.
 
-Falta implementar:
+Antes de usar este módulo con datos reales, falta implementar en el backend:
 
-- Crear una rúbrica.
-- Guardar cambios de un borrador.
-- Crear una nueva versión.
-- Activar una versión para una modalidad y período.
+- Crear una rúbrica desde una fuente persistente.
+- Guardar cambios de un borrador en PostgreSQL.
+- Crear una nueva versión en PostgreSQL.
+- Activar una versión para una modalidad y período en PostgreSQL.
 - Impedir cambios sobre versiones activas o históricas.
 
 La protección histórica ya está considerada en el diseño de la base de datos.
@@ -441,4 +441,3 @@ Después de estos pasos, el prototipo dejará de depender de datos guardados en 
 - Las pruebas de cálculo del frontend fueron aprobadas.
 - Las pruebas de reglas y cálculos del backend fueron aprobadas.
 - No se implementaron conexiones reales con DIT, SGA, Microsoft 365 o correo electrónico.
-

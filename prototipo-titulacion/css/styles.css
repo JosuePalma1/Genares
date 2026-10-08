@@ -56,6 +56,11 @@ a:hover { color: var(--color-secondary); }
 button, input, select, textarea { font: inherit; }
 button, .button, select, input[type="checkbox"] { cursor: pointer; }
 img, svg { display: block; max-width: 100%; }
+
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid rgba(14, 124, 114, .32);
+  outline-offset: 3px;
+}
 h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: var(--space-2); font-size: var(--text-2xl); line-height: 1.25; }
 h2 { margin-bottom: var(--space-4); font-size: var(--text-xl); }

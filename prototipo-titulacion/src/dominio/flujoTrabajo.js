@@ -2,6 +2,16 @@ import { ESTADO_EVALUACION, ALCANCE_ETAPA_RUBRICA } from '../datos/datosPrototip
 
 export const redondearCalificacion = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
+const rellenarDosDigitos = (value) => String(value).padStart(2, '0');
+
+export function fechaLocalISO(fecha = new Date()) {
+  return `${fecha.getFullYear()}-${rellenarDosDigitos(fecha.getMonth() + 1)}-${rellenarDosDigitos(fecha.getDate())}`;
+}
+
+export function fechaHoraLocalISO(fecha = new Date()) {
+  return `${fechaLocalISO(fecha)}T${rellenarDosDigitos(fecha.getHours())}:${rellenarDosDigitos(fecha.getMinutes())}`;
+}
+
 export function nombreCompleto(persona) {
   return persona ? `${persona.nombres} ${persona.apellidos}`.trim() : 'Sin asignar';
 }
@@ -121,7 +131,7 @@ export function derivarEstadoTrabajo(estado, trabajo) {
   if (!estanCerradasRevisionesEscritas(estado, trabajo)) return 'Revisión escrita pendiente';
   if (!trabajo.programacion) return 'Revisión escrita completada';
   if (!estanCerradasEvaluacionesOrales(estado, trabajo)) {
-    const programada = `${trabajo.programacion.fecha}T${trabajo.programacion.hora}` > new Date().toISOString().slice(0, 16);
+    const programada = `${trabajo.programacion.fecha}T${trabajo.programacion.hora}` > fechaHoraLocalISO();
     return programada ? 'Sustentación programada' : 'Sustentación pendiente';
   }
   return estanImpresasRubricas(estado, trabajo) ? 'Finalizado' : 'Evaluación completada';

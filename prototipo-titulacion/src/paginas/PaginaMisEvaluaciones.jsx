@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { CalendarClock, FileText, Printer } from 'lucide-react';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
+import { estanCerradasRevisionesEscritas, fechaLocalISO, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 
@@ -13,7 +13,7 @@ export default function PaginaMisEvaluaciones() {
     evaluacion: estado.evaluaciones.find((elemento) => elemento.idTrabajo === trabajo.id && elemento.idMiembro === personaActual.id),
     estudiantes: trabajo.idsEstudiantes.map((id) => estado.personas.find((persona) => persona.id === id)).filter(Boolean),
   }));
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaLocalISO();
 
   return (
     <>

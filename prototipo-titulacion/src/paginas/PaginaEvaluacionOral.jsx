@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, limitarCalificacion, formatearFecha, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, calificacionMiembro, maximoRubrica, maximoEtapa, calificacionEtapa } from '../dominio/flujoTrabajo';
+import { estanCerradasRevisionesEscritas, fechaLocalISO, limitarCalificacion, formatearFecha, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, calificacionMiembro, maximoRubrica, maximoEtapa, calificacionEtapa } from '../dominio/flujoTrabajo';
+import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { FormularioRubrica } from '../componentes/FormularioRubrica';
@@ -18,11 +19,13 @@ export default function PaginaEvaluacionOral() {
   const oral = evaluacion?.oralPorEstudiante?.[idEstudiante];
   const [calificaciones, establecerCalificaciones] = useState(oral?.calificaciones ?? {});
   const [observaciones, establecerObservaciones] = useState(oral?.observaciones ?? {});
-  useEffect(() => { establecerCalificaciones(oral?.calificaciones ?? {}); establecerObservaciones(oral?.observaciones ?? {}); }, [evaluacion?.id, idEstudiante]);
+  const [tieneCambios, establecerTieneCambios] = useState(false);
+  usarAdvertenciaCambiosSinGuardar(tieneCambios, () => establecerTieneCambios(false));
+  useEffect(() => { establecerCalificaciones(oral?.calificaciones ?? {}); establecerObservaciones(oral?.observaciones ?? {}); establecerTieneCambios(false); }, [evaluacion?.id, idEstudiante]);
 
   if (!trabajo || !evaluacion || !estudiante) return <EstadoVacio title="Evaluación oral no disponible" description="Compruebe el trabajo, el estudiante y la identidad activa." />;
   const estaLista = estanCerradasRevisionesEscritas(estado, trabajo) && trabajo.programacion;
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaLocalISO();
   const disponibleHoy = estaLista && trabajo.programacion.fecha <= hoy;
   if (!estaLista || !disponibleHoy) return <><EncabezadoPagina title="Evaluación de sustentación" description={trabajo.titulo} breadcrumbs={['Mis evaluaciones', trabajo.codigo, 'Sustentación']} /><section className="card"><div className="empty-estado"><div className="empty-icon">!</div><h2>{!estaLista ? 'Etapa todavía no habilitada' : 'Sustentación aún no disponible'}</h2><p>{!estaLista ? 'Se requieren dos revisiones escritas cerradas y una sustentación programada.' : `La evaluación podrá realizarse desde el ${formatearFecha(trabajo.programacion.fecha)}.`}</p><Link className="button button-outline" to="/mis-evaluaciones">Volver</Link></div></section></>;
 
@@ -40,6 +43,7 @@ export default function PaginaEvaluacionOral() {
 
   const guardar = async () => {
     despachar({ tipo: 'GUARDAR_ORAL', idEvaluacion: evaluacion.id, idEstudiante, calificaciones, observaciones });
+    establecerTieneCambios(false);
     await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Borrador de ${estudiante.nombres} guardado`, showConfirmButton: false, timer: 1700 });
   };
   const finalizar = async () => {
@@ -50,6 +54,7 @@ export default function PaginaEvaluacionOral() {
       showCancelButton: true, confirmButtonText: 'Confirmar evaluación', cancelButtonText: 'Volver y revisar', reverseButtons: true, confirmButtonColor: '#123f68',
     });
     if (!respuesta.isConfirmed) return;
+    establecerTieneCambios(false);
     despachar({ tipo: 'FINALIZAR_ORAL', idEvaluacion: evaluacion.id, idEstudiante, calificaciones, observaciones });
     navegar(`/rubrica/${trabajo.id}/${idEstudiante}/${personaActual.id}`, { state: { autoPrint: true } });
   };
@@ -66,7 +71,7 @@ export default function PaginaEvaluacionOral() {
             </p>
           </div>
         </div>
-        <div className="card-body estudiante-tabs" role="tablist" aria-label="Estudiantes del trabajo">
+        <nav className="card-body estudiante-tabs" aria-label="Estudiantes del trabajo">
           {estudiantes.map((elemento) => {
             const evaluacionOral = evaluacion.oralPorEstudiante?.[elemento.id];
             const esActual = elemento.id === idEstudiante;
@@ -74,8 +79,7 @@ export default function PaginaEvaluacionOral() {
             const esBorrador = evaluacionOral?.estado === ESTADO_EVALUACION.BORRADOR;
             return (
               <Link
-                role="tab"
-                aria-seleccionado={esActual}
+                aria-current={esActual ? 'page' : undefined}
                 className={`estudiante-tab ${esActual ? 'active estudiante-tab-active' : ''}`}
                 key={elemento.id}
                 to={`/evaluaciones/${trabajo.id}/oral/${elemento.id}`}
@@ -92,7 +96,7 @@ export default function PaginaEvaluacionOral() {
               </Link>
             );
           })}
-        </div>
+        </nav>
       </section>
 
       <div className="alert alert-info">
@@ -125,8 +129,8 @@ export default function PaginaEvaluacionOral() {
             calificaciones={calificaciones}
             observaciones={observaciones}
             readOnly={cerrado}
-            alCambiarCalificacion={(id, value, max) => establecerCalificaciones({ ...calificaciones, [id]: limitarCalificacion(value, max) })}
-            alCambiarObservacion={(id, value) => establecerObservaciones({ ...observaciones, [id]: value })}
+            alCambiarCalificacion={(id, value, max) => { establecerTieneCambios(true); establecerCalificaciones({ ...calificaciones, [id]: limitarCalificacion(value, max) }); }}
+            alCambiarObservacion={(id, value) => { establecerTieneCambios(true); establecerObservaciones({ ...observaciones, [id]: value }); }}
           />
           {!cerrado && (
             <>
