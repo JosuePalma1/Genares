@@ -15,4 +15,11 @@ describe('formularios HTML', () => {
     expect(contenido).toContain('</form>');
     expect(contenido).not.toContain('<formulario');
   });
+
+  it('no utiliza una etiqueta label para el resumen informativo de la rúbrica', () => {
+    const contenido = readFileSync(new URL('../paginas/PaginaFormularioTrabajo.jsx', import.meta.url), 'utf8');
+
+    expect(contenido).toContain('<span className="field-label">Rúbrica que se asociará</span>');
+    expect(contenido).not.toContain('<label>Rúbrica que se asociará</label>');
+  });
 });

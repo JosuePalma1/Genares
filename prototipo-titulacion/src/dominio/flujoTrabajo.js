@@ -71,6 +71,12 @@ export function limitarCalificacion(value, max) {
   return redondearCalificacion(Math.max(0, Math.min(numerico, Number(max))));
 }
 
+export function valorCalificacionPresentable(value) {
+  if (value === '' || value === null || value === undefined) return '';
+  const numerico = Number(value);
+  return Number.isNaN(numerico) ? '' : redondearCalificacion(numerico);
+}
+
 export function sumarCalificaciones(calificaciones, indicadores) {
   return redondearCalificacion(indicadores.reduce((suma, indicador) => suma + (Number(calificaciones?.[indicador.id]) || 0), 0));
 }

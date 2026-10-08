@@ -7,6 +7,7 @@ import {
   redondearCalificacion,
   maximoEtapa,
   sumarCalificaciones,
+  valorCalificacionPresentable,
 } from '../dominio/flujoTrabajo';
 import { EstadoVacio, InsigniaEstado } from './interfaz';
 
@@ -90,7 +91,7 @@ export function FormularioRubrica({
                   const inputId = `${idPrefix}-${etapa ?? 'all'}-${indicador.id}`;
                   const observationId = `${inputId}-observation`;
                   const helpId = `${inputId}-help`;
-                  const currentScore = calificaciones[indicador.id] ?? '';
+                  const currentScore = valorCalificacionPresentable(calificaciones[indicador.id]);
 
                   return (
                     <div className="criterion rubrica-indicador" key={indicador.id}>
@@ -139,7 +140,7 @@ export function FormularioRubrica({
                             id={observationId}
                             value={observaciones[indicador.id] ?? ''}
                             readOnly={readOnly}
-                            filas="2"
+                            rows="2"
                             placeholder={readOnly ? 'Sin observaciones' : 'Añada una observación si corresponde'}
                             onChange={(evento) => alCambiarObservacion(indicador.id, evento.target.value)}
                           />

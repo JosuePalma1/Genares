@@ -61,7 +61,7 @@ export default function PaginaDetalleRubrica() {
         ...categoria,
         indicadores: categoria.indicadores.map((indicador) => indicador.id === indicatorId ? {
           ...indicador,
-          [field]: field === 'maximo' ? Math.max(0, Number(value) || 0) : value,
+          [field]: field === 'maximo' ? redondearCalificacion(Math.max(0, Number(value) || 0)) : value,
         } : indicador),
       };
     }));

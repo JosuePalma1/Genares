@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { crearEstadoInicial } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, fechaHoraLocalISO, fechaLocalISO, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante, formatearFecha, obtenerEtapasRubrica } from './flujoTrabajo';
+import { estanCerradasRevisionesEscritas, fechaHoraLocalISO, fechaLocalISO, limitarCalificacion, calificacionMiembro, calificacionEtapa, calificacionFinalEstudiante, formatearFecha, obtenerEtapasRubrica, redondearCalificacion, valorCalificacionPresentable } from './flujoTrabajo';
 
 describe('reglas del flujo de evaluación', () => {
   it('impide superar el máximo de un indicador', () => {
     expect(limitarCalificacion(0.7, 0.33)).toBe(0.33);
     expect(limitarCalificacion(-1, 0.33)).toBe(0);
+  });
+
+  it('normaliza artefactos de punto flotante antes de mostrarlos en inputs', () => {
+    expect(valorCalificacionPresentable(0.1 + 0.2)).toBe(0.3);
+    expect(valorCalificacionPresentable('0.33000000000000002')).toBe(0.33);
+    expect(valorCalificacionPresentable('')).toBe('');
+    expect(redondearCalificacion(0.1 + 0.2)).toBe(0.3);
   });
 
   it('formatea fechas con valores válidos para Intl.DateTimeFormat', () => {
