@@ -126,7 +126,10 @@ export function EstructuraAplicacion({ children }) {
           >
             <PanelLeft size={20} aria-hidden="true" />
           </button>
-          <span className="topbar-title">Facultad de Ciencias de la Vida y Tecnologías</span>
+          <div className="topbar-institution">
+            <span className="topbar-eyebrow">Entorno académico</span>
+            <span className="topbar-title">Facultad de Ciencias de la Vida y Tecnologías</span>
+          </div>
         </div>
 
         <div className="topbar-actions">
@@ -137,6 +140,7 @@ export function EstructuraAplicacion({ children }) {
             </div>
             <select
               id="actor-switch"
+              aria-label="Cambiar identidad simulada"
               value={actorActual?.id ?? ''}
               onChange={(evento) => {
                 if (confirmarDescarteCambios()) establecerActorActual(evento.target.value);
