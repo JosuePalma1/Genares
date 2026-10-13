@@ -1,6 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import {
+  ArrowLeft,
+  BookOpenCheck,
+  CalendarRange,
+  CheckCircle2,
+  FileClock,
+  Layers3,
+  LockKeyhole,
+  Save,
+  Scale,
+  ShieldCheck,
+} from 'lucide-react';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
@@ -8,9 +20,9 @@ import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 
 const statusPresentation = {
-  ACTIVA: { etiqueta: 'Activa e inmutable', tono: 'success' },
-  BORRADOR: { etiqueta: 'Borrador editable', tono: 'progress' },
-  ARCHIVADA: { etiqueta: 'Histórica e inmutable', tono: 'neutral' },
+  ACTIVA: { etiqueta: 'Activa e inmutable', tono: 'success', icono: ShieldCheck },
+  BORRADOR: { etiqueta: 'Borrador editable', tono: 'progress', icono: FileClock },
+  ARCHIVADA: { etiqueta: 'Histórica e inmutable', tono: 'neutral', icono: LockKeyhole },
 };
 
 const clonar = (value) => JSON.parse(JSON.stringify(value ?? []));
@@ -42,6 +54,7 @@ export default function PaginaDetalleRubrica() {
     () => redondearCalificacion(visibleCategories.reduce((total, categoria) => total + categoryMaximum(categoria), 0)),
     [visibleCategories],
   );
+  const indicatorCount = visibleCategories.reduce((total, categoria) => total + (categoria.indicadores?.length ?? 0), 0);
 
   const updateStage = (idEtapa, field, value) => {
     setTieneCambios(true);
@@ -110,41 +123,174 @@ export default function PaginaDetalleRubrica() {
     return <><EncabezadoPagina title="Rúbrica no encontrada" description="La versión solicitada no existe en el prototipo." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]} /><section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<Link className="button button-primary" to="/rubricas">Volver a rúbricas</Link>} /></div></section></>;
   }
 
-  const presentation = statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral' };
+  const presentation = statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', icono: LockKeyhole };
+  const StatusIcon = presentation.icono;
 
   return (
-    <>
+    <div className={`rubrica-detalle-page ${canEdit ? 'is-editable' : 'is-read-only'}`}>
       <EncabezadoPagina
         eyebrow={`${rubrica.modalidad} · ${rubrica.periodo}`}
         title={rubrica.titulo}
-        description={`Versión ${rubrica.version}. La estructura se obtiene de sus etapas, categorías e indicadores.`}
+        description={`Versión ${rubrica.version} · ${canEdit ? 'Edición de estructura y valoraciones' : 'Consulta de estructura protegida'}`}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: rubrica.version }]}
-        actions={<div className="header-actions"><Link className="button button-outline" to="/rubricas">Volver</Link>{canEdit ? <><button className="button button-outline" type="button" onClick={saveDraft}>Guardar borrador</button><button className="button button-primary" type="button" onClick={activateDraft}>Activar versión</button></> : null}</div>}
+        actions={<Link className="button button-outline" to="/rubricas"><ArrowLeft size={17} /> Volver al listado</Link>}
       />
 
-      <section className="card"><div className="card-header"><h2>Identificación de la versión</h2><InsigniaEstado estado={presentation.etiqueta} tono={presentation.tono} /></div><div className="card-body"><dl className="info-list"><div><dt>Modalidad</dt><dd>{rubrica.modalidad}</dd></div><div><dt>Período de vigencia</dt><dd>{rubrica.periodo}</dd></div><div><dt>Versión</dt><dd>{rubrica.version}</dd></div><div><dt>Puntaje máximo</dt><dd>{maximumTotal.toFixed(2)} puntos</dd></div><div><dt>Vigente desde</dt><dd>{formatearFecha(rubrica.vigenteDesde)}</dd></div><div><dt>Vigente hasta</dt><dd>{rubrica.vigenteHasta ? formatearFecha(rubrica.vigenteHasta) : 'Sin fecha de cierre'}</dd></div></dl></div></section>
+      <section className="rubrica-version-hero" aria-labelledby="rubrica-version-title">
+        <div className="rubrica-version-hero-heading">
+          <span className="rubrica-version-hero-icon" aria-hidden="true"><StatusIcon size={24} /></span>
+          <div>
+            <span className="section-kicker">Versión consultada</span>
+            <h2 id="rubrica-version-title">{rubrica.version} · {rubrica.modalidad}</h2>
+            <p>{canEdit ? 'Los cambios pertenecen únicamente a este borrador.' : 'Esta versión permanece disponible únicamente para consulta.'}</p>
+          </div>
+          <InsigniaEstado estado={presentation.etiqueta} tono={presentation.tono} />
+        </div>
+        <dl className="rubrica-version-summary">
+          <div><dt><CalendarRange size={16} /> Período</dt><dd>{rubrica.periodo}</dd></div>
+          <div><dt><Scale size={16} /> Puntaje total</dt><dd>{maximumTotal.toFixed(2)} puntos</dd></div>
+          <div><dt><Layers3 size={16} /> Estructura</dt><dd>{visibleCategories.length} categorías · {indicatorCount} indicadores</dd></div>
+          <div><dt><BookOpenCheck size={16} /> Vigencia</dt><dd>{rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : 'Aún no activada'}{rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ''}</dd></div>
+        </dl>
+      </section>
 
-      <div className={`alert ${canEdit ? 'alert-info' : 'alert-warning'}`}><span aria-hidden="true">{canEdit ? 'ⓘ' : '!'}</span><div><strong>{canEdit ? 'Borrador editable' : 'Versión protegida'}</strong>{canEdit ? 'Los cambios solo afectan este borrador. Debe guardarlo y activarlo para usarlo en trabajos nuevos.' : 'Esta estructura no se modifica. Una nueva versión se crea como copia independiente.'}</div></div>
+      <div className={`rubrica-editing-note ${canEdit ? 'is-editable' : 'is-protected'}`} role="note">
+        {canEdit ? <FileClock size={21} aria-hidden="true" /> : <LockKeyhole size={21} aria-hidden="true" />}
+        <div>
+          <strong>{canEdit ? 'Borrador editable' : 'Versión protegida'}</strong>
+          <p>{canEdit ? 'Puede ajustar los textos y máximos existentes. Guardar conserva el borrador; activar lo convierte en la versión vigente.' : 'No puede modificarse ni altera evaluaciones históricas. Para realizar cambios debe crearse una versión nueva.'}</p>
+        </div>
+      </div>
 
-      {visibleStages.map((etapa) => {
+      <div className="rubrica-editor-intro">
+        <div>
+          <span className="section-kicker">Estructura de evaluación</span>
+          <h2>Etapas, categorías e indicadores</h2>
+          <p>El máximo de cada categoría es la suma de sus indicadores. El máximo de cada etapa suma sus categorías.</p>
+        </div>
+        <div className="rubrica-score-legend" aria-label="Leyenda de puntuaciones">
+          <span><i className="is-indicator" /> Indicador</span>
+          <span><i className="is-category" /> Categoría</span>
+          <span><i className="is-stage" /> Etapa</span>
+        </div>
+      </div>
+
+      {visibleStages.map((etapa, stageIndex) => {
         const categorias = visibleCategories.filter((categoria) => categoria.etapa === etapa.id);
         const stageTotal = redondearCalificacion(categorias.reduce((total, categoria) => total + categoryMaximum(categoria), 0));
+        const stageNameId = `etapa-${etapa.id}-nombre`;
+        const stageDescriptionId = `etapa-${etapa.id}-descripcion`;
         return (
-          <section className="rubrica-section" key={etapa.id}>
-            <div className="rubrica-section-header"><div><span className="prototype-note">{String(etapa.codigo).replaceAll('_', ' ')}</span>{canEdit ? <><input className="input" aria-label={`Nombre de la etapa ${etapa.codigo}`} value={etapa.nombre} onChange={(evento) => updateStage(etapa.id, 'nombre', evento.target.value)} /><input className="input mt-2" aria-label={`Descripción de la etapa ${etapa.codigo}`} value={etapa.descripcion ?? ''} onChange={(evento) => updateStage(etapa.id, 'descripcion', evento.target.value)} /></> : <><h2>{etapa.nombre}</h2><p className="text-muted mb-0">{etapa.descripcion}</p></>}</div><InsigniaEstado estado={`${stageTotal.toFixed(2)} puntos`} tono="info" /></div>
-            {categorias.map((categoria) => (
-              <article key={categoria.id}>
-                <div className="card-header"><div><span className="prototype-note">Categoría {categoria.codigo}</span>{canEdit ? <input className="input" aria-label={`Nombre de la categoría ${categoria.codigo}`} value={categoria.nombre} onChange={(evento) => actualizarNombreCategoria(categoria.id, evento.target.value)} /> : <h3 className="mb-0">{categoria.nombre}</h3>}</div><InsigniaEstado estado={`${categoryMaximum(categoria).toFixed(2)} puntos`} tono="neutral" /></div>
-                {categoria.indicadores.map((indicador, indice) => <div className="criterion" key={indicador.id}><div className="criterion-title"><strong>{categoria.codigo}.{indice + 1}</strong>{canEdit ? <input className="input" aria-label={`Nombre del indicador ${categoria.codigo}.${indice + 1}`} value={indicador.etiqueta} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'etiqueta', evento.target.value)} /> : <p>{indicador.etiqueta}</p>}</div><div className="calificacion-control"><label htmlFor={`maximo-${categoria.id}-${indicador.id}`}>Valoración máxima</label><input className="calificacion-input" id={`maximo-${categoria.id}-${indicador.id}`} type="number" min="0" step="0.01" value={indicador.maximo} readOnly={!canEdit} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'maximo', evento.target.value)} /></div><div className="criterion-note"><InsigniaEstado estado={canEdit ? 'Editable en borrador' : 'Conservado'} tono={canEdit ? 'progress' : 'success'} /></div></div>)}
-                <div className="rubrica-subtotal"><span>Total categoría {categoria.codigo}</span><span>{categoryMaximum(categoria).toFixed(2)} puntos</span></div>
-              </article>
-            ))}
-            <div className="rubrica-subtotal"><span>Total {etapa.nombreCorto ?? etapa.nombre}</span><span>{stageTotal.toFixed(2)} puntos</span></div>
+          <section className="rubrica-editor-stage" key={etapa.id} aria-label={canEdit ? `${etapa.codigo}: ${etapa.nombre}` : undefined} aria-labelledby={canEdit ? undefined : `etapa-${etapa.id}-title`}>
+            <header className="rubrica-editor-stage-heading">
+              <span className="rubrica-stage-number" aria-hidden="true">{String(stageIndex + 1).padStart(2, '0')}</span>
+              <div className="rubrica-stage-copy">
+                <span className="section-kicker">{String(etapa.codigo).replaceAll('_', ' ')}</span>
+                {canEdit ? (
+                  <div className="rubrica-stage-fields">
+                    <div className="field">
+                      <label htmlFor={stageNameId}>Nombre de la etapa</label>
+                      <input className="input" id={stageNameId} value={etapa.nombre} onChange={(evento) => updateStage(etapa.id, 'nombre', evento.target.value)} />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={stageDescriptionId}>Descripción de la etapa</label>
+                      <input className="input" id={stageDescriptionId} value={etapa.descripcion ?? ''} onChange={(evento) => updateStage(etapa.id, 'descripcion', evento.target.value)} />
+                    </div>
+                  </div>
+                ) : (
+                  <><h2 id={`etapa-${etapa.id}-title`}>{etapa.nombre}</h2><p>{etapa.descripcion}</p></>
+                )}
+              </div>
+              <div className="rubrica-stage-score"><span>Máximo de etapa</span><strong>{stageTotal.toFixed(2)}</strong><small>puntos</small></div>
+            </header>
+
+            <div className="rubrica-editor-categories">
+              {categorias.map((categoria) => {
+                const categoryTotal = categoryMaximum(categoria);
+                const categoryNameId = `categoria-${categoria.id}-nombre`;
+                return (
+                  <article className="rubrica-editor-category" key={categoria.id} aria-label={canEdit ? `Categoría ${categoria.codigo}: ${categoria.nombre}` : undefined} aria-labelledby={canEdit ? undefined : `categoria-${categoria.id}-title`}>
+                    <header className="rubrica-editor-category-heading">
+                      <div>
+                        <span className="rubrica-category-code">Categoría {categoria.codigo}</span>
+                        {canEdit ? (
+                          <div className="field">
+                            <label htmlFor={categoryNameId}>Nombre de la categoría</label>
+                            <input className="input" id={categoryNameId} value={categoria.nombre} onChange={(evento) => actualizarNombreCategoria(categoria.id, evento.target.value)} />
+                          </div>
+                        ) : <h3 id={`categoria-${categoria.id}-title`}>{categoria.nombre}</h3>}
+                      </div>
+                      <div className="rubrica-category-score"><span>Máximo de categoría</span><strong>{categoryTotal.toFixed(2)} pts</strong></div>
+                    </header>
+
+                    <div className="rubrica-editor-indicators">
+                      {categoria.indicadores.map((indicador, indice) => {
+                        const indicatorLabelId = `indicador-${categoria.id}-${indicador.id}-texto`;
+                        const indicatorMaxId = `maximo-${categoria.id}-${indicador.id}`;
+                        return (
+                          <div className="rubrica-editor-indicator" key={indicador.id}>
+                            <div className="rubrica-indicator-index" aria-hidden="true">{categoria.codigo}.{indice + 1}</div>
+                            <div className="rubrica-indicator-copy">
+                              {canEdit ? (
+                                <div className="field">
+                                  <label htmlFor={indicatorLabelId}>Descripción del indicador {categoria.codigo}.{indice + 1}</label>
+                                  <textarea className="textarea" id={indicatorLabelId} value={indicador.etiqueta} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'etiqueta', evento.target.value)} />
+                                </div>
+                              ) : <p>{indicador.etiqueta}</p>}
+                            </div>
+                            <div className="rubrica-indicator-score">
+                              <label htmlFor={indicatorMaxId}>Máximo del indicador</label>
+                              <input
+                                className="calificacion-input"
+                                id={indicatorMaxId}
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={indicador.maximo}
+                                readOnly={!canEdit}
+                                onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'maximo', evento.target.value)}
+                              />
+                              <small>Puntos</small>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <footer className="rubrica-category-total"><span>Suma de indicadores · Categoría {categoria.codigo}</span><strong>{categoryTotal.toFixed(2)} puntos</strong></footer>
+                  </article>
+                );
+              })}
+            </div>
+
+            <footer className="rubrica-stage-total"><span>Total de {etapa.nombreCorto ?? etapa.nombre}</span><strong>{stageTotal.toFixed(2)} puntos</strong></footer>
           </section>
         );
       })}
 
-      <section className="card"><div className="card-header"><div><h2>Resumen de valoraciones</h2><p className="text-muted mb-0">El resumen se genera con las categorías de esta versión.</p></div><InsigniaEstado estado={`${maximumTotal.toFixed(2)} puntos`} tono="success" /></div><div className="card-body calificacion-breakdown">{visibleCategories.map((categoria) => <div className="calificacion-row" key={`summary-${categoria.id}`}><span>{categoria.codigo}. {categoria.nombre}</span><strong>{categoryMaximum(categoria).toFixed(2)}</strong></div>)}</div></section>
-    </>
+      <section className="rubrica-values-summary" aria-labelledby="rubrica-summary-title">
+        <header>
+          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Totales calculados a partir de los indicadores de esta versión.</p></div>
+          <div className="rubrica-summary-total"><span>Total de la rúbrica</span><strong>{maximumTotal.toFixed(2)}</strong><small>puntos</small></div>
+        </header>
+        <div className="rubrica-summary-grid">
+          {visibleCategories.map((categoria) => <div key={`summary-${categoria.id}`}><span>{categoria.codigo}. {categoria.nombre}</span><strong>{categoryMaximum(categoria).toFixed(2)} pts</strong></div>)}
+        </div>
+      </section>
+
+      {canEdit ? (
+        <div className="rubrica-editor-actions" role="region" aria-label="Acciones del borrador">
+          <div className={`rubrica-save-status ${tieneCambios ? 'has-changes' : 'is-saved'}`} aria-live="polite">
+            {tieneCambios ? <FileClock size={18} /> : <CheckCircle2 size={18} />}
+            <span><strong>{tieneCambios ? 'Cambios sin guardar' : 'Borrador actualizado'}</strong><small>{tieneCambios ? 'Guarde antes de salir o activar la versión.' : 'No hay cambios pendientes.'}</small></span>
+          </div>
+          <div>
+            <Link className="button button-outline" to="/rubricas"><ArrowLeft size={17} /> Volver</Link>
+            <button className="button button-outline" type="button" onClick={saveDraft}><Save size={17} /> Guardar borrador</button>
+            <button className="button button-primary" type="button" onClick={activateDraft}><ShieldCheck size={17} /> Activar versión</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

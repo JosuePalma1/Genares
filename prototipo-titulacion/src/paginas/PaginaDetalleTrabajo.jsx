@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
-import { CalendarPlus, ClipboardCheck, Users } from 'lucide-react';
+import { BellRing, CalendarDays, CalendarPlus, ClipboardCheck, Clock3, MapPin, Users } from 'lucide-react';
 import { ESTADO_EVALUACION, ROL } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, puedeEditarTribunal, derivarEstadoTrabajo, nombreCompleto, obtenerEvaluacionesTrabajo, tonoEstado } from '../dominio/flujoTrabajo';
+import { estanCerradasRevisionesEscritas, puedeEditarTribunal, derivarEstadoTrabajo, formatearFecha, nombreCompleto, obtenerEvaluacionesTrabajo, tonoEstado } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { AvanceTrabajo } from '../componentes/AvanceTrabajo';
@@ -32,7 +32,7 @@ export default function PaginaDetalleTrabajo() {
   );
 
   return (
-    <>
+    <div className="pagina-detalle-trabajo">
       <EncabezadoPagina title={trabajo.codigo} description={trabajo.titulo} breadcrumbs={['Trabajos', 'Detalle']} actions={actions} />
       {!writtenReady && trabajo.idsTribunal.length === 2 && (
         <div className="alert alert-warning">
@@ -118,7 +118,27 @@ export default function PaginaDetalleTrabajo() {
         </section>
       </div>
       <AvanceTrabajo trabajo={trabajo} estado={estado} />
-      {trabajo.programacion && <section className="card"><div className="card-header"><h2>Sustentación</h2><InsigniaEstado tono="progress">Programada</InsigniaEstado></div><div className="card-body"><dl className="info-list"><div><dt>Fecha</dt><dd>{trabajo.programacion.fecha.split('-').reverse().join('/')}</dd></div><div><dt>Hora</dt><dd>{trabajo.programacion.hora}</dd></div><div><dt>Sala</dt><dd>{trabajo.programacion.sala}</dd></div><div><dt>Tribunal</dt><dd>{miembros.map(nombreCompleto).join(' / ')}</dd></div></dl></div></section>}
+      {trabajo.programacion && (
+        <section className="trabajo-sustentacion-summary" aria-labelledby="trabajo-sustentacion-title">
+          <header>
+            <div className="trabajo-sustentacion-heading">
+              <span aria-hidden="true"><CalendarDays size={22} /></span>
+              <div><small>Agenda de sustentación</small><h2 id="trabajo-sustentacion-title">Sustentación programada</h2></div>
+            </div>
+            <div className="trabajo-sustentacion-heading-actions">
+              <InsigniaEstado tono="progress">Programada</InsigniaEstado>
+              {puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/sustentacion`}>Editar programación</Link> : null}
+            </div>
+          </header>
+          <div className="trabajo-sustentacion-grid">
+            <div><CalendarDays size={19} /><span>Fecha</span><strong>{formatearFecha(trabajo.programacion.fecha)}</strong></div>
+            <div><Clock3 size={19} /><span>Hora</span><strong>{trabajo.programacion.hora}</strong></div>
+            <div><MapPin size={19} /><span>Lugar</span><strong>{trabajo.programacion.sala}</strong></div>
+            <div><BellRing size={19} /><span>Tribunal notificado</span><strong>{miembros.length} de 2 miembros</strong></div>
+          </div>
+          <footer><strong>Tribunal evaluador</strong><span>{miembros.map(nombreCompleto).join(' / ')}</span></footer>
+        </section>
+      )}
       <section className="card">
         <div className="card-header"><h2>Estado de evaluaciones</h2>{estudiantes.length > 0 && <Link className="button button-sm button-outline" to={`/resultados/${trabajo.id}/${estudiantes[0].id}`}>Consultar resultados</Link>}</div>
         <div className="table-wrap"><table className="data-table responsive-table"><thead><tr><th>Miembro</th><th>Revisión escrita</th><th>Sustentación por estudiante</th><th>Acción disponible</th></tr></thead><tbody>
@@ -130,6 +150,6 @@ export default function PaginaDetalleTrabajo() {
           {miembros.length === 0 && <tr><td colSpan="4"><p className="text-muted mb-0">Asigne dos docentes para iniciar la evaluación.</p></td></tr>}
         </tbody></table></div>
       </section>
-    </>
+    </div>
   );
 }

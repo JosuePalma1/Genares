@@ -1,14 +1,24 @@
 import { Link, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import {
+  BookOpenCheck,
+  CopyPlus,
+  Eye,
+  FileClock,
+  Layers3,
+  PencilLine,
+  Scale,
+  ShieldCheck,
+} from 'lucide-react';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
-import { nombreCompleto, obtenerEtapasRubrica, maximoEtapa } from '../dominio/flujoTrabajo';
+import { maximoEtapa, maximoRubrica, obtenerEtapasRubrica } from '../dominio/flujoTrabajo';
 
 const estadoRubrica = {
-  ACTIVA: { etiqueta: 'Activa', tono: 'success' },
-  BORRADOR: { etiqueta: 'Borrador', tono: 'progress' },
-  ARCHIVADA: { etiqueta: 'Histórica', tono: 'neutral' },
+  ACTIVA: { etiqueta: 'Activa', tono: 'success', ayuda: 'Disponible para trabajos nuevos.' },
+  BORRADOR: { etiqueta: 'Borrador', tono: 'progress', ayuda: 'Editable hasta que sea activada.' },
+  ARCHIVADA: { etiqueta: 'Histórica', tono: 'neutral', ayuda: 'Conservada en modo de consulta.' },
 };
 
 const clonar = (value) => JSON.parse(JSON.stringify(value));
@@ -19,8 +29,12 @@ function versionSugerida(version) {
   return `v${Number(match[1]) + 1}.0`;
 }
 
+function contarIndicadores(rubrica) {
+  return rubrica.categorias.reduce((total, categoria) => total + (categoria.indicadores?.length ?? 0), 0);
+}
+
 export default function PaginaRubricas() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
+  const { estado, actorActual, despachar } = usarPrototipo();
   const navegar = useNavigate();
   const puedeGestionar = actorActual?.roles.some(
     (role) => role === ROL.COMISION || role === ROL.ADMIN,
@@ -72,66 +86,112 @@ export default function PaginaRubricas() {
     navegar(`/rubricas/${id}`);
   };
 
+  const resumen = {
+    activas: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'ACTIVA').length,
+    borradores: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'BORRADOR').length,
+    historicas: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'ARCHIVADA').length,
+  };
+
   return (
-    <>
+    <div className="rubricas-page">
       <EncabezadoPagina
         eyebrow="Configuración académica"
-        title="Rúbricas de evaluación"
-        description={`Versiones por modalidad y período. Usuario actual: ${nombreCompleto(personaActual)}.`}
+        title="Gestión de rúbricas"
+        description="Administre versiones y consulte la estructura de evaluación definida para cada modalidad y período."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas' }]}
         actions={puedeGestionar ? (
           <button className="button button-primary" type="button" onClick={() => crearVersion()}>
-            Crear nueva versión
+            <CopyPlus size={18} /> Crear nueva versión
           </button>
         ) : null}
       />
 
-      <div className="alert alert-info">
-        <span aria-hidden="true">ⓘ</span>
+      <section className="rubricas-overview" aria-label="Resumen de versiones">
+        <article><BookOpenCheck size={20} /><div><strong>{estado.versionesRubrica.length}</strong><span>Versiones registradas</span></div></article>
+        <article><ShieldCheck size={20} /><div><strong>{resumen.activas}</strong><span>Versiones activas</span></div></article>
+        <article><PencilLine size={20} /><div><strong>{resumen.borradores}</strong><span>Borradores editables</span></div></article>
+        <article><FileClock size={20} /><div><strong>{resumen.historicas}</strong><span>Versiones históricas</span></div></article>
+      </section>
+
+      <div className="rubricas-integrity-note" role="note">
+        <ShieldCheck size={21} aria-hidden="true" />
         <div>
-          <strong>Cada versión conserva su estructura completa</strong>
-          Las etapas, categorías, indicadores y valoraciones pueden variar por modalidad y período. Las evaluaciones iniciadas conservan su propia copia.
+          <strong>Integridad de las evaluaciones históricas</strong>
+          <p>Cada evaluación conserva una copia de la rúbrica que recibió. Editar un borrador o crear una versión nueva no modifica trabajos anteriores.</p>
         </div>
       </div>
 
-      <section className="card">
-        <div className="card-header">
+      <section className="rubricas-catalog" aria-labelledby="rubricas-catalog-title">
+        <header className="rubricas-catalog-heading">
           <div>
-            <h2>Versiones disponibles</h2>
-            <p className="text-muted mb-0">Solo una versión puede estar vigente para cada modalidad y período.</p>
+            <span className="section-kicker">Catálogo institucional</span>
+            <h2 id="rubricas-catalog-title">Versiones disponibles</h2>
+            <p>La versión y el estado determinan si la estructura puede editarse o únicamente consultarse.</p>
           </div>
           <InsigniaEstado estado={`${estado.versionesRubrica.length} versiones`} tono="info" />
-        </div>
+        </header>
 
         {estado.versionesRubrica.length === 0 ? (
-          <div className="card-body">
+          <div className="rubricas-empty">
             <EstadoVacio title="No hay rúbricas configuradas" description="Cree un borrador para definir la primera versión." />
           </div>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table responsive-table">
-              <thead><tr><th>Rúbrica</th><th>Modalidad</th><th>Período</th><th>Versión</th><th>Etapas</th><th>Estado</th><th>Acciones</th></tr></thead>
-              <tbody>
-                {estado.versionesRubrica.map((rubrica) => {
-                  const estado = estadoRubrica[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral' };
-                  const etapas = obtenerEtapasRubrica(rubrica);
-                  return (
-                    <tr key={rubrica.id}>
-                      <td data-label="Rúbrica"><span className="cell-title">{rubrica.titulo}</span><span className="cell-subtitle">{rubrica.categorias.length} categorías configuradas</span></td>
-                      <td data-label="Modalidad">{rubrica.modalidad}</td>
-                      <td data-label="Período">{rubrica.periodo}</td>
-                      <td data-label="Versión">{rubrica.version}</td>
-                      <td data-label="Etapas">{etapas.map((etapa) => <span className="cell-subtitle" key={etapa.id}>{etapa.nombre}: {maximoEtapa(rubrica, etapa.id).toFixed(2)}</span>)}</td>
-                      <td data-label="Estado"><InsigniaEstado estado={estado.etiqueta} tono={estado.tono} /></td>
-                      <td data-label="Acciones"><div className="table-actions"><Link className="button button-sm button-outline" to={`/rubricas/${rubrica.id}`}>{rubrica.estado === 'BORRADOR' && puedeGestionar ? 'Editar borrador' : 'Ver estructura'}</Link>{rubrica.estado === 'ACTIVA' && puedeGestionar ? <button className="button button-sm button-primary" type="button" onClick={() => crearVersion(rubrica)}>Crear nueva versión</button> : null}</div></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="rubricas-version-grid">
+            {estado.versionesRubrica.map((rubrica) => {
+              const presentacion = estadoRubrica[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', ayuda: 'Estado de la versión.' };
+              const etapas = obtenerEtapasRubrica(rubrica);
+              const indicadores = contarIndicadores(rubrica);
+              const esEditable = rubrica.estado === 'BORRADOR' && puedeGestionar;
+              return (
+                <article className={`rubrica-version-card is-${rubrica.estado.toLowerCase()}`} key={rubrica.id}>
+                  <header className="rubrica-version-heading">
+                    <div className="rubrica-version-icon" aria-hidden="true"><BookOpenCheck size={22} /></div>
+                    <div>
+                      <span className="rubrica-version-modality">{rubrica.modalidad}</span>
+                      <h3>{rubrica.titulo}</h3>
+                    </div>
+                    <InsigniaEstado estado={presentacion.etiqueta} tono={presentacion.tono} />
+                  </header>
+
+                  <div className="rubrica-version-identity">
+                    <div><span>Versión</span><strong>{rubrica.version}</strong></div>
+                    <div><span>Período</span><strong>{rubrica.periodo}</strong></div>
+                    <div><span>Puntaje máximo</span><strong>{maximoRubrica(rubrica).toFixed(2)} pts</strong></div>
+                  </div>
+
+                  <div className="rubrica-version-counts" aria-label="Estructura de la versión">
+                    <span><Layers3 size={16} /> {rubrica.categorias.length} categorías</span>
+                    <span><Scale size={16} /> {indicadores} indicadores</span>
+                  </div>
+
+                  <div className="rubrica-version-stages">
+                    {etapas.map((etapa) => (
+                      <div key={etapa.id}>
+                        <span>{etapa.nombreCorto ?? etapa.nombre}</span>
+                        <strong>{maximoEtapa(rubrica, etapa.id).toFixed(2)} pts</strong>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="rubrica-version-help">{presentacion.ayuda}</p>
+
+                  <footer className="rubrica-version-actions">
+                    <Link className="button button-outline" to={`/rubricas/${rubrica.id}`}>
+                      {esEditable ? <PencilLine size={17} /> : <Eye size={17} />}
+                      {esEditable ? 'Editar borrador' : 'Ver estructura'}
+                    </Link>
+                    {rubrica.estado === 'ACTIVA' && puedeGestionar ? (
+                      <button className="button button-primary" type="button" onClick={() => crearVersion(rubrica)}>
+                        <CopyPlus size={17} /> Nueva versión
+                      </button>
+                    ) : null}
+                  </footer>
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 }
