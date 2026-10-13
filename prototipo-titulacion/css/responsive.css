@@ -1,3 +1,7 @@
+@media (max-width: 1320px) {
+  .dashboard-page .dashboard-general-grid { grid-template-columns: 1fr; }
+}
+
 @media (max-width: 1180px) {
   .metric-grid { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
   .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -70,6 +74,10 @@
   .content-header { align-items: stretch; flex-direction: column; }
   .header-actions .button { flex: 1; }
   .metric-grid, .grid-2, .grid-3, .form-grid, .result-miembros, .role-list, .check-grid { grid-template-columns: 1fr; }
+  .dashboard-page .dashboard-metric-section { padding: var(--space-4); }
+  .dashboard-page .dashboard-section-heading { align-items: flex-start; flex-direction: column; gap: var(--space-3); }
+  .dashboard-page .dashboard-metric-grid { grid-template-columns: 1fr; }
+  .dashboard-page .dashboard-metric-card { min-height: 142px; }
   .span-2 { grid-column: auto; }
   .filters { grid-template-columns: 1fr 1fr; }
   .filters .field:first-child { grid-column: 1 / -1; }
@@ -110,6 +118,9 @@
   .assignment-summary .activity-item { align-items: flex-start; flex-wrap: wrap; }
   .assignment-summary .activity-item .estado-badge { margin-left: 58px; white-space: normal; }
   .assignment-summary .form-actions { align-items: stretch; }
+  .dashboard-page .dashboard-activity-section > .card-header { align-items: flex-start; flex-direction: column; }
+  .dashboard-page .assignment-summary .activity-item { display: grid; grid-template-columns: 42px minmax(0, 1fr); }
+  .dashboard-page .assignment-summary .activity-item .estado-badge { grid-column: 2; justify-self: start; margin-left: 0; }
 }
 
 @media (max-width: 480px) {

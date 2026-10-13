@@ -23,6 +23,8 @@ export function FormularioRubrica({
   alCambiarObservacion = () => {},
   readOnly = false,
   showObservations = true,
+  showCompletionState = false,
+  highlightIncomplete = false,
   idPrefix = 'rubrica',
   className = '',
 }) {
@@ -91,13 +93,21 @@ export function FormularioRubrica({
                   const inputId = `${idPrefix}-${etapa ?? 'all'}-${indicador.id}`;
                   const observationId = `${inputId}-observation`;
                   const helpId = `${inputId}-help`;
+                  const errorId = `${inputId}-error`;
                   const currentScore = valorCalificacionPresentable(calificaciones[indicador.id]);
+                  const indicadorCompleto = currentScore !== '';
+                  const indicadorIncompleto = highlightIncomplete && !readOnly && !indicadorCompleto;
 
                   return (
-                    <div className="criterion rubrica-indicador" key={indicador.id}>
+                    <div className={`criterion rubrica-indicador ${indicadorCompleto ? 'is-complete' : 'is-pending'} ${indicadorIncompleto ? 'has-validation-error' : ''}`.trim()} key={indicador.id}>
                       <div className="criterion-title">
                         <strong>{indicatorIndex + 1}. {indicador.etiqueta}</strong>
                         <p id={helpId}>Valoración máxima: {formatearCalificacion(indicador.maximo)} puntos</p>
+                        {showCompletionState && (
+                          <span className="indicador-completion-state">
+                            {indicadorCompleto ? 'Completado' : 'Pendiente'}
+                          </span>
+                        )}
                       </div>
                       <div className="calificacion-control">
                         <label htmlFor={inputId}>Calificación</label>
@@ -113,7 +123,8 @@ export function FormularioRubrica({
                             inputMode="decimal"
                             value={currentScore}
                             readOnly={readOnly}
-                            aria-describedby={helpId}
+                            aria-invalid={indicadorIncompleto || undefined}
+                            aria-describedby={`${helpId}${indicadorIncompleto ? ` ${errorId}` : ''}`}
                             onChange={(evento) => {
                               const value = limitarCalificacion(evento.target.value, indicador.maximo);
                               alCambiarCalificacion(indicador.id, value, indicador.maximo);
@@ -121,6 +132,7 @@ export function FormularioRubrica({
                           />
                           <span aria-hidden="true">/ {formatearCalificacion(indicador.maximo)}</span>
                         </div>
+                        {indicadorIncompleto && <span className="calificacion-error" id={errorId}>Ingrese una calificación, incluso si es cero.</span>}
                         {!readOnly && (
                           <button
                             type="button"
