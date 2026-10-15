@@ -1,81 +1,84 @@
 import { useMemo, useState } from 'react';
+import { SlidersHorizontal, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import {
+  calificacionFinalEstudiante,
+  derivarEstadoTrabajo,
   estanCerradasEvaluacionesOrales,
   estanCerradasRevisionesEscritas,
-  derivarEstadoTrabajo,
   formatearFecha,
-  nombreCompleto,
   maximoRubrica,
+  nombreCompleto,
   tonoEstado,
-  calificacionFinalEstudiante,
 } from '../dominio/flujoTrabajo';
+import { usarPrototipo } from '../estado/ContextoPrototipo';
 
-function namesFromIds(estado, ids) {
+function nombresPersonas(estado, ids) {
   return ids
     .map((id) => nombreCompleto(estado.personas.find((persona) => persona.id === id)))
     .join(' · ');
 }
 
 export default function PaginaCoordinacion() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
-  const [periodo, setPeriod] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const { estado, personaActual } = usarPrototipo();
+  const [periodo, establecerPeriodo] = useState('ALL');
+  const [filtroEstado, establecerFiltroEstado] = useState('ALL');
   const carrera = personaActual?.carrera;
 
-  const careerWorks = useMemo(
+  const trabajosCarrera = useMemo(
     () => estado.trabajos.filter((trabajo) => trabajo.carrera === carrera),
     [carrera, estado.trabajos],
   );
-  const periods = [...new Set(careerWorks.map((trabajo) => trabajo.periodo))];
-  const filteredWorks = careerWorks.filter((trabajo) => (
+  const periodos = [...new Set(trabajosCarrera.map((trabajo) => trabajo.periodo))];
+  const trabajosFiltrados = trabajosCarrera.filter((trabajo) => (
     (periodo === 'ALL' || trabajo.periodo === periodo)
-    && (statusFilter === 'ALL' || derivarEstadoTrabajo(estado, trabajo) === statusFilter)
+    && (filtroEstado === 'ALL' || derivarEstadoTrabajo(estado, trabajo) === filtroEstado)
   ));
+  const filtrosActivos = periodo !== 'ALL' || filtroEstado !== 'ALL';
 
   const metricas = [
     {
       etiqueta: 'Trabajos de la carrera',
-      value: careerWorks.length,
+      value: trabajosCarrera.length,
       detail: carrera || 'Sin carrera asignada',
       className: '',
     },
     {
       etiqueta: 'Tribunales conformados',
-      value: careerWorks.filter((trabajo) => trabajo.idsTribunal.length === 2).length,
-      detail: `${careerWorks.filter((trabajo) => trabajo.idsTribunal.length !== 2).length} por completar`,
+      value: trabajosCarrera.filter((trabajo) => trabajo.idsTribunal.length === 2).length,
+      detail: `${trabajosCarrera.filter((trabajo) => trabajo.idsTribunal.length !== 2).length} por completar`,
       className: 'metric-info',
     },
     {
       etiqueta: 'Escritas completadas',
-      value: careerWorks.filter((trabajo) => estanCerradasRevisionesEscritas(estado, trabajo)).length,
+      value: trabajosCarrera.filter((trabajo) => estanCerradasRevisionesEscritas(estado, trabajo)).length,
       detail: 'Dos de dos miembros',
       className: 'metric-secondary',
     },
     {
       etiqueta: 'Sustentaciones programadas',
-      value: careerWorks.filter(
+      value: trabajosCarrera.filter(
         (trabajo) => Boolean(trabajo.programacion) && !estanCerradasEvaluacionesOrales(estado, trabajo),
       ).length,
-      detail: 'Pendientes, con fecha, hora y sala',
+      detail: 'Pendientes con agenda',
       className: 'metric-warning',
     },
     {
       etiqueta: 'Evaluaciones completadas',
-      value: careerWorks.filter((trabajo) => estanCerradasEvaluacionesOrales(estado, trabajo)).length,
+      value: trabajosCarrera.filter((trabajo) => estanCerradasEvaluacionesOrales(estado, trabajo)).length,
       detail: 'Sin acciones de modificación',
       className: 'metric-success',
     },
   ];
 
-  // Coordinación consulta exclusivamente la carrera asociada a la persona autenticada.
-  void actorActual;
-  void despachar;
+  const limpiarFiltros = () => {
+    establecerPeriodo('ALL');
+    establecerFiltroEstado('ALL');
+  };
 
   return (
-    <>
+    <div className="coordinacion-page">
       <EncabezadoPagina
         eyebrow="Solo lectura"
         title="Seguimiento de Coordinación"
@@ -84,181 +87,203 @@ export default function PaginaCoordinacion() {
         actions={<InsigniaEstado estado={`Acceso: ${carrera || 'sin carrera'}`} tono="info" />}
       />
 
-      <div className="alert alert-info">
-        <span aria-hidden="true">ⓘ</span>
-        <div>
-          <strong>Información segmentada por carrera</strong>
-          Coordinación puede consultar avance y resultados, pero no asignar tribunales ni modificar calificaciones.
-        </div>
-      </div>
+      <AlertaInstitucional titulo="Información segmentada por carrera">
+        Coordinación puede consultar avance y resultados, pero no asignar tribunales ni modificar calificaciones.
+      </AlertaInstitucional>
 
-      <section className="card">
-        <div className="card-header">
-          <h2>Filtros de consulta</h2>
-          <InsigniaEstado estado={`${filteredWorks.length} coincidencias`} tono="neutral" />
-        </div>
-        <div className="card-body">
-          <div className="filters">
-            <div className="field">
-              <label htmlFor="coordination-carrera">Carrera</label>
-              <input className="input" id="coordination-carrera" value={carrera || 'Sin asignar'} readOnly />
-            </div>
-            <div className="field">
-              <label htmlFor="coordination-periodo">Período</label>
-              <select
-                className="select"
-                id="coordination-periodo"
-                value={periodo}
-                onChange={(evento) => setPeriod(evento.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                {periods.map((elemento) => <option key={elemento} value={elemento}>{elemento}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label htmlFor="coordination-estado">Estado</label>
-              <select
-                className="select"
-                id="coordination-estado"
-                value={statusFilter}
-                onChange={(evento) => setStatusFilter(evento.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                <option value="Registrado">Registrado</option>
-                <option value="Tribunal asignado">Tribunal asignado</option>
-                <option value="Revisión escrita pendiente">Revisión escrita pendiente</option>
-                <option value="Revisión escrita completada">Revisión escrita completada</option>
-                <option value="Sustentación programada">Sustentación programada</option>
-                <option value="Sustentación pendiente">Sustentación pendiente</option>
-                <option value="Evaluación completada">Evaluación completada</option>
-                <option value="Finalizado">Finalizado</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="metric-grid" aria-label="Indicadores de Coordinación">
-        {metricas.map((metric) => (
-          <article className={`metric-card ${metric.className}`.trim()} key={metric.etiqueta}>
-            <span>{metric.etiqueta}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>Trabajos de la carrera</h2>
-            <p className="text-muted mb-0">Tutores, tribunales, agenda y avance de evaluación.</p>
-          </div>
-          <InsigniaEstado estado="Consulta" tono="neutral" />
-        </div>
-
-        {filteredWorks.length === 0 ? (
-          <div className="card-body">
-            <EstadoVacio
-              title="No hay trabajos para los filtros seleccionados"
-              description={`No existen registros visibles para ${carrera || 'la carrera asignada'}.`}
-              accion={(periodo !== 'ALL' || statusFilter !== 'ALL') ? (
-                <button
-                  className="button button-outline"
-                  type="button"
-                  onClick={() => { setPeriod('ALL'); setStatusFilter('ALL'); }}
+      {trabajosCarrera.length === 0 ? (
+        <EstadoVacio
+          title="No hay trabajos para la carrera asignada"
+          description={`No existen trabajos visibles para ${carrera || 'la carrera asociada al perfil actual'}.`}
+          className="coordinacion-empty"
+        />
+      ) : (
+        <>
+          <section className="coordinacion-filters" aria-labelledby="coordinacion-filters-title">
+            <header>
+              <div>
+                <span className="section-kicker">Alcance de consulta</span>
+                <h2 id="coordinacion-filters-title"><SlidersHorizontal size={20} aria-hidden="true" /> Filtrar trabajos</h2>
+              </div>
+              <span className="coordinacion-result-count" role="status" aria-live="polite">
+                {trabajosFiltrados.length} de {trabajosCarrera.length} coincidencias
+              </span>
+            </header>
+            <div className="coordinacion-filter-grid">
+              <div className="field">
+                <label htmlFor="coordination-carrera">Carrera</label>
+                <input className="input" id="coordination-carrera" value={carrera || 'Sin asignar'} readOnly />
+              </div>
+              <div className="field">
+                <label htmlFor="coordination-periodo">Período</label>
+                <select
+                  className="select"
+                  id="coordination-periodo"
+                  value={periodo}
+                  onChange={(evento) => establecerPeriodo(evento.target.value)}
                 >
-                  Limpiar filtros
+                  <option value="ALL">Todos</option>
+                  {periodos.map((elemento) => <option key={elemento} value={elemento}>{elemento}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="coordination-estado">Estado</label>
+                <select
+                  className="select"
+                  id="coordination-estado"
+                  value={filtroEstado}
+                  onChange={(evento) => establecerFiltroEstado(evento.target.value)}
+                >
+                  <option value="ALL">Todos</option>
+                  <option value="Registrado">Registrado</option>
+                  <option value="Tribunal asignado">Tribunal asignado</option>
+                  <option value="Revisión escrita pendiente">Revisión escrita pendiente</option>
+                  <option value="Revisión escrita completada">Revisión escrita completada</option>
+                  <option value="Sustentación programada">Sustentación programada</option>
+                  <option value="Sustentación pendiente">Sustentación pendiente</option>
+                  <option value="Evaluación completada">Evaluación completada</option>
+                  <option value="Finalizado">Finalizado</option>
+                </select>
+              </div>
+              {filtrosActivos && trabajosFiltrados.length > 0 ? (
+                <button className="button button-outline coordinacion-clear-filters" type="button" onClick={limpiarFiltros}>
+                  <X size={17} aria-hidden="true" /> Limpiar filtros
                 </button>
               ) : null}
-            />
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table className="data-table responsive-table">
-              <thead>
-                <tr>
-                  <th>Trabajo / estudiante(s)</th>
-                  <th>Tutor</th>
-                  <th>Tribunal</th>
-                  <th>Programación</th>
-                  <th>Estado</th>
-                  <th>Resultado</th>
-                  <th>Consulta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredWorks.map((trabajo) => {
-                  const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
-                  return (
-                    <tr key={trabajo.id}>
-                      <td data-label="Trabajo / estudiante(s)">
-                        <span className="cell-title">{trabajo.codigo} · {trabajo.titulo}</span>
-                        <span className="cell-subtitle">{namesFromIds(estado, trabajo.idsEstudiantes)}</span>
-                      </td>
-                      <td data-label="Tutor">
-                        {nombreCompleto(estado.personas.find((persona) => persona.id === trabajo.idTutor))}
-                      </td>
-                      <td data-label="Tribunal">
-                        {trabajo.idsTribunal.length === 2
-                          ? namesFromIds(estado, trabajo.idsTribunal)
-                          : 'Pendiente de asignación'}
-                      </td>
-                      <td data-label="Programación">
-                        {trabajo.programacion ? (
-                          <>
-                            <span className="cell-title">{formatearFecha(trabajo.programacion.fecha)} · {trabajo.programacion.hora}</span>
-                            <span className="cell-subtitle">{trabajo.programacion.sala}</span>
-                          </>
-                        ) : 'Sin programar'}
-                      </td>
-                      <td data-label="Estado">
-                        <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
-                      </td>
-                      <td data-label="Resultado">
-                        <div className="stack">
-                          {trabajo.idsEstudiantes.map((idEstudiante) => {
-                            const calificacion = calificacionFinalEstudiante(estado, trabajo, idEstudiante);
-                            const estudiante = estado.personas.find((persona) => persona.id === idEstudiante);
-                            const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === trabajo.id);
-                            const rubrica = evaluacion?.instantaneaRubrica ?? estado.versionesRubrica.find((elemento) => elemento.id === trabajo.idVersionRubrica);
-                            return (
-                              <span key={idEstudiante}>
-                                <span className="cell-title">{nombreCompleto(estudiante)}</span>
-                                <span className="cell-subtitle">
-                                  {calificacion === null ? 'Pendiente' : `${calificacion.toFixed(2)} / ${maximoRubrica(rubrica).toFixed(2)}`}
-                                </span>
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </td>
-                      <td data-label="Consulta">
-                        <div className="table-actions">
-                          <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}`}>
-                            Ver detalle
-                          </Link>
-                          {trabajo.idsEstudiantes.map((idEstudiante) => (
-                            calificacionFinalEstudiante(estado, trabajo, idEstudiante) === null ? null : (
-                              <Link
-                                className="button button-sm button-outline"
-                                key={idEstudiante}
-                                to={`/resultados/${trabajo.id}/${idEstudiante}`}
-                              >
-                                Ver resultado
-                              </Link>
-                            )
-                          ))}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </>
+            </div>
+          </section>
+
+          <section className="coordinacion-results" aria-labelledby="coordinacion-results-title">
+            <div className="coordinacion-results-heading">
+              <div>
+                <span className="section-kicker">Seguimiento de la carrera</span>
+                <h2 id="coordinacion-results-title">Trabajos y resultados</h2>
+              </div>
+              <p>Tutores, tribunal, agenda, estado y resultados disponibles dentro del alcance de la carrera.</p>
+            </div>
+
+            {trabajosFiltrados.length === 0 ? (
+              <EstadoVacio
+                title="No hay trabajos para los filtros seleccionados"
+                description={`No existen coincidencias dentro de ${carrera || 'la carrera asignada'}.`}
+                accion={<button className="button button-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>}
+                className="coordinacion-empty"
+              />
+            ) : (
+              <div className="coordinacion-results-card">
+                <div className="table-wrap">
+                  <table className="data-table responsive-table coordinacion-table">
+                    <caption className="sr-only">Trabajos y resultados de la carrera asignada a Coordinación</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Trabajo y participantes</th>
+                        <th scope="col">Tribunal y agenda</th>
+                        <th scope="col">Estado y resultados</th>
+                        <th scope="col">Consulta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {trabajosFiltrados.map((trabajo) => {
+                        const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
+                        return (
+                          <tr key={trabajo.id}>
+                            <td data-label="Trabajo y participantes">
+                              <span className="coordinacion-work-code">{trabajo.codigo}</span>
+                              <span className="cell-title coordinacion-work-title">{trabajo.titulo}</span>
+                              <div className="coordinacion-participants">
+                                <div><span>Estudiante(s)</span><strong>{nombresPersonas(estado, trabajo.idsEstudiantes)}</strong></div>
+                                <div><span>Tutor</span><strong>{nombreCompleto(estado.personas.find((persona) => persona.id === trabajo.idTutor))}</strong></div>
+                              </div>
+                            </td>
+                            <td data-label="Tribunal y agenda">
+                              <div className="coordinacion-secondary-list">
+                                <div>
+                                  <span className="coordinacion-cell-label">Tribunal</span>
+                                  <span>{trabajo.idsTribunal.length === 2 ? nombresPersonas(estado, trabajo.idsTribunal) : 'Pendiente de asignación'}</span>
+                                </div>
+                                <div>
+                                  <span className="coordinacion-cell-label">Programación</span>
+                                  {trabajo.programacion ? (
+                                    <>
+                                      <strong>{formatearFecha(trabajo.programacion.fecha)} · {trabajo.programacion.hora}</strong>
+                                      <small>{trabajo.programacion.sala}</small>
+                                    </>
+                                  ) : <span className="coordinacion-muted-value">Sin programar</span>}
+                                </div>
+                              </div>
+                            </td>
+                            <td data-label="Estado y resultados">
+                              <div className="coordinacion-state-results">
+                                <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
+                                <div className="coordinacion-results-list">
+                                  {trabajo.idsEstudiantes.map((idEstudiante) => {
+                                    const calificacion = calificacionFinalEstudiante(estado, trabajo, idEstudiante);
+                                    const estudiante = estado.personas.find((persona) => persona.id === idEstudiante);
+                                    const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === trabajo.id);
+                                    const rubrica = evaluacion?.instantaneaRubrica ?? estado.versionesRubrica.find((elemento) => elemento.id === trabajo.idVersionRubrica);
+                                    return (
+                                      <div key={idEstudiante}>
+                                        <span>{nombreCompleto(estudiante)}</span>
+                                        <strong>{calificacion === null ? 'Pendiente' : `${calificacion.toFixed(2)} / ${maximoRubrica(rubrica).toFixed(2)}`}</strong>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                            <td data-label="Consulta">
+                              <div className="table-actions coordinacion-actions">
+                                <Link
+                                  className="button button-outline"
+                                  to={`/trabajos/${trabajo.id}`}
+                                  aria-label={`Ver detalle de ${trabajo.codigo}`}
+                                >
+                                  Ver detalle
+                                </Link>
+                                {trabajo.idsEstudiantes.map((idEstudiante) => {
+                                  const estudiante = estado.personas.find((persona) => persona.id === idEstudiante);
+                                  return calificacionFinalEstudiante(estado, trabajo, idEstudiante) === null ? null : (
+                                    <Link
+                                      className="button button-outline"
+                                      key={idEstudiante}
+                                      to={`/resultados/${trabajo.id}/${idEstudiante}`}
+                                      aria-label={`Ver resultado de ${nombreCompleto(estudiante)}`}
+                                    >
+                                      Ver resultado
+                                    </Link>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="coordinacion-summary" aria-labelledby="coordinacion-summary-title">
+            <div className="coordinacion-summary-heading">
+              <div>
+                <span className="section-kicker">Panorama de la carrera</span>
+                <h2 id="coordinacion-summary-title">Resumen del proceso</h2>
+              </div>
+            </div>
+            <div className="coordinacion-metric-grid" aria-label="Indicadores de Coordinación">
+              {metricas.map((metrica) => (
+                <article className={`coordinacion-metric-card ${metrica.className}`.trim()} key={metrica.etiqueta}>
+                  <span>{metrica.etiqueta}</span>
+                  <strong>{metrica.value}</strong>
+                  <small>{metrica.detail}</small>
+                </article>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+    </div>
   );
 }

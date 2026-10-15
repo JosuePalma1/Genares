@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   BookOpenCheck,
   CheckCircle2,
   FileCheck2,
@@ -10,11 +9,11 @@ import {
   UserRound,
   UsersRound,
 } from 'lucide-react';
-import Swal from 'sweetalert2';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import { limitarCalificacion, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, maximoEtapa, calificacionEtapa } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { FormularioRubrica } from '../componentes/FormularioRubrica';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 
@@ -66,7 +65,7 @@ export default function PaginaEvaluacionEscrita() {
       await Swal.fire({ icon: 'warning', title: 'Complete todos los indicadores', text: 'Cada indicador debe tener una calificación, incluso si su valor es cero.' });
       return;
     }
-    const respuesta = await Swal.fire({ icon: 'warning', title: '¿Finalizar revisión escrita?', text: 'Revise cuidadosamente las calificaciones. Una vez confirmada, esta parte quedará cerrada y no podrá modificarse.', showCancelButton: true, confirmButtonText: 'Confirmar revisión', cancelButtonText: 'Volver y revisar', reverseButtons: true, confirmButtonColor: '#123f68' });
+    const respuesta = await Swal.fire({ icon: 'warning', title: '¿Finalizar revisión escrita?', text: 'Revise cuidadosamente las calificaciones. Una vez confirmada, esta parte quedará cerrada y no podrá modificarse.', showCancelButton: true, confirmButtonText: 'Confirmar revisión', cancelButtonText: 'Volver y revisar', reverseButtons: true });
     if (!respuesta.isConfirmed) return;
     establecerTieneCambios(false);
     despachar({ tipo: 'FINALIZAR_ESCRITA', idEvaluacion: evaluacion.id, calificaciones, observaciones });
@@ -138,9 +137,7 @@ export default function PaginaEvaluacionEscrita() {
           )}
         </div>
         <div className="form-actions evaluacion-actions-bar">
-          <Link className="button button-outline button-lg" to="/mis-evaluaciones">
-            <ArrowLeft size={18} /> Volver a mis evaluaciones
-          </Link>
+          <BotonVolver className="button-lg" respaldo="/mis-evaluaciones" />
           {!cerrado && (
             <>
               <button className="button button-secondary button-lg" type="button" onClick={guardar}>

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
   BookOpenCheck,
   CopyPlus,
@@ -56,7 +56,6 @@ export default function PaginaRubricas() {
       showCancelButton: true,
       confirmButtonText: 'Crear borrador',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#123f68',
       inputValidator: (value) => (!value?.trim() ? 'Ingrese un nombre de versión.' : undefined),
     });
     if (!respuesta.isConfirmed) return;

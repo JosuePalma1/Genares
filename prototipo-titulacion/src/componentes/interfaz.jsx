@@ -1,7 +1,10 @@
 import React from 'react';
-import { ChevronRight, Inbox } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, ChevronRight, CircleX, Inbox, Info, TriangleAlert } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { tonoEstado } from '../dominio/flujoTrabajo';
+import { confirmarDescarteCambios } from '../dominio/cambiosSinGuardar';
+import { obtenerRutaAnteriorInterna, resolverNavegacionRetorno } from '../dominio/navegacionRetorno';
+import { usarPrototipo } from '../estado/ContextoPrototipo';
 
 const ETIQUETAS_ESTADO = {
   ACTIVA: 'Activa',
@@ -23,6 +26,39 @@ const TONOS_ESTADO = {
   UNREAD: 'info',
 };
 
+const ICONOS_ALERTA = {
+  info: Info,
+  warning: TriangleAlert,
+  success: CheckCircle2,
+  danger: CircleX,
+};
+
+export function AlertaInstitucional({
+  tono = 'info',
+  titulo,
+  children,
+  className = '',
+  role,
+}) {
+  const tonoResuelto = ICONOS_ALERTA[tono] ? tono : 'info';
+  const Icono = ICONOS_ALERTA[tonoResuelto];
+
+  return (
+    <div
+      className={`alert alert-${tonoResuelto} institutional-alert ${className}`.trim()}
+      role={role}
+    >
+      <span className="institutional-alert-icon" aria-hidden="true">
+        <Icono />
+      </span>
+      <div className="institutional-alert-content">
+        {titulo && <strong>{titulo}</strong>}
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function InsigniaEstado({ estado, tono, tone, children, className = '', ...props }) {
   const etiqueta = children ?? ETIQUETAS_ESTADO[estado] ?? estado ?? 'Sin estado';
   const tonoResuelto = tono ?? tone ?? TONOS_ESTADO[estado] ?? tonoEstado(estado);
@@ -34,6 +70,34 @@ export function InsigniaEstado({ estado, tono, tone, children, className = '', .
     >
       {etiqueta}
     </span>
+  );
+}
+
+export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', className = '', ...props }) {
+  const navegar = useNavigate();
+  const { actorActual } = usarPrototipo();
+
+  const volver = () => {
+    const indice = window.history.state?.idx;
+    const rutaAnterior = obtenerRutaAnteriorInterna(indice);
+    const decision = resolverNavegacionRetorno({
+      rutaAnterior,
+      rutaRespaldo: respaldo,
+      roles: actorActual?.roles ?? [],
+    });
+    if (!confirmarDescarteCambios()) return;
+    navegar(decision.usarHistorial ? -1 : decision.destino);
+  };
+
+  return (
+    <button
+      className={`button button-outline back-button ${className}`.trim()}
+      type="button"
+      onClick={volver}
+      {...props}
+    >
+      <ArrowLeft size={18} aria-hidden="true" /> {children}
+    </button>
   );
 }
 

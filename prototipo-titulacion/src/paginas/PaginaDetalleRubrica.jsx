@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { useParams } from 'react-router-dom';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
-  ArrowLeft,
   BookOpenCheck,
   CalendarRange,
   CheckCircle2,
@@ -13,7 +12,7 @@ import {
   Scale,
   ShieldCheck,
 } from 'lucide-react';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../dominio/flujoTrabajo';
@@ -111,7 +110,6 @@ export default function PaginaDetalleRubrica() {
       confirmButtonText: 'Activar versión',
       cancelButtonText: 'Volver y revisar',
       reverseButtons: true,
-      confirmButtonColor: '#123f68',
     });
     if (!respuesta.isConfirmed) return;
     setTieneCambios(false);
@@ -120,7 +118,7 @@ export default function PaginaDetalleRubrica() {
   };
 
   if (!rubrica) {
-    return <><EncabezadoPagina title="Rúbrica no encontrada" description="La versión solicitada no existe en el prototipo." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]} /><section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<Link className="button button-primary" to="/rubricas">Volver a rúbricas</Link>} /></div></section></>;
+    return <><EncabezadoPagina title="Rúbrica no encontrada" description="La versión solicitada no existe en el prototipo." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]} /><section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<BotonVolver respaldo="/rubricas">Volver a rúbricas</BotonVolver>} /></div></section></>;
   }
 
   const presentation = statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', icono: LockKeyhole };
@@ -133,7 +131,7 @@ export default function PaginaDetalleRubrica() {
         title={rubrica.titulo}
         description={`Versión ${rubrica.version} · ${canEdit ? 'Edición de estructura y valoraciones' : 'Consulta de estructura protegida'}`}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: rubrica.version }]}
-        actions={<Link className="button button-outline" to="/rubricas"><ArrowLeft size={17} /> Volver al listado</Link>}
+        actions={<BotonVolver respaldo="/rubricas">Volver al listado</BotonVolver>}
       />
 
       <section className="rubrica-version-hero" aria-labelledby="rubrica-version-title">
@@ -285,7 +283,6 @@ export default function PaginaDetalleRubrica() {
             <span><strong>{tieneCambios ? 'Cambios sin guardar' : 'Borrador actualizado'}</strong><small>{tieneCambios ? 'Guarde antes de salir o activar la versión.' : 'No hay cambios pendientes.'}</small></span>
           </div>
           <div>
-            <Link className="button button-outline" to="/rubricas"><ArrowLeft size={17} /> Volver</Link>
             <button className="button button-outline" type="button" onClick={saveDraft}><Save size={17} /> Guardar borrador</button>
             <button className="button button-primary" type="button" onClick={activateDraft}><ShieldCheck size={17} /> Activar versión</button>
           </div>

@@ -1,10 +1,48 @@
 import { Link, useParams } from 'react-router-dom';
-import { BellRing, CalendarDays, CalendarPlus, ClipboardCheck, Clock3, MapPin, Users } from 'lucide-react';
+import {
+  ArrowRight,
+  BellRing,
+  BookOpenCheck,
+  CalendarDays,
+  CalendarPlus,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock3,
+  FileClock,
+  GraduationCap,
+  MapPin,
+  UserRound,
+  Users,
+  UsersRound,
+} from 'lucide-react';
 import { ESTADO_EVALUACION, ROL } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, puedeEditarTribunal, derivarEstadoTrabajo, formatearFecha, nombreCompleto, obtenerEvaluacionesTrabajo, tonoEstado } from '../dominio/flujoTrabajo';
+import {
+  calificacionFinalEstudiante,
+  derivarEstadoTrabajo,
+  estanCerradasRevisionesEscritas,
+  fechaLocalISO,
+  formatearFecha,
+  nombreCompleto,
+  obtenerEvaluacionesTrabajo,
+  puedeEditarTribunal,
+  tonoEstado,
+} from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { AvanceTrabajo } from '../componentes/AvanceTrabajo';
+
+function estadoEvaluacion(valor) {
+  if (valor === ESTADO_EVALUACION.CERRADA) return { etiqueta: 'Cerrada', tono: 'success' };
+  if (valor === ESTADO_EVALUACION.BORRADOR) return { etiqueta: 'Borrador', tono: 'progress' };
+  return { etiqueta: 'Pendiente', tono: 'pending' };
+}
+
+function formatearFechaHora(valor) {
+  if (!valor) return null;
+  return new Intl.DateTimeFormat('es-EC', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(valor));
+}
 
 export default function PaginaDetalleTrabajo() {
   const { idTrabajo } = useParams();
@@ -22,113 +60,126 @@ export default function PaginaDetalleTrabajo() {
   const ownEvaluation = evaluaciones.find((evaluacion) => evaluacion.idMiembro === personaActual?.id);
   const writtenReady = estanCerradasRevisionesEscritas(estado, trabajo);
   const tribunalEditable = puedeEditarTribunal(estado, trabajo);
+  const rubricaAsignada = estado.versionesRubrica.find((rubrica) => rubrica.id === trabajo.idVersionRubrica);
+  const revisionesCerradas = evaluaciones.filter((evaluacion) => evaluacion.escrita.estado === ESTADO_EVALUACION.CERRADA).length;
+  const oralesEsperadas = miembros.length * estudiantes.length;
+  const oralesCerradas = evaluaciones.reduce((total, evaluacion) => total + estudiantes.filter(
+    (estudiante) => evaluacion.oralPorEstudiante?.[estudiante.id]?.estado === ESTADO_EVALUACION.CERRADA,
+  ).length, 0);
+  const resultadosDisponibles = estudiantes.filter(
+    (estudiante) => calificacionFinalEstudiante(estado, trabajo, estudiante.id) !== null,
+  ).length;
+  const hoy = fechaLocalISO();
+  const oralDisponible = writtenReady && trabajo.programacion && trabajo.programacion.fecha <= hoy;
+
+  const eventos = [
+    trabajo.registradoEn && { id: 'registro', fecha: trabajo.registradoEn, titulo: 'Trabajo registrado', detalle: 'Expediente incorporado al prototipo.' },
+    trabajo.tribunalAsignadoEn && { id: 'tribunal', fecha: trabajo.tribunalAsignadoEn, titulo: 'Tribunal asignado', detalle: `${miembros.length} de 2 miembros registrados.` },
+    ...evaluaciones.flatMap((evaluacion) => {
+      const miembro = estado.personas.find((persona) => persona.id === evaluacion.idMiembro);
+      return evaluacion.escrita.finalizedAt ? [{
+        id: `escrita-${evaluacion.id}`,
+        fecha: evaluacion.escrita.finalizedAt,
+        titulo: 'Revisión escrita cerrada',
+        detalle: nombreCompleto(miembro),
+      }] : [];
+    }),
+    trabajo.programacion?.programadoEn && { id: 'programacion', fecha: trabajo.programacion.programadoEn, titulo: 'Sustentación programada', detalle: `${formatearFecha(trabajo.programacion.fecha)} · ${trabajo.programacion.hora} · ${trabajo.programacion.sala}` },
+  ].filter(Boolean).sort((izquierda, derecha) => new Date(izquierda.fecha) - new Date(derecha.fecha));
 
   const actions = (
     <>
+      <BotonVolver respaldo="/trabajos">Volver</BotonVolver>
       {puedeGestionar && <Link className="button button-outline" to={`/trabajos/${trabajo.id}/tribunal`}><Users size={18} /> {trabajo.idsTribunal.length ? (tribunalEditable ? 'Modificar tribunal' : 'Ver tribunal') : 'Asignar tribunal'}</Link>}
       {puedeGestionar && writtenReady && <Link className="button button-secondary" to={`/trabajos/${trabajo.id}/sustentacion`}><CalendarPlus size={18} /> {trabajo.programacion ? 'Ver programación' : 'Programar sustentación'}</Link>}
       {isAssignedMember && ownEvaluation?.escrita.estado !== ESTADO_EVALUACION.CERRADA && <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}><ClipboardCheck size={18} /> Revisar trabajo escrito</Link>}
+      {isAssignedMember && ownEvaluation?.escrita.estado === ESTADO_EVALUACION.CERRADA && oralDisponible && estudiantes.some((estudiante) => ownEvaluation?.oralPorEstudiante?.[estudiante.id]?.estado !== ESTADO_EVALUACION.CERRADA) && (
+        <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/oral/${estudiantes.find((estudiante) => ownEvaluation?.oralPorEstudiante?.[estudiante.id]?.estado !== ESTADO_EVALUACION.CERRADA)?.id}`}><BookOpenCheck size={18} /> Evaluar sustentación</Link>
+      )}
     </>
   );
 
+  let mensajeEstado = 'El trabajo se encuentra registrado y pendiente de conformar su tribunal.';
+  if (trabajo.idsTribunal.length === 2 && !writtenReady) mensajeEstado = `${revisionesCerradas} de 2 revisiones escritas cerradas. La programación permanece bloqueada hasta completar ambas.`;
+  if (writtenReady && !trabajo.programacion) mensajeEstado = 'Las dos revisiones escritas están cerradas. El trabajo está listo para programar su sustentación.';
+  if (trabajo.programacion && oralesCerradas < oralesEsperadas) mensajeEstado = `Sustentación programada: ${oralesCerradas} de ${oralesEsperadas} evaluaciones orales finalizadas.`;
+  if (oralesEsperadas > 0 && oralesCerradas === oralesEsperadas) mensajeEstado = resultadosDisponibles === estudiantes.length ? 'Las evaluaciones están completas y los resultados individuales están disponibles.' : 'Las evaluaciones están completas; continúa el cierre documental vigente.';
+
   return (
-    <div className="pagina-detalle-trabajo">
-      <EncabezadoPagina title={trabajo.codigo} description={trabajo.titulo} breadcrumbs={['Trabajos', 'Detalle']} actions={actions} />
-      {!writtenReady && trabajo.idsTribunal.length === 2 && (
-        <div className="alert alert-warning">
-          <span>!</span>
-          <div>
-            <strong>Sustentación no disponible aún (Revisiones escritas: {miembros.filter((m) => evaluaciones.find((e) => e.idMiembro === m.id)?.escrita.estado === ESTADO_EVALUACION.CERRADA).length}/2 cerradas)</strong>
-            Solo se habilitará la programación cuando ambos miembros del tribunal cierren definitivamente su revisión escrita.
-            {miembros.some((m) => evaluaciones.find((e) => e.idMiembro === m.id)?.escrita.estado !== ESTADO_EVALUACION.CERRADA) && (
-              <div className="mt-2 text-sm">
-                <strong>Pendiente por calificar:</strong>{' '}
-                {miembros
-                  .filter((m) => evaluaciones.find((e) => e.idMiembro === m.id)?.escrita.estado !== ESTADO_EVALUACION.CERRADA)
-                  .map(nombreCompleto)
-                  .join(' · ')}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+    <div className="pagina-detalle-trabajo trabajo-detail-page">
+      <EncabezadoPagina
+        eyebrow="Expediente de evaluación"
+        title={trabajo.codigo}
+        description={trabajo.titulo}
+        breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Detalle' }]}
+        meta={<InsigniaEstado tono={tonoEstado(estadoProceso)}>{estadoProceso}</InsigniaEstado>}
+        actions={actions}
+      />
 
-      {writtenReady && !trabajo.programacion && (
-        <div className="alert alert-success">
-          <span>✓</span>
-          <div>
-            <strong>Revisiones escritas completadas (2/2) · Listo para programar sustentación</strong>
-            Ambos miembros del tribunal han registrado y cerrado su revisión escrita. La Comisión Académica ya puede registrar la fecha, hora y sala.
-          </div>
-        </div>
-      )}
+      <section className={`trabajo-status-banner tone-${tonoEstado(estadoProceso)}`} aria-label="Estado actual del proceso">
+        <span className="trabajo-status-icon" aria-hidden="true"><Clock3 size={23} /></span>
+        <div><span className="section-kicker">Situación actual</span><strong>{estadoProceso}</strong><p>{mensajeEstado}</p></div>
+      </section>
 
-      {trabajo.programacion && (
-        <div className="alert alert-info">
-          <span>ⓘ</span>
-          <div>
-            <strong>Sustentación programada</strong>
-            Programada para el {trabajo.programacion.fecha.split('-').reverse().join('/')} a las {trabajo.programacion.hora} en {trabajo.programacion.sala}.
-          </div>
-        </div>
-      )}
+      <section className="trabajo-kpi-grid" aria-label="Resumen del expediente">
+        <article><UsersRound size={20} /><span>Estudiantes</span><strong>{estudiantes.length}</strong><small>{estudiantes.length === 1 ? 'Trabajo individual' : 'Trabajo grupal'}</small></article>
+        <article><Users size={20} /><span>Tribunal</span><strong>{miembros.length}/2</strong><small>{miembros.length === 2 ? 'Tribunal conformado' : 'Pendiente de asignación'}</small></article>
+        <article><ClipboardCheck size={20} /><span>Revisión escrita</span><strong>{revisionesCerradas}/2</strong><small>Revisiones cerradas</small></article>
+        <article><BookOpenCheck size={20} /><span>Evaluación oral</span><strong>{oralesCerradas}/{oralesEsperadas || 0}</strong><small>Evaluaciones finalizadas</small></article>
+      </section>
 
-      <div className="grid-2">
-        <section className="card">
-          <div className="card-header"><h2>Datos generales</h2><InsigniaEstado tono={tonoEstado(estadoProceso)}>{estadoProceso}</InsigniaEstado></div>
-          <div className="card-body"><dl className="info-list">
-            <div><dt>Modalidad</dt><dd>{trabajo.modalidad}</dd></div><div><dt>Período</dt><dd>{trabajo.periodo}</dd></div>
-            <div><dt>Carrera</dt><dd>{trabajo.carrera}</dd></div><div><dt>Tutor</dt><dd>{nombreCompleto(tutor)}</dd></div>
-            <div className="wide"><dt>Estudiante(s)</dt><dd><ul className="plain-list">{estudiantes.map((estudiante) => <li key={estudiante.id}>{nombreCompleto(estudiante)} · {estudiante.cedula}</li>)}</ul></dd></div>
-            <div className="wide"><dt>Versión de rúbrica asignada</dt><dd>{estado.versionesRubrica.find((rubrica) => rubrica.id === trabajo.idVersionRubrica)?.version} · {trabajo.periodo}</dd></div>
-          </dl></div>
+      <div className="trabajo-detail-columns">
+        <section className="trabajo-detail-card" aria-labelledby="trabajo-academic-title">
+          <header><div><span className="section-kicker">Datos académicos de referencia</span><h2 id="trabajo-academic-title">Identificación del trabajo</h2></div><GraduationCap size={22} aria-hidden="true" /></header>
+          <dl className="trabajo-detail-list">
+            <div><dt>Modalidad</dt><dd>{trabajo.modalidad}</dd></div>
+            <div><dt>Carrera</dt><dd>{trabajo.carrera}</dd></div>
+            <div><dt>Período académico</dt><dd>{trabajo.periodo}</dd></div>
+            <div><dt>Rúbrica asignada</dt><dd>{rubricaAsignada ? `${rubricaAsignada.version} · ${rubricaAsignada.periodo}` : 'Sin asignar'}</dd></div>
+          </dl>
+          <p className="trabajo-source-note">En el prototipo estos datos son locales. Su procedencia institucional futura deberá definirse con S1, S2 y S3.</p>
         </section>
-        <section className="card">
-          <div className="card-header">
-            <div>
-              <h2>Tribunal y revisión escrita</h2>
-              <small className="text-muted">
-                {miembros.length === 2
-                  ? `${miembros.filter((m) => evaluaciones.find((e) => e.idMiembro === m.id)?.escrita.estado === ESTADO_EVALUACION.CERRADA).length}/2 revisiones cerradas`
-                  : `${miembros.length}/2 miembros asignados`}
-              </small>
-            </div>
-            {puedeGestionar && <Link to={`/trabajos/${trabajo.id}/tribunal`}>Gestionar tribunal</Link>}
-          </div>
-          <div className="card-body activity-list">
-            {miembros.length === 0 && <p className="text-muted mb-0">Aún no se ha asignado el tribunal.</p>}
-            {miembros.map((miembro, indice) => {
-              const evaluacion = evaluaciones.find((elemento) => elemento.idMiembro === miembro.id);
-              const cerrado = evaluacion?.escrita.estado === ESTADO_EVALUACION.CERRADA;
-              const esBorrador = evaluacion?.escrita.estado === ESTADO_EVALUACION.BORRADOR;
-              return (
-                <div className="activity-item" key={miembro.id}>
-                  <span className="avatar">{indice + 1}</span>
-                  <div className="activity-content">
-                    <strong>{nombreCompleto(miembro)}</strong>
-                    <small>{miembro.carrera} · Miembro {indice + 1}</small>
-                  </div>
-                  <InsigniaEstado tono={cerrado ? 'success' : esBorrador ? 'progress' : 'pending'}>
-                    {cerrado ? '✓ Revisión registrada' : esBorrador ? '• Borrador' : '⚠ Revisión pendiente'}
-                  </InsigniaEstado>
-                </div>
-              );
-            })}
+
+        <section className="trabajo-detail-card" aria-labelledby="trabajo-participants-title">
+          <header><div><span className="section-kicker">Autores y acompañamiento</span><h2 id="trabajo-participants-title">Participantes</h2></div><UsersRound size={22} aria-hidden="true" /></header>
+          <div className="trabajo-participant-list">
+            {estudiantes.map((estudiante) => <article key={estudiante.id}><span className="avatar" aria-hidden="true">{nombreCompleto(estudiante).charAt(0)}</span><div><small>Estudiante</small><strong>{nombreCompleto(estudiante)}</strong><span>{estudiante.cedula}</span></div></article>)}
+            <article><span className="avatar trabajo-tutor-avatar" aria-hidden="true"><UserRound size={18} /></span><div><small>Tutor</small><strong>{nombreCompleto(tutor)}</strong><span>{tutor?.carrera}</span></div></article>
           </div>
         </section>
       </div>
+
+      <section className="trabajo-tribunal-panel" aria-labelledby="trabajo-tribunal-title">
+        <header>
+          <div><span className="section-kicker">Tribunal y revisión escrita</span><h2 id="trabajo-tribunal-title">Seguimiento de evaluadores</h2><p>{revisionesCerradas} de 2 revisiones escritas cerradas.</p></div>
+          {puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/tribunal`}>{tribunalEditable ? 'Gestionar tribunal' : 'Consultar tribunal'}</Link> : null}
+        </header>
+        <div className="trabajo-evaluator-grid">
+          {Array.from({ length: 2 }, (_, indice) => {
+            const miembro = miembros[indice];
+            const evaluacion = miembro ? evaluaciones.find((elemento) => elemento.idMiembro === miembro.id) : null;
+            const escrita = estadoEvaluacion(evaluacion?.escrita.estado);
+            return (
+              <article key={miembro?.id ?? `pendiente-${indice}`}>
+                <div className="trabajo-evaluator-heading"><span className="trabajo-evaluator-index">0{indice + 1}</span><div><small>Miembro {indice + 1}</small><strong>{nombreCompleto(miembro)}</strong><span>{miembro?.carrera ?? 'Pendiente de asignación'}</span></div></div>
+                <div className="trabajo-evaluator-status"><span>Revisión escrita</span><InsigniaEstado tono={escrita.tono}>{escrita.etiqueta}</InsigniaEstado></div>
+                {estudiantes.map((estudiante) => {
+                  const oral = estadoEvaluacion(evaluacion?.oralPorEstudiante?.[estudiante.id]?.estado);
+                  return <div className="trabajo-evaluator-status" key={estudiante.id}><span>Oral · {nombreCompleto(estudiante)}</span><InsigniaEstado tono={oral.tono}>{oral.etiqueta}</InsigniaEstado></div>;
+                })}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
       <AvanceTrabajo trabajo={trabajo} estado={estado} />
+
       {trabajo.programacion && (
         <section className="trabajo-sustentacion-summary" aria-labelledby="trabajo-sustentacion-title">
           <header>
-            <div className="trabajo-sustentacion-heading">
-              <span aria-hidden="true"><CalendarDays size={22} /></span>
-              <div><small>Agenda de sustentación</small><h2 id="trabajo-sustentacion-title">Sustentación programada</h2></div>
-            </div>
-            <div className="trabajo-sustentacion-heading-actions">
-              <InsigniaEstado tono="progress">Programada</InsigniaEstado>
-              {puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/sustentacion`}>Editar programación</Link> : null}
-            </div>
+            <div className="trabajo-sustentacion-heading"><span aria-hidden="true"><CalendarDays size={22} /></span><div><small>Agenda de sustentación</small><h2 id="trabajo-sustentacion-title">Sustentación programada</h2></div></div>
+            <div className="trabajo-sustentacion-heading-actions"><InsigniaEstado tono="progress">Programada</InsigniaEstado>{puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/sustentacion`}>Editar programación</Link> : null}</div>
           </header>
           <div className="trabajo-sustentacion-grid">
             <div><CalendarDays size={19} /><span>Fecha</span><strong>{formatearFecha(trabajo.programacion.fecha)}</strong></div>
@@ -139,16 +190,31 @@ export default function PaginaDetalleTrabajo() {
           <footer><strong>Tribunal evaluador</strong><span>{miembros.map(nombreCompleto).join(' / ')}</span></footer>
         </section>
       )}
-      <section className="card">
-        <div className="card-header"><h2>Estado de evaluaciones</h2>{estudiantes.length > 0 && <Link className="button button-sm button-outline" to={`/resultados/${trabajo.id}/${estudiantes[0].id}`}>Consultar resultados</Link>}</div>
-        <div className="table-wrap"><table className="data-table responsive-table"><thead><tr><th>Miembro</th><th>Revisión escrita</th><th>Sustentación por estudiante</th><th>Acción disponible</th></tr></thead><tbody>
-          {miembros.map((miembro) => {
-            const evaluacion = evaluaciones.find((elemento) => elemento.idMiembro === miembro.id);
-            const escritaCerrada = evaluacion?.escrita.estado === ESTADO_EVALUACION.CERRADA;
-            return <tr key={miembro.id}><td data-label="Miembro"><span className="cell-title">{nombreCompleto(miembro)}</span></td><td data-label="Revisión escrita"><InsigniaEstado tono={escritaCerrada ? 'success' : 'pending'}>{escritaCerrada ? 'Cerrada' : evaluacion?.escrita.estado === ESTADO_EVALUACION.BORRADOR ? 'Borrador' : 'Pendiente'}</InsigniaEstado></td><td data-label="Sustentación">{estudiantes.map((estudiante) => { const oral = evaluacion?.oralPorEstudiante?.[estudiante.id]; return <span className="estudiante-status-line" key={estudiante.id}>{nombreCompleto(estudiante)} <InsigniaEstado tono={oral?.estado === ESTADO_EVALUACION.CERRADA ? 'success' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'progress' : 'neutral'}>{oral?.estado === ESTADO_EVALUACION.CERRADA ? 'Cerrada' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Borrador' : 'Pendiente'}</InsigniaEstado></span>; })}</td><td data-label="Acción">{miembro.id === personaActual?.id && !escritaCerrada ? <Link className="button button-sm button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}>Realizar revisión</Link> : <span className="text-muted">Según rol y etapa</span>}</td></tr>;
+
+      <section className="trabajo-results-panel" aria-labelledby="trabajo-results-title">
+        <header><div><span className="section-kicker">Resultado individual</span><h2 id="trabajo-results-title">Calificaciones y consulta</h2><p>Los resultados se presentan por estudiante, incluso en trabajos grupales.</p></div><InsigniaEstado tono={resultadosDisponibles === estudiantes.length ? 'success' : 'neutral'}>{resultadosDisponibles} de {estudiantes.length} disponibles</InsigniaEstado></header>
+        <div className="trabajo-result-grid">
+          {estudiantes.map((estudiante) => {
+            const calificacion = calificacionFinalEstudiante(estado, trabajo, estudiante.id);
+            return (
+              <article key={estudiante.id}>
+                <div><small>Estudiante</small><strong>{nombreCompleto(estudiante)}</strong><span>{estudiante.cedula}</span></div>
+                <div className="trabajo-result-score"><small>Calificación final</small><strong>{calificacion === null ? 'Pendiente' : calificacion.toFixed(2)}</strong></div>
+                <Link className="button button-sm button-outline" to={`/resultados/${trabajo.id}/${estudiante.id}`}>Consultar resultado <ArrowRight size={16} /></Link>
+              </article>
+            );
           })}
-          {miembros.length === 0 && <tr><td colSpan="4"><p className="text-muted mb-0">Asigne dos docentes para iniciar la evaluación.</p></td></tr>}
-        </tbody></table></div>
+        </div>
+      </section>
+
+      <section className="trabajo-history-panel" aria-labelledby="trabajo-history-title">
+        <header><div><span className="section-kicker">Trazabilidad disponible</span><h2 id="trabajo-history-title">Historial registrado</h2></div><FileClock size={22} aria-hidden="true" /></header>
+        {eventos.length === 0 ? <p className="trabajo-history-empty">El prototipo no conserva fechas adicionales para este expediente.</p> : (
+          <ol>
+            {eventos.map((evento) => <li key={evento.id}><span aria-hidden="true"><CheckCircle2 size={17} /></span><div><strong>{evento.titulo}</strong><p>{evento.detalle}</p></div><time dateTime={evento.fecha}>{formatearFechaHora(evento.fecha)}</time></li>)}
+          </ol>
+        )}
+        <p className="trabajo-history-note">Este historial utiliza únicamente marcas temporales existentes; no constituye todavía una bitácora institucional completa.</p>
       </section>
     </div>
   );

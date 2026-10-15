@@ -16,6 +16,7 @@ import { ROL, etiquetasRol } from '../datos/datosPrototipo';
 import { nombreCompleto, iniciales } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { confirmarDescarteCambios } from '../dominio/cambiosSinGuardar';
+import { registrarRutaInterna } from '../dominio/navegacionRetorno';
 
 const TODOS_LOS_ROLES = Object.values(ROL);
 
@@ -95,6 +96,13 @@ export function EstructuraAplicacion({ children }) {
   useEffect(() => {
     if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
   }, [ubicacion.pathname]);
+
+  useEffect(() => {
+    registrarRutaInterna(
+      window.history.state?.idx ?? 0,
+      `${ubicacion.pathname}${ubicacion.search}${ubicacion.hash}`,
+    );
+  }, [ubicacion.hash, ubicacion.pathname, ubicacion.search]);
 
   return (
     <div className={`app-shell react-app-shell ${barraLateralContraida ? 'sidebar-collapsed' : ''}`}>

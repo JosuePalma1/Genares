@@ -1,17 +1,17 @@
 import { Link } from 'react-router-dom';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import {
+  calificacionFinalEstudiante,
+  derivarEstadoTrabajo,
   estanCerradasEvaluacionesOrales,
   estanCerradasRevisionesEscritas,
-  derivarEstadoTrabajo,
   formatearFecha,
   nombreCompleto,
   obtenerEvaluacionesTrabajo,
   tonoEstado,
-  calificacionFinalEstudiante,
 } from '../dominio/flujoTrabajo';
+import { usarPrototipo } from '../estado/ContextoPrototipo';
 
 function nombresPersonas(estado, ids) {
   return ids
@@ -50,7 +50,7 @@ function avanceOral(estado, trabajo) {
 }
 
 export default function PaginaSecretaria() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
+  const { estado, personaActual } = usarPrototipo();
   const resultadosEstudiantesDisponibles = estado.trabajos.reduce((total, trabajo) => (
     total + trabajo.idsEstudiantes.filter(
       (idEstudiante) => calificacionFinalEstudiante(estado, trabajo, idEstudiante) !== null,
@@ -61,7 +61,7 @@ export default function PaginaSecretaria() {
     {
       etiqueta: 'Trabajos en seguimiento',
       value: estado.trabajos.length,
-      detail: 'Consulta del historial disponible',
+      detail: 'Historial disponible',
       className: '',
     },
     {
@@ -69,7 +69,7 @@ export default function PaginaSecretaria() {
       value: estado.trabajos.filter(
         (trabajo) => trabajo.idsTribunal.length === 2 && !estanCerradasRevisionesEscritas(estado, trabajo),
       ).length,
-      detail: 'Al menos un miembro pendiente',
+      detail: 'Al menos un miembro',
       className: 'metric-warning',
     },
     {
@@ -77,7 +77,7 @@ export default function PaginaSecretaria() {
       value: estado.trabajos.filter(
         (trabajo) => Boolean(trabajo.programacion) && !estanCerradasEvaluacionesOrales(estado, trabajo),
       ).length,
-      detail: 'Pendientes, con fecha, hora y sala',
+      detail: 'Pendientes con agenda',
       className: 'metric-secondary',
     },
     {
@@ -91,17 +91,13 @@ export default function PaginaSecretaria() {
     {
       etiqueta: 'Resultados disponibles',
       value: resultadosEstudiantesDisponibles,
-      detail: 'Calificaciones finales por estudiante',
+      detail: 'Resultados individuales',
       className: 'metric-success',
     },
   ];
 
-  // Secretaría es una vista estrictamente de consulta.
-  void actorActual;
-  void despachar;
-
   return (
-    <>
+    <div className="secretaria-page">
       <EncabezadoPagina
         eyebrow="Solo lectura"
         title="Seguimiento de Secretaría"
@@ -110,115 +106,129 @@ export default function PaginaSecretaria() {
         actions={<Link className="button button-outline" to="/consulta">Buscar en el historial</Link>}
       />
 
-      <div className="alert alert-info">
-        <span aria-hidden="true">ⓘ</span>
-        <div>
-          <strong>Consulta sin edición de calificaciones</strong>
-          Esta vista no presenta acciones para evaluar, reabrir ni modificar las decisiones del tribunal.
-        </div>
-      </div>
+      <AlertaInstitucional titulo="Consulta sin edición de calificaciones">
+        Esta vista no presenta acciones para evaluar, reabrir ni modificar las decisiones del tribunal.
+      </AlertaInstitucional>
 
-      <section className="metric-grid" aria-label="Indicadores para Secretaría">
-        {metricas.map((metric) => (
-          <article className={`metric-card ${metric.className}`.trim()} key={metric.etiqueta}>
-            <span>{metric.etiqueta}</span>
-            <strong>{metric.value}</strong>
-            <small>{metric.detail}</small>
-          </article>
-        ))}
+      <section className="secretaria-summary" aria-labelledby="secretaria-summary-title">
+        <div className="secretaria-section-heading">
+          <div>
+            <span className="section-kicker">Panorama operativo</span>
+            <h2 id="secretaria-summary-title">Resumen del seguimiento</h2>
+          </div>
+          <InsigniaEstado tono="neutral">{estado.trabajos.length} trabajos</InsigniaEstado>
+        </div>
+        <div className="secretaria-metric-grid" aria-label="Indicadores para Secretaría">
+          {metricas.map((metrica) => (
+            <article className={`secretaria-metric-card ${metrica.className}`.trim()} key={metrica.etiqueta}>
+              <span>{metrica.etiqueta}</span>
+              <strong>{metrica.value}</strong>
+              <small>{metrica.detail}</small>
+            </article>
+          ))}
+        </div>
       </section>
 
-      <section className="card">
-        <div className="card-header">
+      <section className="secretaria-results" aria-labelledby="secretaria-results-title">
+        <div className="secretaria-results-heading">
           <div>
-            <h2>Trabajos y resultados</h2>
-            <p className="text-muted mb-0">Seguimiento por trabajo, tribunal y estudiante.</p>
+            <span className="section-kicker">Seguimiento operativo</span>
+            <h2 id="secretaria-results-title">Trabajos y resultados</h2>
           </div>
-          <InsigniaEstado estado="Solo lectura" tono="neutral" />
+          <p>El trabajo y sus estudiantes se presentan primero; la agenda, el tribunal y el avance complementan la consulta.</p>
         </div>
 
         {estado.trabajos.length === 0 ? (
-          <div className="card-body">
-            <EstadoVacio
-              title="No hay trabajos registrados"
-              description="El historial se construirá con los trabajos creados en el sistema."
-            />
-          </div>
+          <EstadoVacio
+            title="No hay trabajos registrados"
+            description="El historial se construirá con los trabajos creados en el sistema."
+            className="secretaria-empty"
+          />
         ) : (
-          <div className="table-wrap">
-            <table className="data-table responsive-table">
-              <thead>
-                <tr>
-                  <th>Trabajo / estudiante(s)</th>
-                  <th>Programación</th>
-                  <th>Tribunal</th>
-                  <th>Revisión escrita</th>
-                  <th>Evaluación oral</th>
-                  <th>Estado</th>
-                  <th>Resultados / consulta</th>
-                </tr>
-              </thead>
-              <tbody>
-                {estado.trabajos.map((trabajo) => {
-                  const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
-                  const escrita = avanceEscrita(estado, trabajo);
-                  const oral = avanceOral(estado, trabajo);
-                  return (
-                    <tr key={trabajo.id}>
-                      <td data-label="Trabajo / estudiante(s)">
-                        <span className="cell-title">{trabajo.codigo} · {trabajo.titulo}</span>
-                        <span className="cell-subtitle">{nombresPersonas(estado, trabajo.idsEstudiantes)}</span>
-                      </td>
-                      <td data-label="Programación">
-                        {trabajo.programacion ? (
-                          <>
-                            <span className="cell-title">{formatearFecha(trabajo.programacion.fecha)} · {trabajo.programacion.hora}</span>
-                            <span className="cell-subtitle">{trabajo.programacion.sala}</span>
-                          </>
-                        ) : 'Sin programar'}
-                      </td>
-                      <td data-label="Tribunal">
-                        {trabajo.idsTribunal.length === 2
-                          ? nombresPersonas(estado, trabajo.idsTribunal)
-                          : 'Pendiente de asignación'}
-                      </td>
-                      <td data-label="Revisión escrita">
-                        <InsigniaEstado estado={escrita.etiqueta} tono={escrita.tono} />
-                      </td>
-                      <td data-label="Evaluación oral">
-                        <InsigniaEstado estado={oral.etiqueta} tono={oral.tono} />
-                      </td>
-                      <td data-label="Estado">
-                        <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
-                      </td>
-                      <td data-label="Resultados / consulta">
-                        <div className="table-actions">
-                          <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}`}>
-                            Ver detalle
-                          </Link>
-                          {trabajo.idsEstudiantes.map((idEstudiante) => {
-                            const estudiante = estado.personas.find((persona) => persona.id === idEstudiante);
-                            const calificacion = calificacionFinalEstudiante(estado, trabajo, idEstudiante);
-                            return calificacion === null ? null : (
+          <div className="secretaria-results-card">
+            <div className="table-wrap">
+              <table className="data-table responsive-table secretaria-table">
+                <caption className="sr-only">Seguimiento de trabajos, estudiantes, tribunal y evaluaciones</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Trabajo y estudiantes</th>
+                    <th scope="col">Agenda y tribunal</th>
+                    <th scope="col">Avance de evaluación</th>
+                    <th scope="col">Estado y consulta</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {estado.trabajos.map((trabajo) => {
+                    const estadoTrabajo = derivarEstadoTrabajo(estado, trabajo);
+                    const escrita = avanceEscrita(estado, trabajo);
+                    const oral = avanceOral(estado, trabajo);
+                    return (
+                      <tr key={trabajo.id}>
+                        <td data-label="Trabajo y estudiantes">
+                          <span className="secretaria-work-code">{trabajo.codigo}</span>
+                          <span className="cell-title secretaria-work-title">{trabajo.titulo}</span>
+                          <span className="cell-subtitle">{nombresPersonas(estado, trabajo.idsEstudiantes)}</span>
+                        </td>
+                        <td data-label="Agenda y tribunal">
+                          <div className="secretaria-secondary-list">
+                            <div>
+                              <span className="secretaria-cell-label">Programación</span>
+                              {trabajo.programacion ? (
+                                <>
+                                  <strong>{formatearFecha(trabajo.programacion.fecha)} · {trabajo.programacion.hora}</strong>
+                                  <small>{trabajo.programacion.sala}</small>
+                                </>
+                              ) : <span className="secretaria-muted-value">Sin programar</span>}
+                            </div>
+                            <div>
+                              <span className="secretaria-cell-label">Tribunal</span>
+                              <span>{trabajo.idsTribunal.length === 2 ? nombresPersonas(estado, trabajo.idsTribunal) : 'Pendiente de asignación'}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td data-label="Avance de evaluación">
+                          <div className="secretaria-progress-list">
+                            <div><span>Revisión escrita</span><InsigniaEstado estado={escrita.etiqueta} tono={escrita.tono} /></div>
+                            <div><span>Evaluación oral</span><InsigniaEstado estado={oral.etiqueta} tono={oral.tono} /></div>
+                          </div>
+                        </td>
+                        <td data-label="Estado y consulta">
+                          <div className="secretaria-state-actions">
+                            <InsigniaEstado estado={estadoTrabajo} tono={tonoEstado(estadoTrabajo)} />
+                            <div className="table-actions">
                               <Link
-                                className="button button-sm button-outline"
-                                key={idEstudiante}
-                                to={`/resultados/${trabajo.id}/${idEstudiante}`}
+                                className="button button-outline"
+                                to={`/trabajos/${trabajo.id}`}
+                                aria-label={`Ver detalle de ${trabajo.codigo}`}
                               >
-                                {nombreCompleto(estudiante)} · {calificacion.toFixed(2)}
+                                Ver detalle
                               </Link>
-                            );
-                          })}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                              {trabajo.idsEstudiantes.map((idEstudiante) => {
+                                const estudiante = estado.personas.find((persona) => persona.id === idEstudiante);
+                                const calificacion = calificacionFinalEstudiante(estado, trabajo, idEstudiante);
+                                return calificacion === null ? null : (
+                                  <Link
+                                    className="button button-outline"
+                                    key={idEstudiante}
+                                    to={`/resultados/${trabajo.id}/${idEstudiante}`}
+                                    aria-label={`Ver resultado de ${nombreCompleto(estudiante)}: ${calificacion.toFixed(2)}`}
+                                  >
+                                    {nombreCompleto(estudiante)} · {calificacion.toFixed(2)}
+                                  </Link>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
-    </>
+    </div>
   );
 }

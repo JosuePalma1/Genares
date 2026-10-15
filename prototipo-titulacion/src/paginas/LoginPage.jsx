@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ShieldCheck } from 'lucide-react';
+import { AlertaInstitucional } from '../componentes/interfaz';
 import { etiquetasRol } from '../datos/datosPrototipo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 
@@ -45,17 +46,15 @@ export default function LoginPage() {
           <button className="button button-primary button-block institution-button mt-4" type="submit">
             <ShieldCheck size={19} aria-hidden="true" /> Entrar al prototipo
           </button>
-          <div className="alert alert-info mt-4">
-            <span>ⓘ</span>
-            <div>
-              <strong>Simulación para validación funcional</strong>
-              Este selector es provisional para fines académicos. No solicita ni almacena credenciales reales, ni constituye la autenticación institucional definitiva.
-            </div>
-          </div>
+          <AlertaInstitucional
+            className="mt-4"
+            titulo="Simulación para validación funcional"
+          >
+            Este selector es provisional para fines académicos. No solicita ni almacena credenciales reales, ni constituye la autenticación institucional definitiva.
+          </AlertaInstitucional>
           <p className="login-note"><strong>Datos ficticios</strong><br />Uso exclusivo para validación del flujo del proceso de titulación.</p>
         </form>
       </section>
     </main>
   );
 }
-

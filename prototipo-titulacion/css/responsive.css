@@ -147,8 +147,8 @@
   .data-table.responsive-table td::before { margin-bottom: var(--space-1); }
   .data-table.responsive-table .table-actions { align-items: stretch; flex-direction: column; }
   .data-table.responsive-table .table-actions .button { width: 100%; }
-  .notificacion-panel { position: fixed; top: calc(var(--header-height) - 2px); right: var(--space-2); left: var(--space-2); width: auto; max-height: calc(100vh - var(--header-height) - var(--space-4)); }
-  .notificacion-list { max-height: calc(100vh - var(--header-height) - 150px); }
+  .app-topbar .notificacion-panel { position: fixed; top: calc(var(--header-height) - 2px); right: var(--space-2); left: var(--space-2); width: auto; max-height: calc(100vh - var(--header-height) - var(--space-4)); }
+  .app-topbar .notificacion-list { max-height: calc(100vh - var(--header-height) - 150px); }
   .rubrica-categoria .rubrica-section-header { align-items: flex-start; flex-direction: column; }
   .rubrica-categoria-maximo { align-self: flex-start; }
   .rubrica-summary-heading { align-items: flex-start; flex-direction: column; }

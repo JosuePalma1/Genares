@@ -1,13 +1,15 @@
-import { useMemo, useState } from 'react';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { useMemo, useRef, useState } from 'react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { etiquetasRol } from '../datos/datosPrototipo';
 import { nombreCompleto } from '../dominio/flujoTrabajo';
+import { usarPrototipo } from '../estado/ContextoPrototipo';
 
 export default function PaginaUsuarios() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
+  const { estado, personaActual } = usarPrototipo();
   const [consulta, establecerConsulta] = useState('');
-  const [role, establecerRol] = useState('ALL');
+  const [rol, establecerRol] = useState('ALL');
+  const campoBusqueda = useRef(null);
 
   const usuarios = useMemo(() => estado.actores.map((actor) => ({
     actor,
@@ -19,9 +21,9 @@ export default function PaginaUsuarios() {
       persona?.cedula,
       persona?.carrera,
     ].some((value) => String(value ?? '').toLocaleLowerCase('es').includes(consultaNormalizada));
-    const coincideRol = role === 'ALL' || actor.roles.includes(role);
+    const coincideRol = rol === 'ALL' || actor.roles.includes(rol);
     return coincideConsulta && coincideRol;
-  }), [consulta, role, estado.actores, estado.personas]);
+  }), [consulta, rol, estado.actores, estado.personas]);
 
   const personasConVariosRoles = estado.actores.filter((actor) => actor.roles.length > 1).length;
   const carrerasRepresentadas = new Set(
@@ -29,13 +31,16 @@ export default function PaginaUsuarios() {
       .map((actor) => estado.personas.find((persona) => persona.id === actor.idPersona)?.carrera)
       .filter(Boolean),
   ).size;
+  const filtrosActivos = Boolean(consulta || rol !== 'ALL');
 
-  // La administración institucional definitiva no está integrada; esta vista usa perfiles simulados.
-  void actorActual;
-  void despachar;
+  const limpiarFiltros = () => {
+    establecerConsulta('');
+    establecerRol('ALL');
+    window.requestAnimationFrame(() => campoBusqueda.current?.focus());
+  };
 
   return (
-    <>
+    <div className="usuarios-page">
       <EncabezadoPagina
         eyebrow="Administración del prototipo"
         title="Usuarios y roles"
@@ -44,42 +49,23 @@ export default function PaginaUsuarios() {
         actions={<InsigniaEstado estado="Acceso simulado" tono="info" />}
       />
 
-      <div className="alert alert-info">
-        <span aria-hidden="true">ⓘ</span>
-        <div>
-          <strong>Una persona puede tener varios roles</strong>
-          Los perfiles se identifican con cédula, nombres, apellidos y carrera. Esta vista no supone un proveedor de autenticación ni utiliza correos electrónicos.
-        </div>
-      </div>
-
-      <section className="metric-grid" aria-label="Resumen de usuarios">
-        <article className="metric-card">
-          <span>Perfiles habilitados</span>
-          <strong>{estado.actores.length}</strong>
-          <small>Datos simulados del prototipo</small>
-        </article>
-        <article className="metric-card metric-info">
-          <span>Personas con varios roles</span>
-          <strong>{personasConVariosRoles}</strong>
-          <small>Permisos acumulables</small>
-        </article>
-        <article className="metric-card metric-secondary">
-          <span>Carreras representadas</span>
-          <strong>{carrerasRepresentadas}</strong>
-          <small>Alcance visible configurado</small>
-        </article>
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <h2>Filtros</h2>
-          <InsigniaEstado estado={`${usuarios.length} perfiles`} tono="neutral" />
-        </div>
-        <div className="card-body">
-          <div className="filters">
-            <div className="field">
-              <label htmlFor="user-search">Buscar persona</label>
+      <section className="usuarios-filters" aria-labelledby="usuarios-filters-title">
+        <header>
+          <div>
+            <span className="section-kicker">Directorio simulado</span>
+            <h2 id="usuarios-filters-title"><SlidersHorizontal size={20} aria-hidden="true" /> Buscar y filtrar perfiles</h2>
+          </div>
+          <span className="usuarios-result-count" role="status" aria-live="polite">
+            {usuarios.length} de {estado.actores.length} perfiles
+          </span>
+        </header>
+        <div className="usuarios-filter-grid">
+          <div className="field usuarios-search-field">
+            <label htmlFor="user-search">Buscar persona</label>
+            <div className="usuarios-search-control">
+              <Search size={18} aria-hidden="true" />
               <input
+                ref={campoBusqueda}
                 className="input"
                 id="user-search"
                 type="search"
@@ -88,91 +74,118 @@ export default function PaginaUsuarios() {
                 onChange={(evento) => establecerConsulta(evento.target.value)}
               />
             </div>
-            <div className="field">
-              <label htmlFor="user-role">Rol</label>
-              <select
-                className="select"
-                id="user-role"
-                value={role}
-                onChange={(evento) => establecerRol(evento.target.value)}
-              >
-                <option value="ALL">Todos</option>
-                {Object.entries(etiquetasRol).map(([value, etiqueta]) => (
-                  <option key={value} value={value}>{etiqueta}</option>
-                ))}
-              </select>
-            </div>
           </div>
+          <div className="field">
+            <label htmlFor="user-role">Rol</label>
+            <select
+              className="select"
+              id="user-role"
+              value={rol}
+              onChange={(evento) => establecerRol(evento.target.value)}
+            >
+              <option value="ALL">Todos</option>
+              {Object.entries(etiquetasRol).map(([value, etiqueta]) => (
+                <option key={value} value={value}>{etiqueta}</option>
+              ))}
+            </select>
+          </div>
+          {filtrosActivos && usuarios.length > 0 ? (
+            <button className="button button-outline usuarios-clear-filters" type="button" onClick={limpiarFiltros}>
+              <X size={17} aria-hidden="true" /> Limpiar filtros
+            </button>
+          ) : null}
         </div>
       </section>
 
-      <section className="card">
-        <div className="card-header">
+      <section className="usuarios-results" aria-labelledby="usuarios-results-title">
+        <div className="usuarios-results-heading">
           <div>
-            <h2>Perfiles del sistema</h2>
-            <p className="text-muted mb-0">Identidad simulada, carrera y roles funcionales.</p>
+            <span className="section-kicker">Perfiles disponibles</span>
+            <h2 id="usuarios-results-title">Identidades y roles simulados</h2>
           </div>
-          <InsigniaEstado estado="Sin credenciales reales" tono="neutral" />
+          <p>Esta consulta no permite crear, editar ni eliminar perfiles.</p>
         </div>
 
         {usuarios.length === 0 ? (
-          <div className="card-body">
-            <EstadoVacio
-              title="No se encontraron perfiles"
-              description="Cambie los filtros para consultar otros usuarios simulados."
-              accion={(
-                <button
-                  className="button button-outline"
-                  type="button"
-                  onClick={() => { establecerConsulta(''); establecerRol('ALL'); }}
-                >
-                  Limpiar filtros
-                </button>
-              )}
-            />
-          </div>
+          <EstadoVacio
+            icon={Search}
+            title="No se encontraron perfiles"
+            description="Cambie la búsqueda o el rol para consultar otros perfiles simulados."
+            accion={<button className="button button-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>}
+            className="usuarios-empty"
+          />
         ) : (
-          <div className="table-wrap">
-            <table className="data-table responsive-table">
-              <thead>
-                <tr>
-                  <th>Cédula</th>
-                  <th>Nombres y apellidos</th>
-                  <th>Carrera / ámbito</th>
-                  <th>Roles simulados</th>
-                  <th>Vista activa</th>
-                  <th>Tipo de acceso</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map(({ actor, persona }) => (
-                  <tr key={actor.id}>
-                    <td data-label="Cédula">{persona?.cedula ?? 'Sin registrar'}</td>
-                    <td data-label="Nombres y apellidos">
-                      <span className="cell-title">{nombreCompleto(persona)}</span>
-                      <span className="cell-subtitle">{persona?.tipoPersona === 'DOCENTE' ? 'Docente' : 'Personal administrativo'}</span>
-                    </td>
-                    <td data-label="Carrera / ámbito">{persona?.carrera ?? 'Sin asignar'}</td>
-                    <td data-label="Roles simulados">
-                      <div className="table-actions">
-                        {actor.roles.map((rolActor) => (
-                          <InsigniaEstado
-                            key={rolActor}
-                            estado={etiquetasRol[rolActor] ?? rolActor}
-                            tono="info"
-                          />
-                        ))}
-                      </div>
-                    </td>
-                    <td data-label="Vista activa">{etiquetasRol[actor.rolActivo] ?? actor.rolActivo}</td>
-                    <td data-label="Tipo de acceso"><InsigniaEstado estado="Perfil simulado" tono="neutral" /></td>
+          <div className="usuarios-results-card">
+            <div className="table-wrap">
+              <table className="data-table responsive-table usuarios-table">
+                <caption className="sr-only">Perfiles simulados, carrera y roles funcionales</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Identidad</th>
+                    <th scope="col">Carrera o ámbito</th>
+                    <th scope="col">Roles y vista activa</th>
+                    <th scope="col">Tipo de acceso</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {usuarios.map(({ actor, persona }) => (
+                    <tr key={actor.id}>
+                      <td data-label="Identidad">
+                        <span className="cell-title">{nombreCompleto(persona)}</span>
+                        <span className="cell-subtitle">Cédula: {persona?.cedula ?? 'Sin registrar'}</span>
+                        <span className="usuarios-person-type">{persona?.tipoPersona === 'DOCENTE' ? 'Docente' : 'Personal administrativo'}</span>
+                      </td>
+                      <td data-label="Carrera o ámbito">{persona?.carrera ?? 'Sin asignar'}</td>
+                      <td data-label="Roles y vista activa">
+                        <div className="usuarios-role-cell">
+                          <div className="usuarios-role-list" aria-label={`Roles de ${nombreCompleto(persona)}`}>
+                            {actor.roles.map((rolActor) => (
+                              <InsigniaEstado key={rolActor} estado={etiquetasRol[rolActor] ?? rolActor} tono="info" />
+                            ))}
+                          </div>
+                          <div className="usuarios-active-view">
+                            <span>Vista activa</span>
+                            <strong>{etiquetasRol[actor.rolActivo] ?? actor.rolActivo}</strong>
+                          </div>
+                        </div>
+                      </td>
+                      <td data-label="Tipo de acceso"><InsigniaEstado estado="Perfil simulado" tono="neutral" /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </section>
-    </>
+
+      <AlertaInstitucional titulo="Una persona puede tener varios roles">
+        Los perfiles se identifican con cédula, nombres, apellidos y carrera. Esta vista no supone un proveedor de autenticación ni utiliza correos electrónicos.
+      </AlertaInstitucional>
+
+      <section className="usuarios-summary" aria-labelledby="usuarios-summary-title">
+        <div className="usuarios-summary-heading">
+          <span className="section-kicker">Resumen del prototipo</span>
+          <h2 id="usuarios-summary-title">Configuración visible</h2>
+        </div>
+        <div className="usuarios-metric-grid" aria-label="Resumen de usuarios">
+          <article className="usuarios-metric-card">
+            <span>Perfiles habilitados</span>
+            <strong>{estado.actores.length}</strong>
+            <small>Datos simulados del prototipo</small>
+          </article>
+          <article className="usuarios-metric-card metric-info">
+            <span>Personas con varios roles</span>
+            <strong>{personasConVariosRoles}</strong>
+            <small>Permisos acumulables</small>
+          </article>
+          <article className="usuarios-metric-card metric-secondary">
+            <span>Carreras representadas</span>
+            <strong>{carrerasRepresentadas}</strong>
+            <small>Alcance visible configurado</small>
+          </article>
+        </div>
+      </section>
+    </div>
   );
 }

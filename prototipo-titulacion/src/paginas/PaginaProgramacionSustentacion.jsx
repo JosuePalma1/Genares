@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import Swal from 'sweetalert2';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
-  ArrowLeft,
   BellRing,
   CalendarCheck2,
   CalendarDays,
@@ -15,9 +14,9 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { estanCerradasRevisionesEscritas, fechaLocalISO, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
-import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
+import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 
 export default function PaginaProgramacionSustentacion() {
   const { idTrabajo } = useParams();
@@ -48,11 +47,6 @@ export default function PaginaProgramacionSustentacion() {
     establecerTieneCambios(true);
   };
 
-  const cancelar = () => {
-    if (!confirmarDescarteCambios()) return;
-    navegar(`/trabajos/${trabajo.id}`);
-  };
-
   const enviar = async (evento) => {
     evento.preventDefault();
     establecerMostrarErrores(true);
@@ -68,7 +62,6 @@ export default function PaginaProgramacionSustentacion() {
       confirmButtonText: 'Confirmar programación',
       cancelButtonText: 'Volver y revisar',
       reverseButtons: true,
-      confirmButtonColor: '#123f68',
     });
     if (!respuesta.isConfirmed) return;
     establecerTieneCambios(false);
@@ -95,7 +88,7 @@ export default function PaginaProgramacionSustentacion() {
             <h2>Sustentación bloqueada</h2>
             <p>Los dos miembros del tribunal deben cerrar su revisión escrita antes de continuar.</p>
           </div>
-          <button className="button button-outline" type="button" onClick={() => navegar(`/trabajos/${trabajo.id}`)}><ArrowLeft size={17} /> Volver al trabajo</button>
+          <BotonVolver respaldo={`/trabajos/${trabajo.id}`}>Volver al trabajo</BotonVolver>
         </section>
       ) : (
         <form onSubmit={enviar} noValidate>
@@ -180,7 +173,7 @@ export default function PaginaProgramacionSustentacion() {
               <span><strong>{tieneCambios ? 'Cambios sin guardar' : trabajo.programacion ? 'Programación registrada' : 'Sin cambios pendientes'}</strong><small>{tieneCambios ? 'Confirme la programación para conservarlos.' : 'La agenda no tiene modificaciones locales.'}</small></span>
             </div>
             <div>
-              <button className="button button-outline" type="button" onClick={cancelar}><ArrowLeft size={17} /> Cancelar</button>
+              <BotonVolver respaldo={`/trabajos/${trabajo.id}`}>Cancelar</BotonVolver>
               <button className="button button-primary" type="submit"><Save size={17} /> {trabajo.programacion ? 'Guardar programación' : 'Programar y notificar'}</button>
             </div>
           </div>

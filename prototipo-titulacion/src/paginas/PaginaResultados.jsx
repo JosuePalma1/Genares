@@ -25,7 +25,7 @@ import {
   formatearFecha,
 } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 
 export default function PaginaResultados() {
   const { idTrabajo, idEstudiante } = useParams();
@@ -66,6 +66,7 @@ export default function PaginaResultados() {
         description={`${trabajo.codigo} · Consulta académica por estudiante y tribunal`}
         breadcrumbs={['Trabajos', trabajo.codigo, 'Resultados']}
         meta={<InsigniaEstado tono={tonoEstado(estadoProceso)}>{estadoProceso}</InsigniaEstado>}
+        actions={<BotonVolver respaldo={`/trabajos/${trabajo.id}`} />}
       />
 
       <section className="resultados-context" aria-labelledby="resultados-trabajo-title">

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
-  ArrowLeft,
   CalendarClock,
   CheckCircle2,
   FileCheck2,
@@ -11,7 +10,7 @@ import {
   UserRound,
   UsersRound,
 } from 'lucide-react';
-import Swal from 'sweetalert2';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import { estanCerradasRevisionesEscritas, fechaLocalISO, limitarCalificacion, formatearFecha, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, calificacionMiembro, maximoRubrica, maximoEtapa, calificacionEtapa } from '../dominio/flujoTrabajo';
 import {
@@ -26,7 +25,7 @@ import {
 } from '../dominio/evaluacionOralSimultanea';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
+import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { FormularioRubrica } from '../componentes/FormularioRubrica';
 import { FormularioRubricaComparativa } from '../componentes/FormularioRubricaComparativa';
 
@@ -74,7 +73,7 @@ export default function PaginaEvaluacionOral() {
   const estaLista = estanCerradasRevisionesEscritas(estado, trabajo) && trabajo.programacion;
   const hoy = fechaLocalISO();
   const disponibleHoy = estaLista && trabajo.programacion.fecha <= hoy;
-  if (!estaLista || !disponibleHoy) return <><EncabezadoPagina title="Evaluación de sustentación" description={trabajo.titulo} breadcrumbs={['Mis evaluaciones', trabajo.codigo, 'Sustentación']} /><section className="card"><div className="empty-estado"><div className="empty-icon">!</div><h2>{!estaLista ? 'Etapa todavía no habilitada' : 'Sustentación aún no disponible'}</h2><p>{!estaLista ? 'Se requieren dos revisiones escritas cerradas y una sustentación programada.' : `La evaluación podrá realizarse desde el ${formatearFecha(trabajo.programacion.fecha)}.`}</p><Link className="button button-outline" to="/mis-evaluaciones">Volver</Link></div></section></>;
+  if (!estaLista || !disponibleHoy) return <><EncabezadoPagina title="Evaluación de sustentación" description={trabajo.titulo} breadcrumbs={['Mis evaluaciones', trabajo.codigo, 'Sustentación']} /><section className="card"><EstadoVacio title={!estaLista ? 'Etapa todavía no habilitada' : 'Sustentación aún no disponible'} description={!estaLista ? 'Se requieren dos revisiones escritas cerradas y una sustentación programada.' : `La evaluación podrá realizarse desde el ${formatearFecha(trabajo.programacion.fecha)}.`} accion={<BotonVolver respaldo="/mis-evaluaciones" />} /></section></>;
 
   const rubrica = evaluacion.instantaneaRubrica;
   const etapaEscrita = obtenerDefinicionEtapa(rubrica, 'ESCRITA');
@@ -148,7 +147,7 @@ export default function PaginaEvaluacionOral() {
     const respuesta = await Swal.fire({
       icon: 'warning', title: '¿Finalizar evaluación?',
       text: 'Revise cuidadosamente las calificaciones ingresadas. Una vez confirmada la evaluación y generada la rúbrica definitiva, no podrá modificarla.',
-      showCancelButton: true, confirmButtonText: 'Confirmar evaluación', cancelButtonText: 'Volver y revisar', reverseButtons: true, confirmButtonColor: '#123f68',
+      showCancelButton: true, confirmButtonText: 'Confirmar evaluación', cancelButtonText: 'Volver y revisar', reverseButtons: true,
     });
     if (!respuesta.isConfirmed) return;
     establecerTieneCambios(false);
@@ -181,7 +180,6 @@ export default function PaginaEvaluacionOral() {
       confirmButtonText: 'Confirmar evaluación',
       cancelButtonText: 'Volver y revisar',
       reverseButtons: true,
-      confirmButtonColor: '#123f68',
     });
     if (!respuesta.isConfirmed) return;
     establecerFormulariosComparativos((actuales) => marcarFormulariosOralesGuardados(actuales, [persona.id]));
@@ -304,7 +302,7 @@ export default function PaginaEvaluacionOral() {
           ) : cerrado ? <><CheckCircle2 size={18} /> Esta evaluación está cerrada y disponible en modo consulta.</> : tieneCambios ? <><span className="save-state-dot" aria-hidden="true" /> Cambios sin guardar de {estudiante.nombres}</> : <><CheckCircle2 size={18} /> Sin cambios pendientes de {estudiante.nombres}</>}
         </div>
         <div className="form-actions evaluacion-actions-bar">
-          <Link className="button button-outline button-lg" to="/mis-evaluaciones"><ArrowLeft size={18} /> Volver a mis evaluaciones</Link>
+          <BotonVolver className="button-lg" respaldo="/mis-evaluaciones" />
           {esComparativa ? (
             <button className="button button-secondary button-lg" type="button" disabled={!cambiosComparativos} onClick={() => guardarComparativos()}><Save size={18} /> Guardar borradores</button>
           ) : !cerrado ? (
