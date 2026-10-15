@@ -1,8 +1,3 @@
-:is(a, button, input, select, textarea, summary):focus-visible {
-  outline: 3px solid var(--color-focus-ring);
-  outline-offset: 3px;
-}
-
 /* Componentes compartidos: alertas institucionales y dialogos de confirmacion. */
 .institutional-alert {
   align-items: flex-start;
@@ -1402,11 +1397,6 @@ button {
   text-align: right;
 }
 
-.status-badge svg {
-  width: 14px;
-  height: 14px;
-}
-
 .empty-estado {
   color: var(--color-muted);
 }
@@ -2402,14 +2392,16 @@ button {
 }
 
 .estudiante-tab-info {
-  display: grid;
+  display: flex;
   min-width: 0;
   flex: 1 1 auto;
+  flex-direction: column;
   gap: var(--space-1);
 }
 
 .estudiante-tab-name {
   color: var(--color-text-primary);
+  font-weight: 750;
   line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
 }
@@ -2775,11 +2767,6 @@ button {
   align-items: end;
 }
 
-.plain-list { margin: 0; padding-left: 1.2rem; }
-.plain-list li + li { margin-top: .3rem; }
-.compact { margin-bottom: .3rem; }
-.estudiante-status-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-bottom: .35rem; }
-.estudiante-status-line:last-child { margin-bottom: 0; }
 .compact-actions { margin-top: 0; }
 
 .required-indicator {
@@ -2837,10 +2824,6 @@ button {
 
 .evaluacion-card-expanded { align-items: start; }
 .evaluacion-card-content { min-width: 0; }
-.evaluacion-card-heading { display: flex; align-items: start; justify-content: space-between; gap: var(--space-4); }
-.evaluacion-card-heading h2 { margin: .2rem 0 .4rem; font-size: var(--text-xl); }
-.evaluacion-card-heading > div { min-width: 0; }
-.evaluacion-card-heading h2,
 .assignment-summary h3,
 .cell-title,
 .cell-subtitle { overflow-wrap: anywhere; }
@@ -3676,28 +3659,6 @@ input.calificacion-input {
   font-size: var(--text-xs);
   color: var(--color-muted);
   line-height: 1.45;
-}
-
-/* Pestañas de estudiantes en Evaluación Oral */
-.estudiante-tab.estudiante-tab-active {
-  border: 2px solid var(--color-primary);
-  background: var(--color-primary-soft);
-  box-shadow: var(--shadow-sm);
-}
-
-.estudiante-tab-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.estudiante-tab-name {
-  font-weight: 750;
-}
-
-.estudiante-tab-badge-note {
-  font-size: 0.7rem;
-  color: var(--color-primary);
-  font-weight: 700;
 }
 
 /* Resultados y calificaciones */

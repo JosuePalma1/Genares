@@ -330,7 +330,6 @@ h3 { margin-bottom: var(--space-3); font-size: var(--text-lg); }
 .prototype-note { color: var(--color-muted); font-size: var(--text-xs); }
 
 .filters { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: var(--space-3); }
-.filter-actions { display: flex; align-items: flex-end; gap: var(--space-2); }
 .field { display: grid; gap: .4rem; }
 .field label, .field-label { color: #34485c; font-size: var(--text-sm); font-weight: 750; }
 .field small { color: var(--color-muted); }
@@ -439,7 +438,6 @@ h3 { margin-bottom: var(--space-3); font-size: var(--text-lg); }
 .modal-preview .modal-body { padding: var(--space-6); }
 .modal-preview .modal-actions { display: flex; justify-content: flex-end; gap: var(--space-3); padding: var(--space-4) var(--space-6); border-top: 1px solid var(--color-border); background: #f8fafc; }
 
-.empty-state { padding: var(--space-10); text-align: center; }
 .empty-icon { display: grid; width: 60px; height: 60px; margin: 0 auto var(--space-4); place-items: center; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary); font-size: 1.5rem; }
 
 .login-page { min-height: 100vh; background: linear-gradient(135deg, #082a48 0%, #123f68 55%, #0e6f69 100%); }
