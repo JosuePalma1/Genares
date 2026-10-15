@@ -12,6 +12,18 @@ export function fechaHoraLocalISO(fecha = new Date()) {
   return `${fechaLocalISO(fecha)}T${rellenarDosDigitos(fecha.getHours())}:${rellenarDosDigitos(fecha.getMinutes())}`;
 }
 
+export function clasificarFechaSustentacion(fechaProgramada, hoy = fechaLocalISO()) {
+  if (!fechaProgramada) return 'SIN_PROGRAMACION';
+  if (fechaProgramada < hoy) return 'PASADA';
+  if (fechaProgramada > hoy) return 'FUTURA';
+  return 'HOY';
+}
+
+export function puedeEvaluarSustentacion(fechaProgramada, hoy = fechaLocalISO()) {
+  const estadoFecha = clasificarFechaSustentacion(fechaProgramada, hoy);
+  return estadoFecha === 'HOY' || estadoFecha === 'PASADA';
+}
+
 export function nombreCompleto(persona) {
   return persona ? `${persona.nombres} ${persona.apellidos}`.trim() : 'Sin asignar';
 }
@@ -122,25 +134,19 @@ export function estanCerradasEvaluacionesOrales(estado, trabajo) {
   });
 }
 
-export function estanImpresasRubricas(estado, trabajo) {
-  if (!estanCerradasEvaluacionesOrales(estado, trabajo)) return false;
-  const evaluaciones = obtenerEvaluacionesTrabajo(estado, trabajo.id);
-  return trabajo.idsTribunal.every((idMiembro) => {
-    const evaluacion = evaluaciones.find((elemento) => elemento.idMiembro === idMiembro);
-    return trabajo.idsEstudiantes.every((idEstudiante) => Boolean(evaluacion?.oralPorEstudiante?.[idEstudiante]?.printedAt));
-  });
-}
-
 export function derivarEstadoTrabajo(estado, trabajo) {
   if (!trabajo.idsTribunal?.length) return 'Registrado';
   if (trabajo.idsTribunal.length === 2 && obtenerEvaluacionesTrabajo(estado, trabajo.id).length === 0) return 'Tribunal asignado';
   if (!estanCerradasRevisionesEscritas(estado, trabajo)) return 'Revisión escrita pendiente';
   if (!trabajo.programacion) return 'Revisión escrita completada';
   if (!estanCerradasEvaluacionesOrales(estado, trabajo)) {
-    const programada = `${trabajo.programacion.fecha}T${trabajo.programacion.hora}` > fechaHoraLocalISO();
+    const estadoFecha = clasificarFechaSustentacion(trabajo.programacion.fecha);
+    const programada = estadoFecha === 'FUTURA'
+      || (estadoFecha === 'HOY' && `${trabajo.programacion.fecha}T${trabajo.programacion.hora}` > fechaHoraLocalISO());
     return programada ? 'Sustentación programada' : 'Sustentación pendiente';
   }
-  return estanImpresasRubricas(estado, trabajo) ? 'Finalizado' : 'Evaluación completada';
+  // Pendiente: la institución debe definir qué criterio permite pasar a "Finalizado".
+  return 'Evaluación completada';
 }
 
 export function tonoEstado(estado) {

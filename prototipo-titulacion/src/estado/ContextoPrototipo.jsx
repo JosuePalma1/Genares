@@ -177,18 +177,6 @@ function reductor(estado, accion) {
       };
     }
 
-    case 'MARCAR_RUBRICA_IMPRESA':
-      return {
-        ...estado,
-        evaluaciones: estado.evaluaciones.map((elemento) => elemento.id === accion.idEvaluacion ? {
-          ...elemento,
-          oralPorEstudiante: {
-            ...elemento.oralPorEstudiante,
-            [accion.idEstudiante]: { ...elemento.oralPorEstudiante[accion.idEstudiante], printedAt: elemento.oralPorEstudiante[accion.idEstudiante]?.printedAt ?? ahora() },
-          },
-        } : elemento),
-      };
-
     case 'MARK_NOTIFICATION_READ':
       return { ...estado, notificaciones: estado.notificaciones.map((elemento) => elemento.id === accion.idNotificacion ? { ...elemento, leidoEn: elemento.leidoEn ?? ahora() } : elemento) };
 

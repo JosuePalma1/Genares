@@ -24,6 +24,7 @@ import {
   formatearFecha,
   nombreCompleto,
   obtenerEvaluacionesTrabajo,
+  puedeEvaluarSustentacion,
   puedeEditarTribunal,
   tonoEstado,
 } from '../dominio/flujoTrabajo';
@@ -70,7 +71,7 @@ export default function PaginaDetalleTrabajo() {
     (estudiante) => calificacionFinalEstudiante(estado, trabajo, estudiante.id) !== null,
   ).length;
   const hoy = fechaLocalISO();
-  const oralDisponible = writtenReady && trabajo.programacion && trabajo.programacion.fecha <= hoy;
+  const oralDisponible = writtenReady && puedeEvaluarSustentacion(trabajo.programacion?.fecha, hoy);
 
   const eventos = [
     trabajo.registradoEn && { id: 'registro', fecha: trabajo.registradoEn, titulo: 'Trabajo registrado', detalle: 'Expediente incorporado al prototipo.' },

@@ -23,7 +23,7 @@ function formatearFechaHora(valor) {
 
 export default function PaginaImpresionRubrica() {
   const { idTrabajo, idEstudiante, idMiembro } = useParams();
-  const { estado, despachar } = usarPrototipo();
+  const { estado } = usarPrototipo();
   const ubicacion = useLocation();
   const autoimpresionIniciada = useRef(false);
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);
@@ -35,7 +35,6 @@ export default function PaginaImpresionRubrica() {
   const imprimible = evaluacion?.escrita.estado === ESTADO_EVALUACION.CERRADA && oral?.estado === ESTADO_EVALUACION.CERRADA;
 
   const imprimirRubrica = () => {
-    despachar({ tipo: 'MARCAR_RUBRICA_IMPRESA', idEvaluacion: evaluacion.id, idEstudiante });
     window.setTimeout(() => window.print(), 120);
   };
 

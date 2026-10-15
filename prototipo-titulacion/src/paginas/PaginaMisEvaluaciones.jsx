@@ -10,7 +10,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, fechaLocalISO, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
+import { clasificarFechaSustentacion, estanCerradasRevisionesEscritas, fechaLocalISO, formatearFecha, nombreCompleto, puedeEvaluarSustentacion } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 
@@ -63,7 +63,8 @@ export default function PaginaMisEvaluaciones() {
               const otraCerrada = evaluacionOtroMiembro?.escrita.estado === ESTADO_EVALUACION.CERRADA;
               const cantidadCerradas = [escritaCerrada, otraCerrada].filter(Boolean).length;
               const todasEscritas = estanCerradasRevisionesEscritas(estado, trabajo);
-              const sustentacionDisponible = todasEscritas && trabajo.programacion && trabajo.programacion.fecha <= hoy;
+              const estadoFechaSustentacion = clasificarFechaSustentacion(trabajo.programacion?.fecha, hoy);
+              const sustentacionDisponible = todasEscritas && puedeEvaluarSustentacion(trabajo.programacion?.fecha, hoy);
               const evaluacionesOrales = estudiantes.map((estudiante) => evaluacion?.oralPorEstudiante?.[estudiante.id]);
               const evaluacionCompleta = escritaCerrada
                 && Boolean(trabajo.programacion)
@@ -140,9 +141,11 @@ export default function PaginaMisEvaluaciones() {
                           'Revisiones escritas 2/2 completadas. El trabajo está listo para programar sustentación por Comisión Académica.'
                         )}
                         {cantidadCerradas === 2 && trabajo.programacion && (
-                          trabajo.programacion.fecha <= hoy
-                            ? `Sustentación habilitada hoy en ${trabajo.programacion.sala} (${trabajo.programacion.hora}).`
-                            : `Sustentación programada para el ${formatearFecha(trabajo.programacion.fecha)} a las ${trabajo.programacion.hora} (${trabajo.programacion.sala}). Habilitada el día del evento.`
+                          estadoFechaSustentacion === 'PASADA'
+                            ? `La fecha programada (${formatearFecha(trabajo.programacion.fecha)}) ya transcurrió. La evaluación oral sigue habilitada para registrar el resultado.`
+                            : estadoFechaSustentacion === 'HOY'
+                              ? `Sustentación programada para hoy en ${trabajo.programacion.sala} (${trabajo.programacion.hora}). La evaluación oral está habilitada.`
+                              : `Sustentación programada para el ${formatearFecha(trabajo.programacion.fecha)} a las ${trabajo.programacion.hora} (${trabajo.programacion.sala}). La evaluación se habilita desde el día programado.`
                         )}
                       </p>
                     </div>
@@ -153,7 +156,7 @@ export default function PaginaMisEvaluaciones() {
                         {!escritaCerrada && <strong>Completar la revisión escrita</strong>}
                         {escritaCerrada && !todasEscritas && <strong>Esperar la revisión del otro miembro</strong>}
                         {escritaCerrada && todasEscritas && !trabajo.programacion && <strong>Esperar la programación de la sustentación</strong>}
-                        {escritaCerrada && trabajo.programacion && trabajo.programacion.fecha > hoy && <strong>Esperar la fecha de sustentación</strong>}
+                        {escritaCerrada && trabajo.programacion && estadoFechaSustentacion === 'FUTURA' && <strong>Esperar la fecha de sustentación</strong>}
                         {escritaCerrada && trabajo.programacion && sustentacionDisponible && !evaluacionCompleta && <strong>Completar la evaluación oral</strong>}
                         {evaluacionCompleta && <strong>Consultar resultados registrados</strong>}
                       </div>
@@ -174,7 +177,7 @@ export default function PaginaMisEvaluaciones() {
                         {escritaCerrada && todasEscritas && !trabajo.programacion && (
                           <span className="locked-accion">Listo para programar sustentación (Comisión Académica)</span>
                         )}
-                        {escritaCerrada && trabajo.programacion && trabajo.programacion.fecha > hoy && (
+                        {escritaCerrada && trabajo.programacion && estadoFechaSustentacion === 'FUTURA' && (
                           <span className="locked-accion">Sustentación disponible el {formatearFecha(trabajo.programacion.fecha)}</span>
                         )}
                         {oralPendienteDisponible && estudianteOralPendiente && (

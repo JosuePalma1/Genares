@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
-import { estanCerradasRevisionesEscritas, fechaLocalISO, limitarCalificacion, formatearFecha, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, calificacionMiembro, maximoRubrica, maximoEtapa, calificacionEtapa } from '../dominio/flujoTrabajo';
+import { estanCerradasRevisionesEscritas, fechaLocalISO, limitarCalificacion, formatearFecha, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, calificacionMiembro, maximoRubrica, maximoEtapa, calificacionEtapa, puedeEvaluarSustentacion } from '../dominio/flujoTrabajo';
 import {
   actualizarCalificacionOral,
   actualizarObservacionOral,
@@ -72,8 +72,8 @@ export default function PaginaEvaluacionOral() {
   if (!trabajo || !evaluacion || !estudiante) return <EstadoVacio title="Evaluación oral no disponible" description="Compruebe el trabajo, los estudiantes y la identidad activa." />;
   const estaLista = estanCerradasRevisionesEscritas(estado, trabajo) && trabajo.programacion;
   const hoy = fechaLocalISO();
-  const disponibleHoy = estaLista && trabajo.programacion.fecha <= hoy;
-  if (!estaLista || !disponibleHoy) return <><EncabezadoPagina title="Evaluación de sustentación" description={trabajo.titulo} breadcrumbs={['Mis evaluaciones', trabajo.codigo, 'Sustentación']} /><section className="card"><EstadoVacio title={!estaLista ? 'Etapa todavía no habilitada' : 'Sustentación aún no disponible'} description={!estaLista ? 'Se requieren dos revisiones escritas cerradas y una sustentación programada.' : `La evaluación podrá realizarse desde el ${formatearFecha(trabajo.programacion.fecha)}.`} accion={<BotonVolver respaldo="/mis-evaluaciones" />} /></section></>;
+  const disponibleParaEvaluar = estaLista && puedeEvaluarSustentacion(trabajo.programacion?.fecha, hoy);
+  if (!estaLista || !disponibleParaEvaluar) return <><EncabezadoPagina title="Evaluación de sustentación" description={trabajo.titulo} breadcrumbs={['Mis evaluaciones', trabajo.codigo, 'Sustentación']} /><section className="card"><EstadoVacio title={!estaLista ? 'Etapa todavía no habilitada' : 'Sustentación aún no disponible'} description={!estaLista ? 'Se requieren dos revisiones escritas cerradas y una sustentación programada.' : `La evaluación podrá realizarse desde el ${formatearFecha(trabajo.programacion.fecha)}.`} accion={<BotonVolver respaldo="/mis-evaluaciones" />} /></section></>;
 
   const rubrica = evaluacion.instantaneaRubrica;
   const etapaEscrita = obtenerDefinicionEtapa(rubrica, 'ESCRITA');
