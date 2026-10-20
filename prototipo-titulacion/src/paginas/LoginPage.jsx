@@ -20,7 +20,7 @@ export default function LoginPage() {
     <main className="login-shell login-page">
       <section className="login-hero" aria-labelledby="system-name">
         <div className="login-brand">
-          <img src="/assets/identidad-placeholder.svg" width="58" height="66" alt="Identidad visual provisional" />
+          <img src="/assets/ULEAM.png" width="58" height="66" alt="Identidad visual provisional" />
           <div><strong>Universidad Laica Eloy Alfaro de Manabí</strong><br /><small>Facultad de Ciencias de la Vida y Tecnologías</small></div>
         </div>
         <div className="login-copy">

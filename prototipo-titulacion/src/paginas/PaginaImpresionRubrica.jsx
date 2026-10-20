@@ -130,7 +130,7 @@ function EncabezadoInstitucional({ pagina, modalidad, parte, etapa, version, per
     <header className="rubrica-document-header">
       <div className="institutional-header-row">
         <div className="institution-brand">
-          <img src="/assets/identidad-placeholder.svg" alt="Identidad institucional provisional" />
+          <img src="/assets/ULEAM.png" alt="Identidad institucional provisional" />
           <div><strong>ULEAM</strong><span>UNIVERSIDAD LAICA</span><span>ELOY ALFARO DE MANABÍ</span></div>
         </div>
         <div className="faculty-heading"><strong>Facultad de Ciencias de la Vida</strong><strong>y Tecnologías</strong><span>{pagina}</span></div>
