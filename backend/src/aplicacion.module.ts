@@ -1,10 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ModuloApi } from './comun/api/modulo-api';
+import { ModalidadesModule } from './modalidades/modalidades.module';
+import { RubricasModule } from './rubricas/rubricas.module';
 import { ControladorSalud } from './salud/salud.controller';
 
 @Module({
   imports: [
+    ModuloApi,
+    ModalidadesModule,
+    RubricasModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],

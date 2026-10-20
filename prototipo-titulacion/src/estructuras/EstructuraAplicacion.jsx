@@ -5,6 +5,7 @@ import {
   FileSearch,
   FileText,
   LayoutDashboard,
+  ListChecks,
   PanelLeft,
   ShieldCheck,
   University,
@@ -21,6 +22,12 @@ import { registrarRutaInterna } from '../dominio/navegacionRetorno';
 const TODOS_LOS_ROLES = Object.values(ROL);
 
 const NAVEGACION = [
+  {
+    etiqueta: 'Maestros / Catálogos',
+    elementos: [
+      { to: '/maestros/modalidades', etiqueta: 'Modalidades de titulación', icon: ListChecks, roles: [ROL.ADMIN] },
+    ],
+  },
   {
     etiqueta: 'Operación',
     elementos: [

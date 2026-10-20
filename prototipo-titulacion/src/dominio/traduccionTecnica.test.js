@@ -13,9 +13,9 @@ describe('contratos técnicos después de la traducción', () => {
   });
 
   it('actualiza el campo nombre de las categorías de rúbrica', () => {
-    const pagina = leer('../paginas/PaginaDetalleRubrica.jsx');
+    const pagina = leer('../componentes/EditorEstructuraRubrica.jsx');
 
-    expect(pagina).toContain('{ ...categoria, nombre }');
+    expect(pagina).toContain('{ nombre: e.target.value }');
     expect(pagina).not.toContain('{ ...categoria, name }');
   });
 

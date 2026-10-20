@@ -6388,6 +6388,43 @@ input.calificacion-input {
   color: var(--color-text-secondary);
 }
 
+.rubrica-structural-editor .rubrica-structure-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .75rem;
+}
+
+.rubrica-structural-editor .rubrica-stage-fields,
+.rubrica-structural-editor .rubrica-category-fields {
+  min-width: 0;
+}
+
+.rubrica-structural-editor .rubrica-category-fields {
+  display: grid;
+  gap: .65rem;
+  flex: 1;
+}
+
+.rubrica-structural-editor .rubrica-category-total {
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+
+.rubrica-structural-editor .rubrica-indicator-copy .field + .field {
+  margin-top: .75rem;
+}
+
+.rubrica-structure-announcement,
+.rubrica-empty-group {
+  padding: .5rem 1rem;
+}
+
+.rubrica-structural-editor .button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .rubrica-editor-categories {
   display: grid;
   gap: var(--space-5);

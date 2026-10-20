@@ -12,11 +12,16 @@ import {
   Scale,
   ShieldCheck,
 } from 'lucide-react';
-import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../dominio/flujoTrabajo';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
+import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
+import { actualizarVersionRubricaApi } from '../servicios/rubricasApi';
+import { mensajeErrorEscrituraRubrica, prepararVersionApiParaGuardar } from '../dominio/rubricasApiEdicion';
+import EditorEstructuraRubrica from '../componentes/EditorEstructuraRubrica';
+import { claveElemento, decimalIndicador, etapasParaEditor, ordenarEstructura, revisarEstructura, subtotalCategoria, subtotalEtapa } from '../dominio/estructuraRubrica';
 
 const statusPresentation = {
   ACTIVA: { etiqueta: 'Activa e inmutable', tono: 'success', icono: ShieldCheck },
@@ -27,26 +32,43 @@ const statusPresentation = {
 const clonar = (value) => JSON.parse(JSON.stringify(value ?? []));
 
 function categoryMaximum(categoria) {
-  return redondearCalificacion((categoria.indicadores ?? []).reduce((total, indicador) => total + Number(indicador.maximo || 0), 0));
+  try { return Number(subtotalCategoria(categoria)); } catch { return NaN; }
+}
+
+const puntos = (valor) => Number.isFinite(valor) ? valor.toFixed(2) : '—';
+
+function formatearFechaActivacion(valor) {
+  if (!valor) return 'Fecha de activación no registrada';
+  const fecha = new Date(valor);
+  if (Number.isNaN(fecha.getTime())) return 'Fecha de activación no válida';
+  return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium', timeStyle: 'short' }).format(fecha);
 }
 
 export default function PaginaDetalleRubrica() {
   const { idRubrica } = useParams();
   const { estado, actorActual, despachar } = usarPrototipo();
-  const rubrica = estado.versionesRubrica.find((elemento) => elemento.id === idRubrica);
+  const lectura = usarRubricasLectura(estado.versionesRubrica);
+  const esApi = lectura.fuente === 'api';
+  const rubrica = lectura.versiones.find((elemento) => elemento.id === idRubrica);
   const [draftCategories, setDraftCategories] = useState([]);
   const [draftStages, setDraftStages] = useState([]);
   const [tieneCambios, setTieneCambios] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [conflicto, setConflicto] = useState(false);
+  const [revisionEditada, setRevisionEditada] = useState(null);
   usarAdvertenciaCambiosSinGuardar(tieneCambios, () => setTieneCambios(false));
 
   useEffect(() => {
     setDraftCategories(clonar(rubrica?.categorias));
-    setDraftStages(clonar(rubrica ? obtenerEtapasRubrica(rubrica) : []));
+    setDraftStages(clonar(rubrica ? etapasParaEditor(rubrica, esApi) : []));
     setTieneCambios(false);
-  }, [rubrica?.id]);
+    setConflicto(false);
+    setRevisionEditada(null);
+  }, [rubrica?.id, rubrica?.revision, rubrica?.estado]);
 
   const puedeGestionar = actorActual?.roles.some((role) => role === ROL.COMISION || role === ROL.ADMIN);
-  const canEdit = Boolean(rubrica && rubrica.estado === 'BORRADOR' && puedeGestionar);
+  const canEdit = Boolean(rubrica && rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : puedeGestionar));
+  const canActivate = canEdit && !esApi;
   const visibleCategories = canEdit ? draftCategories : (rubrica?.categorias ?? []);
   const visibleStages = canEdit ? draftStages : (rubrica ? obtenerEtapasRubrica(rubrica) : []);
   const maximumTotal = useMemo(
@@ -54,41 +76,85 @@ export default function PaginaDetalleRubrica() {
     [visibleCategories],
   );
   const indicatorCount = visibleCategories.reduce((total, categoria) => total + (categoria.indicadores?.length ?? 0), 0);
+  const diagnostico = revisarEstructura(draftStages, draftCategories);
 
   const updateStage = (idEtapa, field, value) => {
     setTieneCambios(true);
-    setDraftStages((etapas) => etapas.map((etapa) => etapa.id === idEtapa ? { ...etapa, [field]: value } : etapa));
+    setDraftStages((etapas) => etapas.map((etapa) => claveElemento(etapa) === idEtapa ? { ...etapa, [field]: value } : etapa));
   };
 
-  const actualizarNombreCategoria = (idCategoria, nombre) => {
-    setTieneCambios(true);
-    setDraftCategories((categorias) => categorias.map((categoria) => categoria.id === idCategoria ? { ...categoria, nombre } : categoria));
-  };
-
-  const updateIndicator = (categoryId, indicatorId, field, value) => {
-    setTieneCambios(true);
-    setDraftCategories((categorias) => categorias.map((categoria) => {
-      if (categoria.id !== categoryId) return categoria;
-      return {
-        ...categoria,
-        indicadores: categoria.indicadores.map((indicador) => indicador.id === indicatorId ? {
-          ...indicador,
-          [field]: field === 'maximo' ? redondearCalificacion(Math.max(0, Number(value) || 0)) : value,
-        } : indicador),
-      };
-    }));
-  };
 
   const normalizedDraft = () => {
-    const categorias = draftCategories.map((categoria) => ({ ...categoria, maximo: categoryMaximum(categoria) }));
-    const etapas = draftStages.map((etapa) => ({
-      ...etapa,
-      maximo: redondearCalificacion(categorias.filter((categoria) => categoria.etapa === etapa.id).reduce((suma, categoria) => suma + categoria.maximo, 0)),
-    }));
+    const ordenadas = ordenarEstructura(draftStages, draftCategories);
+    const categorias = ordenadas.categorias.map((categoria) => ({ ...categoria, maximo: Number(subtotalCategoria(categoria)), indicadores: categoria.indicadores.map((indicador) => ({ ...indicador, maximo: Number(decimalIndicador(indicador)) })) }));
+    const etapas = ordenadas.etapas.map((etapa) => ({ ...etapa, maximo: Number(subtotalEtapa(etapa, categorias)) }));
     return { categorias, etapas };
   };
 
+  const recargarVersion = async () => {
+    const aviso = await Swal.fire({
+      icon: 'warning',
+      title: 'Descartar cambios locales',
+      text: 'La recarga reemplazará lo escrito en esta pantalla con la versión actual del servidor.',
+      showCancelButton: true,
+      confirmButtonText: 'Descartar y recargar',
+      cancelButtonText: 'Seguir editando',
+    });
+    if (!aviso.isConfirmed) return;
+    setTieneCambios(false);
+    setConflicto(false);
+    try {
+      await lectura.reintentar();
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'No fue posible recargar', text: mensajeErrorEscrituraRubrica(error) });
+    }
+  };
+
   const saveDraft = async () => {
+    if (guardando) return;
+    if (diagnostico.errores.length) {
+      await Swal.fire({ icon: 'warning', title: 'Revise los campos del borrador', text: diagnostico.errores.join('\n') });
+      return;
+    }
+    if (esApi) {
+      setGuardando(true);
+      try {
+        const revision = revisionEditada ?? rubrica.revision;
+        const ordenada = ordenarEstructura(draftStages, draftCategories);
+        const preparada = prepararVersionApiParaGuardar(
+          { ...rubrica, revision, categorias: draftCategories },
+          ordenada.etapas,
+          ordenada.categorias,
+        );
+        const respuesta = await actualizarVersionRubricaApi(preparada);
+        if (respuesta?.id !== rubrica.id || !Number.isInteger(respuesta.revision) || respuesta.revision <= revision) {
+          throw new Error('La API guardó la solicitud, pero devolvió una revisión inválida. Recargue antes de volver a guardar.');
+        }
+        setRevisionEditada(respuesta.revision);
+        setTieneCambios(false);
+        setConflicto(false);
+        await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Borrador guardado · revisión ${respuesta.revision}`, showConfirmButton: false, timer: 1800 });
+        try {
+          await lectura.reintentar();
+        } catch {
+          await Swal.fire({ icon: 'warning', title: 'Borrador guardado', text: 'El servidor confirmó el guardado, pero no fue posible recargar los datos. Use Reintentar para consultar la revisión actual.' });
+        }
+      } catch (error) {
+        if (error?.status === 409) {
+          setConflicto(true);
+          await Swal.fire({
+            icon: 'warning',
+            title: 'El borrador cambió en el servidor',
+            text: `${mensajeErrorEscrituraRubrica(error)} Sus cambios locales se conservarán. Use “Recargar versión” para descartarlos y consultar el servidor.`,
+          });
+        } else {
+          await Swal.fire({ icon: 'error', title: 'No se guardó el borrador', text: mensajeErrorEscrituraRubrica(error) });
+        }
+      } finally {
+        setGuardando(false);
+      }
+      return;
+    }
     const normalized = normalizedDraft();
     despachar({ tipo: 'GUARDAR_VERSION_RUBRICA', idRubrica: rubrica.id, ...normalized });
     setTieneCambios(false);
@@ -96,12 +162,11 @@ export default function PaginaDetalleRubrica() {
   };
 
   const activateDraft = async () => {
-    const normalized = normalizedDraft();
-    const invalid = normalized.etapas.some((etapa) => etapa.maximo <= 0 || !normalized.categorias.some((categoria) => categoria.etapa === etapa.id && categoria.indicadores?.length));
-    if (invalid) {
+    if (diagnostico.pendientes.length) {
       await Swal.fire({ icon: 'warning', title: 'Estructura incompleta', text: 'Cada etapa debe tener categorías, indicadores y una valoración mayor que cero.' });
       return;
     }
+    const normalized = normalizedDraft();
     const respuesta = await Swal.fire({
       icon: 'warning',
       title: '¿Activar esta versión?',
@@ -117,11 +182,33 @@ export default function PaginaDetalleRubrica() {
     despachar({ tipo: 'ACTIVAR_VERSION_RUBRICA', idRubrica: rubrica.id });
   };
 
-  if (!rubrica) {
-    return <><EncabezadoPagina title="Rúbrica no encontrada" description="La versión solicitada no existe en el prototipo." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]} /><section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<BotonVolver respaldo="/rubricas">Volver a rúbricas</BotonVolver>} /></div></section></>;
+  if (!rubrica && esApi && lectura.cargando) {
+    return <><EncabezadoPagina title="Cargando rúbrica" description="Consultando la versión en PostgreSQL." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Cargando' }]} /><p role="status">Consultando rúbricas del backend…</p></>;
   }
 
-  const presentation = statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', icono: LockKeyhole };
+  if (!rubrica && esApi && lectura.error) {
+    return <><EncabezadoPagina title="No fue posible cargar la rúbrica" description="La API no respondió con datos disponibles." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Error' }]} /><AlertaInstitucional tono="danger" titulo="Error de consulta"><p>{lectura.error.message}</p><button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button></AlertaInstitucional><BotonVolver respaldo="/rubricas">Volver al listado</BotonVolver></>;
+  }
+
+  if (!rubrica) {
+    return (
+      <>
+        <EncabezadoPagina
+          title="Rúbrica no encontrada"
+          description={esApi ? 'La API no devolvió esta versión.' : 'La versión solicitada no existe en el prototipo.'}
+          breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]}
+        />
+      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
+        <p>{esApi ? canEdit ? 'Este borrador se edita en PostgreSQL. Active e históricas permanecen en consulta.' : 'Esta versión del backend es de solo lectura con la autorización actual.' : 'Esta versión pertenece a los datos simulados locales del prototipo.'}</p>
+      </AlertaInstitucional>
+        <section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<BotonVolver respaldo="/rubricas">Volver a rúbricas</BotonVolver>} /></div></section>
+      </>
+    );
+  }
+
+  const presentation = esApi && rubrica.estado === 'BORRADOR'
+    ? { etiqueta: canEdit ? 'Borrador editable' : 'Borrador - solo lectura', tono: 'progress', icono: FileClock }
+    : statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', icono: LockKeyhole };
   const StatusIcon = presentation.icono;
 
   return (
@@ -133,6 +220,10 @@ export default function PaginaDetalleRubrica() {
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: rubrica.version }]}
         actions={<BotonVolver respaldo="/rubricas">Volver al listado</BotonVolver>}
       />
+
+      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
+        <p>{esApi ? canEdit ? 'Este borrador se edita en PostgreSQL. Active e históricas permanecen en consulta.' : 'Esta versión del backend es de solo lectura con la autorización actual.' : 'Esta versión pertenece a los datos simulados locales del prototipo.'}</p>
+      </AlertaInstitucional>
 
       <section className="rubrica-version-hero" aria-labelledby="rubrica-version-title">
         <div className="rubrica-version-hero-heading">
@@ -146,17 +237,17 @@ export default function PaginaDetalleRubrica() {
         </div>
         <dl className="rubrica-version-summary">
           <div><dt><CalendarRange size={16} /> Período</dt><dd>{rubrica.periodo}</dd></div>
-          <div><dt><Scale size={16} /> Puntaje total</dt><dd>{maximumTotal.toFixed(2)} puntos</dd></div>
+          <div><dt><Scale size={16} /> Puntaje total</dt><dd>{puntos(maximumTotal)} puntos</dd></div>
           <div><dt><Layers3 size={16} /> Estructura</dt><dd>{visibleCategories.length} categorías · {indicatorCount} indicadores</dd></div>
-          <div><dt><BookOpenCheck size={16} /> Vigencia</dt><dd>{rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : 'Aún no activada'}{rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ''}</dd></div>
+          <div><dt><BookOpenCheck size={16} /> Vigencia</dt><dd>{esApi ? (rubrica.activadaEn ? `Activada ${formatearFechaActivacion(rubrica.activadaEn)}` : "Fecha de activación no registrada") : (rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : "Aún no activada")}{!esApi && rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ""}</dd></div>
         </dl>
       </section>
 
       <div className={`rubrica-editing-note ${canEdit ? 'is-editable' : 'is-protected'}`} role="note">
         {canEdit ? <FileClock size={21} aria-hidden="true" /> : <LockKeyhole size={21} aria-hidden="true" />}
         <div>
-          <strong>{canEdit ? 'Borrador editable' : 'Versión protegida'}</strong>
-          <p>{canEdit ? 'Puede ajustar los textos y máximos existentes. Guardar conserva el borrador; activar lo convierte en la versión vigente.' : 'No puede modificarse ni altera evaluaciones históricas. Para realizar cambios debe crearse una versión nueva.'}</p>
+          <strong>{canEdit ? 'Borrador editable' : esApi ? 'Consulta API de solo lectura' : 'Versión protegida'}</strong>
+          <p>{canEdit ? 'Puede construir categorías e indicadores dentro de las etapas escrita y oral. Guardar conserva el borrador y sus cambios pendientes de activación.' : esApi ? 'Esta versión de PostgreSQL está disponible solo para consulta con la autorización actual.' : 'No puede modificarse ni altera evaluaciones históricas. Para realizar cambios debe crearse una versión nueva.'}</p>
         </div>
       </div>
 
@@ -173,106 +264,44 @@ export default function PaginaDetalleRubrica() {
         </div>
       </div>
 
-      {visibleStages.map((etapa, stageIndex) => {
+      {canEdit ? <>
+        <AlertaInstitucional tono={diagnostico.pendientes.length ? 'warning' : 'info'} titulo={diagnostico.pendientes.length ? 'Pendiente para una futura activación' : 'Estructura completa'}>
+          {diagnostico.pendientes.length ? <ul>{diagnostico.pendientes.map((mensaje) => <li key={mensaje}>{mensaje}</li>)}</ul> : <p>La estructura cumple las comprobaciones actuales de campos y subtotales. La activación API se gestionará en una etapa posterior.</p>}
+        </AlertaInstitucional>
+        <EditorEstructuraRubrica etapas={draftStages} categorias={draftCategories} esApi={esApi} bloqueado={guardando}
+          cambiarEtapa={updateStage} cambiarCategorias={(categorias) => { setDraftCategories(categorias); setTieneCambios(true); }} />
+      </> : visibleStages.map((etapa, stageIndex) => {
         const categorias = visibleCategories.filter((categoria) => categoria.etapa === etapa.id);
         const stageTotal = redondearCalificacion(categorias.reduce((total, categoria) => total + categoryMaximum(categoria), 0));
-        const stageNameId = `etapa-${etapa.id}-nombre`;
-        const stageDescriptionId = `etapa-${etapa.id}-descripcion`;
-        return (
-          <section className="rubrica-editor-stage" key={etapa.id} aria-label={canEdit ? `${etapa.codigo}: ${etapa.nombre}` : undefined} aria-labelledby={canEdit ? undefined : `etapa-${etapa.id}-title`}>
-            <header className="rubrica-editor-stage-heading">
-              <span className="rubrica-stage-number" aria-hidden="true">{String(stageIndex + 1).padStart(2, '0')}</span>
-              <div className="rubrica-stage-copy">
-                <span className="section-kicker">{String(etapa.codigo).replaceAll('_', ' ')}</span>
-                {canEdit ? (
-                  <div className="rubrica-stage-fields">
-                    <div className="field">
-                      <label htmlFor={stageNameId}>Nombre de la etapa</label>
-                      <input className="input" id={stageNameId} value={etapa.nombre} onChange={(evento) => updateStage(etapa.id, 'nombre', evento.target.value)} />
-                    </div>
-                    <div className="field">
-                      <label htmlFor={stageDescriptionId}>Descripción de la etapa</label>
-                      <input className="input" id={stageDescriptionId} value={etapa.descripcion ?? ''} onChange={(evento) => updateStage(etapa.id, 'descripcion', evento.target.value)} />
-                    </div>
-                  </div>
-                ) : (
-                  <><h2 id={`etapa-${etapa.id}-title`}>{etapa.nombre}</h2><p>{etapa.descripcion}</p></>
-                )}
-              </div>
-              <div className="rubrica-stage-score"><span>Máximo de etapa</span><strong>{stageTotal.toFixed(2)}</strong><small>puntos</small></div>
+        return <section className="rubrica-editor-stage" key={etapa.id} aria-labelledby={`etapa-${etapa.id}-title`}>
+          <header className="rubrica-editor-stage-heading">
+            <span className="rubrica-stage-number" aria-hidden="true">{String(stageIndex + 1).padStart(2, '0')}</span>
+            <div className="rubrica-stage-copy"><span className="section-kicker">{etapa.codigo}</span><h2 id={`etapa-${etapa.id}-title`}>{etapa.nombre}</h2><p>{etapa.descripcion}</p></div>
+            <div className="rubrica-stage-score"><span>Máximo de etapa</span><strong>{puntos(stageTotal)}</strong><small>puntos</small></div>
+          </header>
+          <div className="rubrica-editor-categories">{categorias.map((categoria) => <article className="rubrica-editor-category" key={categoria.id} aria-labelledby={`categoria-${categoria.id}-title`}>
+            <header className="rubrica-editor-category-heading">
+              <div><span className="rubrica-category-code">Categoría {categoria.codigo}</span><h3 id={`categoria-${categoria.id}-title`}>{categoria.nombre}</h3></div>
+              <div className="rubrica-category-score"><span>Máximo de categoría</span><strong>{puntos(categoryMaximum(categoria))} pts</strong></div>
             </header>
-
-            <div className="rubrica-editor-categories">
-              {categorias.map((categoria) => {
-                const categoryTotal = categoryMaximum(categoria);
-                const categoryNameId = `categoria-${categoria.id}-nombre`;
-                return (
-                  <article className="rubrica-editor-category" key={categoria.id} aria-label={canEdit ? `Categoría ${categoria.codigo}: ${categoria.nombre}` : undefined} aria-labelledby={canEdit ? undefined : `categoria-${categoria.id}-title`}>
-                    <header className="rubrica-editor-category-heading">
-                      <div>
-                        <span className="rubrica-category-code">Categoría {categoria.codigo}</span>
-                        {canEdit ? (
-                          <div className="field">
-                            <label htmlFor={categoryNameId}>Nombre de la categoría</label>
-                            <input className="input" id={categoryNameId} value={categoria.nombre} onChange={(evento) => actualizarNombreCategoria(categoria.id, evento.target.value)} />
-                          </div>
-                        ) : <h3 id={`categoria-${categoria.id}-title`}>{categoria.nombre}</h3>}
-                      </div>
-                      <div className="rubrica-category-score"><span>Máximo de categoría</span><strong>{categoryTotal.toFixed(2)} pts</strong></div>
-                    </header>
-
-                    <div className="rubrica-editor-indicators">
-                      {categoria.indicadores.map((indicador, indice) => {
-                        const indicatorLabelId = `indicador-${categoria.id}-${indicador.id}-texto`;
-                        const indicatorMaxId = `maximo-${categoria.id}-${indicador.id}`;
-                        return (
-                          <div className="rubrica-editor-indicator" key={indicador.id}>
-                            <div className="rubrica-indicator-index" aria-hidden="true">{categoria.codigo}.{indice + 1}</div>
-                            <div className="rubrica-indicator-copy">
-                              {canEdit ? (
-                                <div className="field">
-                                  <label htmlFor={indicatorLabelId}>Descripción del indicador {categoria.codigo}.{indice + 1}</label>
-                                  <textarea className="textarea" id={indicatorLabelId} value={indicador.etiqueta} onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'etiqueta', evento.target.value)} />
-                                </div>
-                              ) : <p>{indicador.etiqueta}</p>}
-                            </div>
-                            <div className="rubrica-indicator-score">
-                              <label htmlFor={indicatorMaxId}>Máximo del indicador</label>
-                              <input
-                                className="calificacion-input"
-                                id={indicatorMaxId}
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={indicador.maximo}
-                                readOnly={!canEdit}
-                                onChange={(evento) => updateIndicator(categoria.id, indicador.id, 'maximo', evento.target.value)}
-                              />
-                              <small>Puntos</small>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    <footer className="rubrica-category-total"><span>Suma de indicadores · Categoría {categoria.codigo}</span><strong>{categoryTotal.toFixed(2)} puntos</strong></footer>
-                  </article>
-                );
-              })}
-            </div>
-
-            <footer className="rubrica-stage-total"><span>Total de {etapa.nombreCorto ?? etapa.nombre}</span><strong>{stageTotal.toFixed(2)} puntos</strong></footer>
-          </section>
-        );
+            <div className="rubrica-editor-indicators">{categoria.indicadores.map((indicador, indice) => <div className="rubrica-editor-indicator" key={indicador.id}>
+              <span className="rubrica-indicator-index" aria-hidden="true">{categoria.codigo}.{indice + 1}</span>
+              <div className="rubrica-indicator-copy"><p>{indicador.etiqueta}</p></div>
+              <div className="rubrica-indicator-score"><label htmlFor={`maximo-${categoria.id}-${indicador.id}`}>Máximo del indicador</label><input id={`maximo-${categoria.id}-${indicador.id}`} className="calificacion-input" type="number" min="0" step="0.01" value={decimalIndicador(indicador)} readOnly /><small>Puntos</small></div>
+            </div>)}</div>
+            <footer className="rubrica-category-total"><span>Suma de indicadores · Categoría {categoria.codigo}</span><strong>{puntos(categoryMaximum(categoria))} puntos</strong></footer>
+          </article>)}</div>
+          <footer className="rubrica-stage-total"><span>Total de {etapa.nombreCorto ?? etapa.nombre}</span><strong>{puntos(stageTotal)} puntos</strong></footer>
+        </section>;
       })}
 
       <section className="rubrica-values-summary" aria-labelledby="rubrica-summary-title">
         <header>
           <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Totales calculados a partir de los indicadores de esta versión.</p></div>
-          <div className="rubrica-summary-total"><span>Total de la rúbrica</span><strong>{maximumTotal.toFixed(2)}</strong><small>puntos</small></div>
+          <div className="rubrica-summary-total"><span>Total de la rúbrica</span><strong>{puntos(maximumTotal)}</strong><small>puntos</small></div>
         </header>
         <div className="rubrica-summary-grid">
-          {visibleCategories.map((categoria) => <div key={`summary-${categoria.id}`}><span>{categoria.codigo}. {categoria.nombre}</span><strong>{categoryMaximum(categoria).toFixed(2)} pts</strong></div>)}
+          {visibleCategories.map((categoria) => <div key={`summary-${claveElemento(categoria)}`}><span>{categoria.codigo}. {categoria.nombre}</span><strong>{puntos(categoryMaximum(categoria))} pts</strong></div>)}
         </div>
       </section>
 
@@ -280,11 +309,12 @@ export default function PaginaDetalleRubrica() {
         <div className="rubrica-editor-actions" role="region" aria-label="Acciones del borrador">
           <div className={`rubrica-save-status ${tieneCambios ? 'has-changes' : 'is-saved'}`} aria-live="polite">
             {tieneCambios ? <FileClock size={18} /> : <CheckCircle2 size={18} />}
-            <span><strong>{tieneCambios ? 'Cambios sin guardar' : 'Borrador actualizado'}</strong><small>{tieneCambios ? 'Guarde antes de salir o activar la versión.' : 'No hay cambios pendientes.'}</small></span>
+            <span><strong>{tieneCambios ? 'Cambios sin guardar' : 'Borrador actualizado'}</strong><small>{tieneCambios ? 'Guarde antes de salir.' : esApi ? `Revisión ${revisionEditada ?? rubrica.revision} - no hay cambios pendientes.` : 'No hay cambios pendientes.'}</small></span>
           </div>
           <div>
-            <button className="button button-outline" type="button" onClick={saveDraft}><Save size={17} /> Guardar borrador</button>
-            <button className="button button-primary" type="button" onClick={activateDraft}><ShieldCheck size={17} /> Activar versión</button>
+            {conflicto ? <button className="button button-outline" type="button" disabled={guardando} onClick={recargarVersion}>Recargar versión</button> : null}
+            <button className="button button-outline" type="button" disabled={!tieneCambios || guardando} onClick={saveDraft}><Save size={17} /> {guardando ? 'Guardando...' : 'Guardar borrador'}</button>
+            {canActivate ? <button className="button button-primary" type="button" onClick={activateDraft}><ShieldCheck size={17} /> Activar versión</button> : null}
           </div>
         </div>
       ) : null}

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
@@ -10,10 +11,14 @@ import {
   Scale,
   ShieldCheck,
 } from 'lucide-react';
-import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { ROL } from '../datos/datosPrototipo';
 import { maximoEtapa, maximoRubrica, obtenerEtapasRubrica } from '../dominio/flujoTrabajo';
+import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
+import { cargarCatalogosRubricasApi, cargarDefinicionesRubricasApi, clonarVersionRubricaApi, crearRubricaApi, crearVersionRubricaApi } from '../servicios/rubricasApi';
+import { cargarModalidadesApi } from '../servicios/modalidadesApi';
+import { mensajeErrorEscrituraRubrica } from '../dominio/rubricasApiEdicion';
 
 const estadoRubrica = {
   ACTIVA: { etiqueta: 'Activa', tono: 'success', ayuda: 'Disponible para trabajos nuevos.' },
@@ -35,13 +40,20 @@ function contarIndicadores(rubrica) {
 
 export default function PaginaRubricas() {
   const { estado, actorActual, despachar } = usarPrototipo();
+  const lectura = usarRubricasLectura(estado.versionesRubrica);
+  const esApi = lectura.fuente === 'api';
+  const versiones = lectura.versiones;
   const navegar = useNavigate();
+  const [creandoVacio, setCreandoVacio] = useState(false);
+  const [creandoFamilia, setCreandoFamilia] = useState(false);
   const puedeGestionar = actorActual?.roles.some(
     (role) => role === ROL.COMISION || role === ROL.ADMIN,
   );
 
-  const crearVersion = async (origen) => {
-    const base = origen ?? estado.versionesRubrica.find((rubrica) => rubrica.estado === 'ACTIVA');
+  const crearVersion = async (origen, vacia = false) => {
+    const base = origen ?? (esApi
+      ? versiones.find((rubrica) => rubrica.estado === 'ACTIVA') ?? versiones[0]
+      : estado.versionesRubrica.find((rubrica) => rubrica.estado === 'ACTIVA'));
     if (!base) {
       await Swal.fire({ icon: 'warning', title: 'No existe una versión base', text: 'Debe existir una rúbrica para poder crear una nueva versión.' });
       return;
@@ -49,7 +61,7 @@ export default function PaginaRubricas() {
 
     const respuesta = await Swal.fire({
       title: 'Crear nueva versión',
-      text: `Se copiará ${base.version} de ${base.modalidad} para el período ${base.periodo}.`,
+      text: vacia ? `Se creará un borrador sin categorías ni indicadores para ${base.modalidad}.` : `Se copiará ${base.version} de ${base.modalidad} para el período ${base.periodo}.`,
       input: 'text',
       inputLabel: 'Nombre de la nueva versión',
       inputValue: versionSugerida(base.version),
@@ -61,11 +73,29 @@ export default function PaginaRubricas() {
     if (!respuesta.isConfirmed) return;
 
     const version = respuesta.value.trim();
-    const duplicada = estado.versionesRubrica.some((rubrica) => (
+    const duplicada = !esApi && estado.versionesRubrica.some((rubrica) => (
       rubrica.idRubrica === base.idRubrica && rubrica.periodo === base.periodo && rubrica.version.toLowerCase() === version.toLowerCase()
     ));
     if (duplicada) {
       await Swal.fire({ icon: 'warning', title: 'La versión ya existe', text: 'Utilice un nombre de versión diferente.' });
+      return;
+    }
+
+    if (esApi) {
+      try {
+        const creada = await clonarVersionRubricaApi({ versionBase: base, version });
+        if (!creada || typeof creada.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id) || !Number.isInteger(creada.revision) || creada.estado !== 'BORRADOR') {
+          throw new Error('La API devolvió una respuesta de clonación inválida.');
+        }
+        try {
+          await lectura.reintentar();
+        } catch {
+          await Swal.fire({ icon: 'warning', title: 'Borrador creado', text: 'La API creó la versión, pero no fue posible recargar el catálogo. El detalle consultará el registro directamente.' });
+        }
+        navegar(`/rubricas/${encodeURIComponent(creada.id)}`);
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'No se creó el borrador', text: mensajeErrorEscrituraRubrica(error) });
+      }
       return;
     }
 
@@ -74,6 +104,7 @@ export default function PaginaRubricas() {
       tipo: 'CREAR_VERSION_RUBRICA',
       rubrica: {
         ...clonar(base),
+        ...(vacia ? { etapas: [], categorias: [] } : {}),
         id,
         version,
         estado: 'BORRADOR',
@@ -85,10 +116,82 @@ export default function PaginaRubricas() {
     navegar(`/rubricas/${id}`);
   };
 
+  const crearBorradorVacio = async () => {
+    if (!esApi) return crearVersion(undefined, true);
+    if (!lectura.puedeAdministrar || creandoVacio) return;
+    setCreandoVacio(true);
+    try {
+      const [definiciones, catalogos] = await Promise.all([cargarDefinicionesRubricasApi(), cargarCatalogosRubricasApi()]);
+      if (!definiciones.length || !catalogos.periodos.length) throw new Error('Debe existir una rúbrica y un período en el backend para crear el borrador.');
+      const rubrica = await Swal.fire({ title: 'Rúbrica del borrador vacío', input: 'select', inputLabel: 'Rúbrica', inputOptions: Object.fromEntries(definiciones.map((r) => [r.id, `${r.nombre} · ${r.modalidad.nombre}`])), showCancelButton: true, confirmButtonText: 'Continuar', cancelButtonText: 'Cancelar' });
+      if (!rubrica.isConfirmed) return;
+      const periodo = await Swal.fire({ title: 'Período del borrador', input: 'select', inputLabel: 'Período', inputOptions: Object.fromEntries(catalogos.periodos.map((p) => [p.id, p.codigo])), showCancelButton: true, confirmButtonText: 'Continuar', cancelButtonText: 'Cancelar' });
+      if (!periodo.isConfirmed) return;
+      const nombre = await Swal.fire({ title: 'Crear borrador vacío', input: 'text', inputLabel: 'Nombre de la versión', inputAttributes: { maxlength: '30' }, inputValidator: (valor) => !valor?.trim() ? 'Ingrese un nombre de versión.' : undefined, showCancelButton: true, confirmButtonText: 'Crear borrador', cancelButtonText: 'Cancelar' });
+      if (!nombre.isConfirmed) return;
+      const creada = await crearVersionRubricaApi(rubrica.value, { periodoId: periodo.value, version: nombre.value });
+      if (!creada || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id) || !Number.isInteger(creada.revision) || creada.estado !== 'BORRADOR') throw new Error('La API devolvió una respuesta de creación inválida.');
+      try {
+        await lectura.reintentar();
+      } catch {
+        await Swal.fire({ icon: 'warning', title: 'Borrador creado', text: 'La API creó la versión, pero no fue posible recargar el catálogo. El detalle consultará el registro directamente.' });
+      }
+      navegar(`/rubricas/${encodeURIComponent(creada.id)}`);
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'No se creó el borrador', text: mensajeErrorEscrituraRubrica(error) });
+    } finally { setCreandoVacio(false); }
+  };
+
+  const crearFamilia = async () => {
+    if (!esApi || !lectura.puedeAdministrar || creandoFamilia) return;
+    setCreandoFamilia(true);
+    try {
+      const disponibles = await cargarModalidadesApi({ disponiblesParaFamilia: true });
+      if (!disponibles.length) {
+        await Swal.fire({ icon: 'info', title: 'No hay modalidades disponibles', text: 'Todas las modalidades activas ya tienen una familia o no hay modalidades activas.' });
+        return;
+      }
+      const seleccion = await Swal.fire({
+        title: 'Nueva familia de rúbricas',
+        input: 'select',
+        inputLabel: 'Modalidad activa sin familia',
+        inputOptions: Object.fromEntries(disponibles.map((modalidad) => [modalidad.id, `${modalidad.codigo} · ${modalidad.nombre}`])),
+        showCancelButton: true,
+        confirmButtonText: 'Continuar',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!seleccion.isConfirmed) return;
+      const modalidad = disponibles.find((item) => item.id === seleccion.value);
+      if (!modalidad) throw new Error('La modalidad elegida dejó de estar disponible; recargue el catálogo.');
+      const nombre = await Swal.fire({
+        title: 'Nombre de la familia',
+        input: 'text',
+        inputValue: `Rúbrica de ${modalidad.nombre}`,
+        inputLabel: 'Nombre',
+        inputAttributes: { maxlength: '220' },
+        inputValidator: (valor) => !valor?.trim() ? 'Ingrese un nombre.' : undefined,
+        showCancelButton: true,
+        confirmButtonText: 'Crear familia',
+        cancelButtonText: 'Cancelar',
+      });
+      if (!nombre.isConfirmed) return;
+      const creada = await crearRubricaApi({ modalidadId: modalidad.id, nombre: nombre.value.trim(), descripcion: null });
+      if (!creada || typeof creada.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id)) {
+        throw new Error('La API devolvió una respuesta de creación inválida.');
+      }
+      navegar(`/maestros/modalidades/${encodeURIComponent(modalidad.id)}`);
+      lectura.reintentar().catch(() => {});
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'No se creó la familia', text: mensajeErrorEscrituraRubrica(error) });
+    } finally {
+      setCreandoFamilia(false);
+    }
+  };
+
   const resumen = {
-    activas: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'ACTIVA').length,
-    borradores: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'BORRADOR').length,
-    historicas: estado.versionesRubrica.filter((rubrica) => rubrica.estado === 'ARCHIVADA').length,
+    activas: versiones.filter((rubrica) => rubrica.estado === 'ACTIVA').length,
+    borradores: versiones.filter((rubrica) => rubrica.estado === 'BORRADOR').length,
+    historicas: versiones.filter((rubrica) => rubrica.estado === 'ARCHIVADA').length,
   };
 
   return (
@@ -98,17 +201,25 @@ export default function PaginaRubricas() {
         title="Gestión de rúbricas"
         description="Administre versiones y consulte la estructura de evaluación definida para cada modalidad y período."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas' }]}
-        actions={puedeGestionar ? (
+        actions={<>{esApi && lectura.puedeAdministrar && <button className="button button-outline" type="button" disabled={creandoFamilia} onClick={crearFamilia}>Crear familia</button>}{(esApi ? lectura.puedeAdministrar : puedeGestionar) && <button className="button button-outline" type="button" disabled={creandoVacio} onClick={crearBorradorVacio}>Crear borrador vacío</button>}{esApi ? lectura.puedeAdministrar && versiones.length ? (
+          <button className="button button-primary" type="button" onClick={() => crearVersion()}>
+            <CopyPlus size={18} /> Clonar versión
+          </button>
+        ) : null : puedeGestionar ? (
           <button className="button button-primary" type="button" onClick={() => crearVersion()}>
             <CopyPlus size={18} /> Crear nueva versión
           </button>
-        ) : null}
+        ) : null}</>}
       />
 
+      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${lectura.puedeAdministrar ? 'administracion local' : 'solo lectura'}` : 'Origen: prototipo local'}>
+        <p>{esApi ? 'Los datos provienen del backend local y no se mezclan con el prototipo. Las escrituras requieren autorizacion administrativa del servidor.' : 'Se muestran datos simulados conservados localmente. La lectura del backend se habilita solo mediante configuracion explicita de desarrollo.'}</p>
+      </AlertaInstitucional>
+
       <section className="rubricas-overview" aria-label="Resumen de versiones">
-        <article><BookOpenCheck size={20} /><div><strong>{estado.versionesRubrica.length}</strong><span>Versiones registradas</span></div></article>
+        <article><BookOpenCheck size={20} /><div><strong>{versiones.length}</strong><span>Versiones registradas</span></div></article>
         <article><ShieldCheck size={20} /><div><strong>{resumen.activas}</strong><span>Versiones activas</span></div></article>
-        <article><PencilLine size={20} /><div><strong>{resumen.borradores}</strong><span>Borradores editables</span></div></article>
+        <article><PencilLine size={20} /><div><strong>{resumen.borradores}</strong><span>{esApi ? 'Borradores consultables' : 'Borradores editables'}</span></div></article>
         <article><FileClock size={20} /><div><strong>{resumen.historicas}</strong><span>Versiones históricas</span></div></article>
       </section>
 
@@ -125,22 +236,35 @@ export default function PaginaRubricas() {
           <div>
             <span className="section-kicker">Catálogo institucional</span>
             <h2 id="rubricas-catalog-title">Versiones disponibles</h2>
-            <p>La versión y el estado determinan si la estructura puede editarse o únicamente consultarse.</p>
+            <p>{esApi ? lectura.puedeAdministrar ? 'Los borradores pueden clonarse y editarse con la autorizacion local del servidor.' : 'Las versiones de PostgreSQL se consultan en modo solo lectura.' : 'La version y el estado determinan si la estructura puede editarse o solo consultarse.'}</p>
           </div>
-          <InsigniaEstado estado={`${estado.versionesRubrica.length} versiones`} tono="info" />
+          <InsigniaEstado estado={`${versiones.length} versiones`} tono="info" />
         </header>
 
-        {estado.versionesRubrica.length === 0 ? (
+        {lectura.cargando ? (
+          <p className="rubricas-empty" role="status">Consultando rúbricas del backend…</p>
+        ) : lectura.error ? (
+          <AlertaInstitucional tono="danger" titulo="No fue posible cargar las rúbricas">
+            <p>{lectura.error.message}</p>
+            <button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button>
+          </AlertaInstitucional>
+        ) : versiones.length === 0 ? (
           <div className="rubricas-empty">
-            <EstadoVacio title="No hay rúbricas configuradas" description="Cree un borrador para definir la primera versión." />
+            <EstadoVacio
+              title="No hay rúbricas configuradas"
+              description={esApi ? 'El servicio no devolvió rúbricas para esta consulta.' : 'Cree un borrador para definir la primera versión.'}
+            />
           </div>
         ) : (
           <div className="rubricas-version-grid">
-            {estado.versionesRubrica.map((rubrica) => {
-              const presentacion = estadoRubrica[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', ayuda: 'Estado de la versión.' };
+            {versiones.map((rubrica) => {
+              const presentacion = esApi && rubrica.estado === 'BORRADOR'
+                ? { etiqueta: 'Borrador', tono: 'progress', ayuda: lectura.puedeAdministrar ? 'Editable por la identidad administrativa local.' : 'Consulta de solo lectura desde PostgreSQL.' }
+                : estadoRubrica[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', ayuda: 'Estado de la version.' };
+
               const etapas = obtenerEtapasRubrica(rubrica);
               const indicadores = contarIndicadores(rubrica);
-              const esEditable = rubrica.estado === 'BORRADOR' && puedeGestionar;
+              const esEditable = rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : puedeGestionar);
               return (
                 <article className={`rubrica-version-card is-${rubrica.estado.toLowerCase()}`} key={rubrica.id}>
                   <header className="rubrica-version-heading">
@@ -179,7 +303,11 @@ export default function PaginaRubricas() {
                       {esEditable ? <PencilLine size={17} /> : <Eye size={17} />}
                       {esEditable ? 'Editar borrador' : 'Ver estructura'}
                     </Link>
-                    {rubrica.estado === 'ACTIVA' && puedeGestionar ? (
+                    {esApi && lectura.puedeAdministrar ? (
+                      <button className="button button-primary" type="button" onClick={() => crearVersion(rubrica)}>
+                        <CopyPlus size={17} /> Clonar versión
+                      </button>
+                    ) : rubrica.estado === 'ACTIVA' && puedeGestionar && !esApi ? (
                       <button className="button button-primary" type="button" onClick={() => crearVersion(rubrica)}>
                         <CopyPlus size={17} /> Nueva versión
                       </button>

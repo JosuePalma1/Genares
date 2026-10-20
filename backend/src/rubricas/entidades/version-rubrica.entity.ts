@@ -41,6 +41,9 @@ export class VersionRubrica {
   })
   estado!: EstadoVersionRubrica;
 
+  @Column({ type: 'integer', default: 1 })
+  revision!: number;
+
   @Column({ name: 'activada_en', type: 'timestamptz', nullable: true })
   activadoEn!: Date | null;
 
