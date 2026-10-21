@@ -22,6 +22,7 @@ export enum EstadoAsignacionTribunal {
 
 export enum EstadoVersionRubrica {
   BORRADOR = 'BORRADOR',
+  CONFIGURADA = 'CONFIGURADA',
   ACTIVA = 'ACTIVA',
   ARCHIVADA = 'ARCHIVADA',
 }
@@ -29,6 +30,7 @@ export enum EstadoVersionRubrica {
 export enum EtapaEvaluacion {
   ESCRITA = 'ESCRITA',
   ORAL = 'ORAL',
+  PERSONALIZADA = 'PERSONALIZADA',
 }
 
 export enum AlcanceEtapaRubrica {

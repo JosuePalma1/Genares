@@ -72,7 +72,7 @@ describe('identidad local controlada por servidor', () => {
     expect(solicitud.identidadApi).toEqual({
       sujeto: 'desarrollo-local-lector',
       tipo: 'SIMULADA',
-      capacidades: ['rubricas:leer', 'modalidades:leer'],
+      capacidades: ['rubricas:leer', 'modalidades:leer', 'carreras:leer'],
     });
     expect(continuar).toHaveBeenCalledTimes(1);
   });
@@ -86,6 +86,16 @@ describe('identidad local controlada por servidor', () => {
     expect(solicitud.identidadApi).toBeUndefined();
     expect(direccionEsLoopback('::ffff:127.0.0.1')).toBe(true);
     expect(direccionEsLoopback('192.0.2.25')).toBe(false);
+  });
+
+  it('asigna capacidades de carreras solo al perfil administrativo fijo del servidor', () => {
+    const solicitud = {
+      socket: { remoteAddress: '127.0.0.1' },
+      headers: { 'x-capacidades': 'carreras:administrar', 'x-dev-profile': 'lector' },
+    } as unknown as SolicitudLocalApi;
+    crearMiddlewareIdentidadLocal('administrador-rubricas')(solicitud, {}, jest.fn());
+    expect(solicitud.identidadApi?.capacidades).toContain('carreras:administrar');
+    expect(solicitud.identidadApi?.sujeto).toBe('desarrollo-local-administrador-rubricas');
   });
 
   it('no ofrece un perfil de administración local', () => {

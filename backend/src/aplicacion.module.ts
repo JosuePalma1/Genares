@@ -3,14 +3,18 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ModuloApi } from './comun/api/modulo-api';
 import { ModalidadesModule } from './modalidades/modalidades.module';
+import { CarrerasModule } from './carreras/carreras.module';
 import { RubricasModule } from './rubricas/rubricas.module';
+import { EvaluacionesModule } from './evaluaciones/evaluaciones.module';
 import { ControladorSalud } from './salud/salud.controller';
 
 @Module({
   imports: [
     ModuloApi,
     ModalidadesModule,
+    CarrerasModule,
     RubricasModule,
+    EvaluacionesModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -25,6 +29,7 @@ import { ControladorSalud } from './salud/salud.controller';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         migrations: [__dirname + '/base-datos/migraciones/*{.ts,.js}'],
         migrationsRun: false,
+        migrationsTransactionMode: 'each' as const,
         synchronize: false,
         ssl:
           config.get<string>('DB_SSL', 'false') === 'true'

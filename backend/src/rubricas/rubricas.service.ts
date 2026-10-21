@@ -8,7 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, In, QueryFailedError, Repository } from 'typeorm';
 import { Modalidad } from '../catalogo/entidades/modalidad.entity';
 import { PeriodoAcademico } from '../catalogo/entidades/periodo-academico.entity';
-import { EstadoVersionRubrica } from '../comun/enums-dominio';
+import { Carrera } from '../catalogo/entidades/carrera.entity';
+import { AlcanceEtapaRubrica, EstadoVersionRubrica, EtapaEvaluacion } from '../comun/enums-dominio';
 import { CategoriaRubrica } from './entidades/categoria-rubrica.entity';
 import { EtapaRubrica } from './entidades/etapa-rubrica.entity';
 import { EventoAuditoriaRubrica } from './entidades/evento-auditoria-rubrica.entity';
@@ -21,6 +22,11 @@ import { CrearVersionRubricaDto } from './dto/crear-version-rubrica.dto';
 import { ActualizarVersionRubricaDto } from './dto/actualizar-version-rubrica.dto';
 import { ActivarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
 import {
+  CrearRubricaCompletaDto,
+  CrearVersionRubricaCompletaDto,
+  EtapaRubricaCompletaDto,
+} from './dto/estructura-rubrica-completa.dto';
+import {
   CategoriaRubricaDto,
   ActivacionVersionRubricaDto,
   CatalogosRubricaDto,
@@ -28,8 +34,13 @@ import {
   RubricaListadoDto,
   VersionRubricaDetalleDto,
   VersionRubricaResumenDto,
+  VersionRubricaCompletaDto,
   VersionesRubricaDto,
 } from './dto/respuesta-rubrica.dto';
+import { normalizarEstructuraRubricaCompleta } from './reglas-rubrica-completa';
+import { EtapaRubricaNormalizada } from './reglas-rubrica-completa';
+import { EntityManager } from 'typeorm';
+import { AsociacionCarreraRubricaDto } from './dto/estructura-rubrica-completa.dto';
 import {
   validarEstructuraActivableRubrica,
   validarEstructuraBorradorRubrica,
@@ -117,6 +128,145 @@ export class RubricasService {
           modalidad: { id: modalidad.id, codigo: modalidad.codigo, nombre: modalidad.nombre },
           creadaEn: rubrica.creadoEn.toISOString(),
         };
+      });
+    } catch (error) {
+      this.lanzarConflictoUnico(error);
+      throw error;
+    }
+  }
+
+  async crearCompleta(
+    dto: CrearRubricaCompletaDto,
+    actorId: string,
+    correlationId: string | null,
+  ): Promise<VersionRubricaCompletaDto> {
+    const etapas = normalizarEstructuraRubricaCompleta(dto.etapas);
+    this.validarCarrerasUnicas(dto.carreras.map(({ carreraId }) => carreraId));
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const modalidad = await manager.getRepository(Modalidad).findOne({
+          where: { id: dto.modalidadId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!modalidad) throw new NotFoundException('No existe la modalidad solicitada.');
+        if (!modalidad.estaActivo) throw new ConflictException('No se pueden crear r\u00fabricas para una modalidad inactiva.');
+        const periodo = await manager.getRepository(PeriodoAcademico).findOneBy({ id: dto.periodoId });
+        if (!periodo) throw new NotFoundException('No existe el per\u00edodo acad\u00e9mico solicitado.');
+
+        const repositorioRubrica = manager.getRepository(Rubrica);
+        let rubrica = await repositorioRubrica.findOne({ where: { modalidad: { id: modalidad.id } } });
+        const esNueva = !rubrica;
+        if (!rubrica) {
+          rubrica = await repositorioRubrica.save({
+            modalidad,
+            nombre: dto.nombre.trim(),
+            descripcion: dto.descripcion?.trim() || null,
+          });
+          await this.registrarAuditoria(manager, {
+            actorId,
+            accion: 'RUBRICA_CREADA',
+            rubrica,
+            version: null,
+            correlationId,
+          });
+        } else {
+          rubrica = await repositorioRubrica.findOne({
+            where: { id: rubrica.id },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!rubrica) throw new NotFoundException('No existe la familia de r\u00fabricas solicitada.');
+        }
+
+        const creada = await this.guardarVersionCompleta(manager, {
+          rubrica,
+          modalidad,
+          periodo,
+          version: dto.version,
+          etapas,
+          carreras: dto.carreras,
+          actorId,
+          correlationId,
+          versionBase: null,
+        });
+        if (!esNueva) {
+          await this.registrarAuditoria(manager, {
+            actorId,
+            accion: 'FAMILIA_RUBRICA_REUTILIZADA',
+            rubrica,
+            version: creada.version,
+            correlationId,
+          });
+        }
+        return creada.respuesta;
+      });
+    } catch (error) {
+      this.lanzarConflictoUnico(error);
+      throw error;
+    }
+  }
+
+  async crearVersionCompleta(
+    rubricaId: string,
+    dto: CrearVersionRubricaCompletaDto,
+    actorId: string,
+    correlationId: string | null,
+  ): Promise<VersionRubricaCompletaDto> {
+    this.validarCarrerasUnicas(dto.carreras.map(({ carreraId }) => carreraId));
+    if (!dto.etapas && !dto.copiarDesdeVersionId) {
+      throw new BadRequestException('Indique la estructura completa o una versi\u00f3n base para copiar.');
+    }
+    if (dto.copiarDesdeVersionId && dto.revisionBase === undefined) {
+      throw new BadRequestException('La copia requiere la revisi\u00f3n esperada de la versi\u00f3n base.');
+    }
+    if (!dto.copiarDesdeVersionId && dto.revisionBase !== undefined) {
+      throw new BadRequestException('La revisi\u00f3n base solo se acepta cuando se indica una versi\u00f3n para copiar.');
+    }
+
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const repositorioRubrica = manager.getRepository(Rubrica);
+        const rubricaBloqueada = await repositorioRubrica.findOne({
+          where: { id: rubricaId },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!rubricaBloqueada) throw new NotFoundException('No existe la r\u00fabrica solicitada.');
+        const rubrica = await repositorioRubrica.findOne({
+          where: { id: rubricaId },
+          relations: { modalidad: true },
+        });
+        if (!rubrica?.modalidad) throw new NotFoundException('No existe la modalidad de la r\u00fabrica.');
+        if (!rubrica.modalidad.estaActivo) throw new ConflictException('No se pueden crear versiones para una modalidad inactiva.');
+        const periodo = await manager.getRepository(PeriodoAcademico).findOneBy({ id: dto.periodoId });
+        if (!periodo) throw new NotFoundException('No existe el per\u00edodo acad\u00e9mico solicitado.');
+
+        let versionBase: VersionRubrica | null = null;
+        let etapaDtos = dto.etapas;
+        if (dto.copiarDesdeVersionId) {
+          versionBase = await manager.getRepository(VersionRubrica).findOne({
+            where: { id: dto.copiarDesdeVersionId, rubrica: { id: rubricaId } },
+            lock: { mode: 'pessimistic_write' },
+          });
+          if (!versionBase) throw new BadRequestException('La versi\u00f3n base debe pertenecer a esta r\u00fabrica.');
+          if (versionBase.revision !== dto.revisionBase) {
+            throw new ConflictException('La versi\u00f3n base cambi\u00f3 desde la \u00faltima lectura.');
+          }
+          if (!etapaDtos) etapaDtos = await this.copiarEstructuraComoDtos(manager, versionBase.id);
+        }
+        if (!etapaDtos?.length) throw new BadRequestException('La r\u00fabrica debe contener al menos una etapa.');
+        const etapas = normalizarEstructuraRubricaCompleta(etapaDtos);
+
+        const creada = await this.guardarVersionCompleta(manager, {
+          rubrica,
+          modalidad: rubrica.modalidad,
+          periodo,
+          version: dto.version,
+          etapas,
+          carreras: dto.carreras,
+          actorId,
+          correlationId,
+          versionBase,
+        });
+        return creada.respuesta;
       });
     } catch (error) {
       this.lanzarConflictoUnico(error);
@@ -511,6 +661,262 @@ export class RubricasService {
       this.lanzarErrorActivacion(error);
       throw error;
     }
+  }
+
+  private validarCarrerasUnicas(carreraIds: string[]): void {
+    if (new Set(carreraIds.map((id) => id.toLowerCase())).size !== carreraIds.length) {
+      throw new BadRequestException('Cada carrera debe aparecer una sola vez.');
+    }
+  }
+
+  private async copiarEstructuraComoDtos(
+    manager: EntityManager,
+    versionId: string,
+  ): Promise<EtapaRubricaCompletaDto[]> {
+    const etapas = await manager.getRepository(EtapaRubrica).find({
+      where: { rubricVersion: { id: versionId } },
+      order: { orden: 'ASC', id: 'ASC' },
+    });
+    const resultado: EtapaRubricaCompletaDto[] = [];
+    for (const etapa of etapas) {
+      const categorias = await manager.getRepository(CategoriaRubrica).find({
+        where: { etapa: { id: etapa.id } },
+        order: { orden: 'ASC', id: 'ASC' },
+      });
+      const categoriasDto = [];
+      for (const categoria of categorias) {
+        const indicadores = await manager.getRepository(IndicadorRubrica).find({
+          where: { categoria: { id: categoria.id } },
+          order: { orden: 'ASC', id: 'ASC' },
+        });
+        categoriasDto.push({
+          codigo: categoria.codigo,
+          nombre: categoria.nombre,
+          orden: categoria.orden,
+          indicadores: indicadores.map((indicador) => ({
+            label: indicador.label,
+            descripcion: indicador.descripcion,
+            calificacionMaxima: indicador.calificacionMaxima,
+            orden: indicador.orden,
+          })),
+        });
+      }
+      resultado.push({
+        codigo: etapa.codigo,
+        nombre: etapa.nombre,
+        alcance: etapa.scope,
+        descripcion: etapa.descripcion,
+        orden: etapa.orden,
+        categorias: categoriasDto,
+      });
+    }
+    return resultado;
+  }
+
+  private async guardarVersionCompleta(
+    manager: EntityManager,
+    contexto: {
+      rubrica: Rubrica;
+      modalidad: Modalidad;
+      periodo: PeriodoAcademico;
+      version: string;
+      etapas: EtapaRubricaNormalizada[];
+      carreras: AsociacionCarreraRubricaDto[];
+      actorId: string;
+      correlationId: string | null;
+      versionBase: VersionRubrica | null;
+    },
+  ): Promise<{ version: VersionRubrica; respuesta: VersionRubricaCompletaDto }> {
+    const nombreVersion = contexto.version.trim();
+    const duplicada = await manager.getRepository(VersionRubrica)
+      .createQueryBuilder('version')
+      .where('version.rubrica = :rubricaId', { rubricaId: contexto.rubrica.id })
+      .andWhere('lower(version.version) = lower(:version)', { version: nombreVersion })
+      .getOne();
+    if (duplicada) throw new ConflictException('El identificador de versi\u00f3n ya existe en esta r\u00fabrica.');
+
+    const repositorioVersion = manager.getRepository(VersionRubrica);
+    const versionBorrador: VersionRubrica = await repositorioVersion.save({
+      rubrica: contexto.rubrica,
+      academicPeriod: contexto.periodo,
+      version: nombreVersion,
+      estado: EstadoVersionRubrica.BORRADOR,
+      revision: 1,
+      activadoEn: null,
+      versionBase: contexto.versionBase,
+    });
+
+    for (const etapaNormalizada of contexto.etapas) {
+      const etapaDto = etapaNormalizada.dto;
+      const etapa = await manager.getRepository(EtapaRubrica).save({
+        rubricVersion: versionBorrador,
+        kind: EtapaEvaluacion.PERSONALIZADA,
+        scope: etapaDto.alcance,
+        codigo: etapaDto.codigo.trim(),
+        nombre: etapaDto.nombre.trim(),
+        descripcion: etapaDto.descripcion?.trim() || null,
+        calificacionMaxima: '10.00',
+        porcentaje: null,
+        orden: etapaDto.orden,
+      });
+      for (const categoriaNormalizada of etapaNormalizada.categorias) {
+        const categoriaDto = categoriaNormalizada.dto;
+        const categoria = await manager.getRepository(CategoriaRubrica).save({
+          rubricVersion: versionBorrador,
+          etapa,
+          codigo: categoriaDto.codigo.trim(),
+          nombre: categoriaDto.nombre.trim(),
+          calificacionMaxima: categoriaNormalizada.calificacionMaxima,
+          orden: categoriaDto.orden,
+        });
+        await manager.getRepository(IndicadorRubrica).save(categoriaDto.indicadores.map((indicador) => ({
+          categoria,
+          label: indicador.label.trim(),
+          descripcion: indicador.descripcion.trim(),
+          calificacionMaxima: this.normalizarDecimal(indicador.calificacionMaxima),
+          orden: indicador.orden,
+        })));
+      }
+    }
+
+    versionBorrador.estado = EstadoVersionRubrica.CONFIGURADA;
+    const version = await repositorioVersion.save(versionBorrador);
+    await this.registrarAuditoria(manager, {
+      actorId: contexto.actorId,
+      accion: 'VERSION_COMPLETA_CREADA',
+      rubrica: contexto.rubrica,
+      version,
+      correlationId: contexto.correlationId,
+    });
+    await this.registrarAuditoria(manager, {
+      actorId: contexto.actorId,
+      accion: 'ESTRUCTURA_RUBRICA_GUARDADA',
+      rubrica: contexto.rubrica,
+      version,
+      correlationId: contexto.correlationId,
+    });
+
+    const carrerasOrdenadas = [...contexto.carreras].sort((a, b) => a.carreraId.localeCompare(b.carreraId));
+    const idsCarrera = carrerasOrdenadas.map(({ carreraId }) => carreraId);
+    const filasCarrera = await manager.query(
+      `SELECT "id", "codigo", "nombre", "revision", "esta_activo"
+       FROM "carreras" WHERE "id" = ANY($1::uuid[]) ORDER BY "id" FOR UPDATE`,
+      [idsCarrera],
+    ) as Array<{ id: string; codigo: string; nombre: string; revision: number; esta_activo: boolean }>;
+    const carrerasPorId = new Map(filasCarrera.map((carrera) => [carrera.id.toLowerCase(), carrera]));
+    for (const solicitud of carrerasOrdenadas) {
+      const carrera = carrerasPorId.get(solicitud.carreraId.toLowerCase());
+      if (!carrera) throw new NotFoundException('No existe una de las carreras solicitadas.');
+      if (Number(carrera.revision) !== solicitud.revision) {
+        throw new ConflictException(`La carrera ${carrera.codigo} cambi\u00f3 desde la \u00faltima lectura.`);
+      }
+      if (!carrera.esta_activo) throw new ConflictException(`La carrera ${carrera.codigo} est\u00e1 inactiva.`);
+    }
+
+    for (const solicitud of carrerasOrdenadas) {
+      const carrera = carrerasPorId.get(solicitud.carreraId.toLowerCase())!;
+      const [asociacion] = await manager.query(
+        `INSERT INTO "versiones_rubrica_carreras"
+          ("id_version_rubrica", "id_carrera", "id_rubrica", "id_modalidad", "periodo_academico_id")
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT ("id_version_rubrica", "id_carrera") DO NOTHING RETURNING "id_version_rubrica"`,
+        [version.id, carrera.id, contexto.rubrica.id, contexto.modalidad.id, contexto.periodo.id],
+      ) as Array<{ id_version_rubrica: string }>;
+      if (!asociacion) throw new ConflictException(`La versi\u00f3n ya est\u00e1 asociada a la carrera ${carrera.codigo}.`);
+
+      await manager.getRepository(EventoAuditoriaRubrica).save({
+        actorId: contexto.actorId,
+        accion: 'VERSION_RUBRICA_ASOCIADA_CARRERA',
+        rubrica: contexto.rubrica,
+        modalidad: contexto.modalidad,
+        version,
+        carrera: { id: carrera.id } as Carrera,
+        periodoAcademico: contexto.periodo,
+        correlationId: contexto.correlationId,
+      });
+
+      const [vigenciaActual] = await manager.query(
+        `SELECT "id_version_rubrica" FROM "vigencias_rubrica_carrera"
+         WHERE "id_carrera" = $1 AND "id_modalidad" = $2 AND "periodo_academico_id" = $3
+           AND "vigente_hasta" IS NULL FOR UPDATE`,
+        [carrera.id, contexto.modalidad.id, contexto.periodo.id],
+      ) as Array<{ id_version_rubrica: string }>;
+      const actualEsperada = vigenciaActual?.id_version_rubrica ?? null;
+      const esperada = solicitud.vigenciaEsperada.versionId;
+      if ((actualEsperada?.toLowerCase() ?? null) !== (esperada?.toLowerCase() ?? null)) {
+        throw new ConflictException(`La vigencia de la carrera ${carrera.codigo} cambi\u00f3 desde la \u00faltima lectura.`);
+      }
+
+      if (solicitud.vigente && actualEsperada !== version.id) {
+        let inicio: Date | null = null;
+        if (vigenciaActual) {
+          const [anteriorCerrada] = await manager.query(
+            `UPDATE "vigencias_rubrica_carrera" SET "vigente_hasta" = clock_timestamp()
+             WHERE "id_carrera" = $1 AND "id_modalidad" = $2 AND "periodo_academico_id" = $3
+               AND "vigente_hasta" IS NULL RETURNING "vigente_hasta"`,
+            [carrera.id, contexto.modalidad.id, contexto.periodo.id],
+          ) as Array<{ vigente_hasta: Date }>;
+          inicio = anteriorCerrada.vigente_hasta;
+        }
+        const [nuevaVigencia] = await manager.query(
+          `INSERT INTO "vigencias_rubrica_carrera"
+            ("id_version_rubrica", "id_carrera", "id_rubrica", "id_modalidad", "periodo_academico_id", "vigente_desde")
+           VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, clock_timestamp()))
+           RETURNING "id"`,
+          [version.id, carrera.id, contexto.rubrica.id, contexto.modalidad.id, contexto.periodo.id, inicio],
+        ) as Array<{ id: string }>;
+        if (!nuevaVigencia) throw new ConflictException('No se pudo asignar la vigencia solicitada.');
+
+        await manager.getRepository(EventoAuditoriaRubrica).save({
+          actorId: contexto.actorId,
+          accion: actualEsperada ? 'VIGENCIA_RUBRICA_SUSTITUIDA' : 'VIGENCIA_RUBRICA_ASIGNADA',
+          rubrica: contexto.rubrica,
+          modalidad: contexto.modalidad,
+          version,
+          versionAnterior: actualEsperada ? { id: actualEsperada } as VersionRubrica : null,
+          carrera: { id: carrera.id } as Carrera,
+          periodoAcademico: contexto.periodo,
+          correlationId: contexto.correlationId,
+        });
+      }
+    }
+
+    const etapasDto = await this.detalleEtapas(manager, version.id);
+    const carrerasRespuesta = await manager.query(
+      `SELECT carrera."id", carrera."codigo", carrera."nombre",
+              EXISTS (SELECT 1 FROM "vigencias_rubrica_carrera" vigencia
+                WHERE vigencia."id_version_rubrica" = asociacion."id_version_rubrica"
+                  AND vigencia."id_carrera" = asociacion."id_carrera"
+                  AND vigencia."vigente_hasta" IS NULL) AS "vigente"
+       FROM "versiones_rubrica_carreras" asociacion
+       JOIN "carreras" carrera ON carrera."id" = asociacion."id_carrera"
+       WHERE asociacion."id_version_rubrica" = $1 ORDER BY carrera."codigo", carrera."id"`,
+      [version.id],
+    ) as Array<{ id: string; codigo: string; nombre: string; vigente: boolean }>;
+    const versionConRelaciones = { ...version, rubrica: contexto.rubrica, academicPeriod: contexto.periodo };
+    return {
+      version,
+      respuesta: {
+        ...this.aResumen(versionConRelaciones),
+        etapas: etapasDto,
+        rubrica: {
+          id: contexto.rubrica.id,
+          nombre: contexto.rubrica.nombre,
+          descripcion: contexto.rubrica.descripcion,
+          modalidad: {
+            id: contexto.modalidad.id,
+            codigo: contexto.modalidad.codigo,
+            nombre: contexto.modalidad.nombre,
+          },
+        },
+        carreras: carrerasRespuesta.map((carrera) => ({
+          id: carrera.id,
+          codigo: carrera.codigo,
+          nombre: carrera.nombre,
+          vigente: carrera.vigente,
+        })),
+      },
+    };
   }
 
   async listar(filtros: ConsultarRubricasDto): Promise<RubricaListadoDto[]> {

@@ -53,6 +53,20 @@ describe('cliente HTTP de escritura local', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it('mantiene carreras en lectura si su opt-in de escritura está apagado', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 }));
+    const clientes = crearClientesHttpPorModulo({
+      habilitado: true,
+      escriturasRubricasHabilitadas: true,
+      escriturasModalidadesHabilitadas: true,
+      escriturasCarrerasHabilitadas: false,
+      fetcher,
+    });
+    await expect(clientes.carreras.getJson('/carreras')).resolves.toEqual([]);
+    await expect(clientes.carreras.postJson('/carreras', {})).rejects.toBeInstanceOf(ErrorEscrituraApiDeshabilitada);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it('propaga 409 como conflicto visible sin reintentar ni alterar la solicitud', async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       statusCode: 409,

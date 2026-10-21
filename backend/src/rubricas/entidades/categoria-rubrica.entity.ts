@@ -10,8 +10,8 @@ import { VersionRubrica } from './version-rubrica.entity';
 import { EtapaRubrica } from './etapa-rubrica.entity';
 
 @Entity('categorias_rubrica')
-@Unique('uq_categorias_rubrica_version_code', ['rubricVersion', 'codigo'])
-@Unique('uq_categorias_rubrica_version_order', ['rubricVersion', 'orden'])
+@Unique('uq_categorias_rubrica_stage_code', ['etapa', 'codigo'])
+@Unique('uq_categorias_rubrica_stage_order', ['etapa', 'orden'])
 export class CategoriaRubrica {
   @PrimaryGeneratedColumn('uuid')
   id!: string;

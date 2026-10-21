@@ -30,6 +30,10 @@ export class VersionRubrica {
   @JoinColumn({ name: 'periodo_academico_id' })
   academicPeriod!: PeriodoAcademico;
 
+  @ManyToOne(() => VersionRubrica, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_version_base' })
+  versionBase!: VersionRubrica | null;
+
   @Column({ type: 'varchar', length: 30 })
   version!: string;
 

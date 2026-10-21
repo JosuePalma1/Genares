@@ -40,7 +40,7 @@ const IDENTIDADES_LOCALES: Record<Exclude<PerfilIdentidadLocal, 'sin-identidad'>
   lector: {
     sujeto: 'desarrollo-local-lector',
     tipo: 'SIMULADA',
-    capacidades: ['rubricas:leer', 'modalidades:leer'],
+    capacidades: ['rubricas:leer', 'modalidades:leer', 'carreras:leer'],
   },
   'sin-capacidades': {
     sujeto: 'desarrollo-local-sin-capacidades',
@@ -50,7 +50,7 @@ const IDENTIDADES_LOCALES: Record<Exclude<PerfilIdentidadLocal, 'sin-identidad'>
   'administrador-rubricas': {
     sujeto: 'desarrollo-local-administrador-rubricas',
     tipo: 'SIMULADA',
-    capacidades: ['rubricas:leer', 'rubricas:administrar', 'modalidades:leer', 'modalidades:administrar'],
+    capacidades: ['rubricas:leer', 'rubricas:administrar', 'modalidades:leer', 'modalidades:administrar', 'carreras:leer', 'carreras:administrar'],
   },
 };
 

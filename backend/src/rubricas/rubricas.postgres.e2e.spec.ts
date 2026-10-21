@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { Modalidad } from '../catalogo/entidades/modalidad.entity';
 import { PeriodoAcademico } from '../catalogo/entidades/periodo-academico.entity';
+import { Carrera } from '../catalogo/entidades/carrera.entity';
 import { ModuloApi } from '../comun/api/modulo-api';
 import { IdentidadApi, SolicitudConIdentidad } from '../comun/api/identidad-api';
 import { configurarAplicacionApi } from '../comun/api/configurar-api';
@@ -13,6 +14,11 @@ import { EtapasRubricaDinamicas1760000001000 } from '../base-datos/migraciones/1
 import { BorradoresRubricaAuditoria1760000002000 } from '../base-datos/migraciones/1760000002000-borradores-rubrica-auditoria';
 import { GruposVaciosBorrador1760000003000 } from '../base-datos/migraciones/1760000003000-grupos-vacios-borrador';
 import { CatalogoModalidades1760000004000 } from '../base-datos/migraciones/1760000004000-catalogo-modalidades';
+import { VigenciasRubricaCarrera1760000005000 } from '../base-datos/migraciones/1760000005000-vigencias-rubrica-carrera';
+import { CatalogoCarreras1760000006000 } from '../base-datos/migraciones/1760000006000-catalogo-carreras';
+import { RubricasCompletasEtapasDinamicas1760000007000 } from '../base-datos/migraciones/1760000007000-rubricas-completas-etapas-dinamicas';
+import { AlcancesEtapaRubricaCompletos1760000008000 } from '../base-datos/migraciones/1760000008000-alcances-etapa-rubrica-completos';
+import { EvaluacionesEtapasDinamicasTraspasos1760000009000 } from '../base-datos/migraciones/1760000009000-evaluaciones-etapas-dinamicas-traspasos';
 import { ModalidadesModule } from '../modalidades/modalidades.module';
 import { CategoriaRubrica } from './entidades/categoria-rubrica.entity';
 import { EtapaRubrica } from './entidades/etapa-rubrica.entity';
@@ -21,6 +27,7 @@ import { IndicadorRubrica } from './entidades/indicador-rubrica.entity';
 import { Rubrica } from './entidades/rubrica.entity';
 import { VersionRubrica } from './entidades/version-rubrica.entity';
 import { RubricasModule } from './rubricas.module';
+import { VigenciasRubricaCarreraService } from './vigencias-rubrica-carrera.service';
 
 const testDatabaseUrl = process.env.TEST_DATABASE_URL;
 const suite = testDatabaseUrl ? describe : describe.skip;
@@ -39,7 +46,8 @@ if (testDatabaseUrl) {
       type: 'postgres',
       url: testDatabaseUrl,
       autoLoadEntities: true,
-      migrations: [EsquemaInicial1760000000000, EtapasRubricaDinamicas1760000001000, BorradoresRubricaAuditoria1760000002000, GruposVaciosBorrador1760000003000, CatalogoModalidades1760000004000],
+      migrations: [EsquemaInicial1760000000000, EtapasRubricaDinamicas1760000001000, BorradoresRubricaAuditoria1760000002000, GruposVaciosBorrador1760000003000, CatalogoModalidades1760000004000, VigenciasRubricaCarrera1760000005000, CatalogoCarreras1760000006000, RubricasCompletasEtapasDinamicas1760000007000, AlcancesEtapaRubricaCompletos1760000008000, EvaluacionesEtapasDinamicasTraspasos1760000009000],
+      migrationsTransactionMode: 'each',
       migrationsRun: true,
       synchronize: false,
     }),
@@ -67,9 +75,33 @@ suite('API de rúbricas (PostgreSQL real)', () => {
   let versionBorrador: VersionRubrica;
   let versionConcurrente: VersionRubrica;
   let versionClonada: VersionRubrica;
+  let versionHistorica: VersionRubrica;
+  let versionActiva: VersionRubrica;
   let modalidadAdministrada: { id: string; codigo: string; revision: number; estaActivo: boolean };
 
   beforeAll(async () => {
+    const parsedTestUrl = new URL(testDatabaseUrl!);
+    const preflight = new DataSource({ type: 'postgres', url: testDatabaseUrl, synchronize: false });
+    await preflight.initialize();
+    try {
+      const [identity] = await preflight.query(`
+        SELECT current_database() AS database_name,
+               host(inet_server_addr()) AS server_address,
+               current_setting('port') AS server_port,
+               shobj_description(d.oid, 'pg_database') AS database_marker
+        FROM pg_database d WHERE d.datname = current_database()
+      `);
+      if (parsedTestUrl.hostname !== '127.0.0.1'
+        || parsedTestUrl.port !== '55441'
+        || identity.server_address !== '127.0.0.1'
+        || identity.server_port !== '55441'
+        || identity.database_marker !== 'GENARES:9D:DISPOSABLE') {
+        throw new Error('La prueba PostgreSQL solo puede migrar una base marcada en el clúster 9D aislado (127.0.0.1:55441).');
+      }
+    } finally {
+      await preflight.destroy();
+    }
+
     const modulo = await Test.createTestingModule({ imports: [ModuloPruebasRubricas] }).compile();
     aplicacion = modulo.createNestApplication();
     aplicacion.use((request: { headers: Record<string, string | string[] | undefined>; identidadApi?: IdentidadApi }, _response: object, next: () => void) => {
@@ -131,14 +163,14 @@ suite('API de rúbricas (PostgreSQL real)', () => {
       descripcion: null,
     }));
 
-    const historica = await crearVersionConCriterios('0.9', EstadoVersionRubrica.BORRADOR);
-    const activa = await crearVersionConCriterios('1.0', EstadoVersionRubrica.BORRADOR);
-    activa.estado = EstadoVersionRubrica.ACTIVA;
-    activa.activadoEn = new Date('2026-02-01T12:00:00.000Z');
-    await versionRepository.save(activa);
-    historica.estado = EstadoVersionRubrica.ARCHIVADA;
-    historica.activadoEn = new Date('2026-01-01T12:00:00.000Z');
-    await versionRepository.save(historica);
+    versionHistorica = await crearVersionConCriterios('0.9', EstadoVersionRubrica.BORRADOR);
+    versionActiva = await crearVersionConCriterios('1.0', EstadoVersionRubrica.BORRADOR);
+    versionActiva.estado = EstadoVersionRubrica.ACTIVA;
+    versionActiva.activadoEn = new Date('2026-02-01T12:00:00.000Z');
+    versionActiva = await versionRepository.save(versionActiva);
+    versionHistorica.estado = EstadoVersionRubrica.ARCHIVADA;
+    versionHistorica.activadoEn = new Date('2026-01-01T12:00:00.000Z');
+    versionHistorica = await versionRepository.save(versionHistorica);
   }, 30000);
 
   async function crearVersionConCriterios(versionTexto: string, estado: EstadoVersionRubrica): Promise<VersionRubrica> {
@@ -897,4 +929,231 @@ suite('API de rúbricas (PostgreSQL real)', () => {
       await dataSource.query('DROP FUNCTION IF EXISTS "test_rechazar_auditoria_modalidad"()');
     }
   });
+
+  it('guarda una r\u00fabrica completa y nuevas etapas transaccionalmente con vigencias por carrera', async () => {
+    const carreras = dataSource.getRepository(Carrera);
+    const software = await carreras.save(carreras.create({ codigo: `S9-${Date.now()}`, nombre: 'Software 9H4', estaActivo: true }));
+    const ti = await carreras.save(carreras.create({ codigo: `T9-${Date.now()}`, nombre: 'TI 9H4', estaActivo: true }));
+    const pesos = ['1.25', '0.75', '3.00', '2.00', '3.00'];
+    const etapa = (
+      codigo: string,
+      nombre: string,
+      orden: number,
+      alcance: 'TRABAJO_COMPARTIDO' | 'ESTUDIANTE_INDIVIDUAL' = 'ESTUDIANTE_INDIVIDUAL',
+      cinco = false,
+    ) => ({
+      codigo, nombre, orden, alcance,
+      categorias: cinco
+        ? [{ codigo: 'MIX', nombre: 'Categor\u00eda mixta', orden: 1,
+          indicadores: pesos.map((calificacionMaxima, indice) => ({
+            label: `IND-${indice + 1}`, descripcion: `Indicador ${indice + 1}`, calificacionMaxima, orden: indice + 1,
+          })) }]
+        : [
+          { codigo: 'RES', nombre: 'Resumen', orden: 1, indicadores: [
+            { label: 'IND-R1', descripcion: 'Resumen 1', calificacionMaxima: '1.25', orden: 1 },
+            { label: 'IND-R2', descripcion: 'Resumen 2', calificacionMaxima: '0.75', orden: 2 },
+          ] },
+          { codigo: 'DES', nombre: 'Desarrollo', orden: 2, indicadores: [
+            { label: 'IND-D1', descripcion: 'Desarrollo 1', calificacionMaxima: '3.00', orden: 1 },
+            { label: 'IND-D2', descripcion: 'Desarrollo 2', calificacionMaxima: '2.00', orden: 2 },
+            { label: 'IND-D3', descripcion: 'Desarrollo 3', calificacionMaxima: '3.00', orden: 3 },
+          ] },
+        ],
+    });
+    const etapas2 = [
+      etapa('PRODUCTO', 'Escrita', 1, 'TRABAJO_COMPARTIDO'),
+      etapa('ORAL', 'Oral', 2, 'ESTUDIANTE_INDIVIDUAL'),
+    ];
+    const asociacion = (carrera: Carrera, vigente: boolean, versionId: string | null) => ({
+      carreraId: carrera.id, revision: carrera.revision, vigente, vigenciaEsperada: { versionId },
+    });
+    expect((await request('/api/v1/rubricas/completas', undefined, 'POST', {})).status).toBe(401);
+    expect((await request('/api/v1/rubricas/completas', 'autorizado', 'POST', {})).status).toBe(403);
+    const modalidad = await dataSource.getRepository(Modalidad).save({
+      codigo: `FULL-${Date.now()}`, nombre: 'Modalidad integral', estaActivo: true,
+    });
+    const response = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
+      modalidadId: modalidad.id, periodoId: periodoPrincipal.id, nombre: 'Familia integral',
+      version: '9H4.1', etapas: etapas2,
+      carreras: [asociacion(software, true, null), asociacion(ti, false, null)],
+    }, 'corr-9h4-v1');
+    expect(response.status).toBe(201);
+    const v1 = await response.json();
+    expect(v1).toMatchObject({ estado: 'CONFIGURADA', revision: 1, rubrica: { nombre: 'Familia integral' } });
+    expect(v1.etapas).toHaveLength(2);
+    expect(v1.etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL']);
+    expect(v1.etapas[0].calificacionMaxima).toBe('10.00');
+    expect(v1.etapas[0].categorias.map((categoria: { calificacionMaxima: string }) => categoria.calificacionMaxima))
+      .toEqual(['2.00', '8.00']);
+    expect(v1.carreras).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: software.id, vigente: true }),
+      expect.objectContaining({ id: ti.id, vigente: false }),
+    ]));
+    const familiaReutilizada = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
+      modalidadId: modalidad.id, periodoId: periodoPrincipal.id, nombre: 'Nombre no reemplaza la familia',
+      version: '9H4.1B', etapas: etapas2, carreras: [asociacion(software, false, v1.id)],
+    });
+    expect(familiaReutilizada.status).toBe(201);
+    const versionFamiliaReutilizada = await familiaReutilizada.json();
+    expect(versionFamiliaReutilizada.rubrica).toMatchObject({ id: v1.rubrica.id, nombre: 'Familia integral' });
+    expect(await dataSource.query(
+      `SELECT accion FROM auditoria_rubricas WHERE version_id = $1 AND accion = 'FAMILIA_RUBRICA_REUTILIZADA'`,
+      [versionFamiliaReutilizada.id],
+    )).toHaveLength(1);
+    const asociacionDuplicada = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4-dup-carrera', etapas: etapas2,
+      carreras: [asociacion(software, false, v1.id), asociacion(software, false, v1.id)],
+    });
+    expect(asociacionDuplicada.status).toBe(400);
+
+    const beforeV1 = await dataSource.query(
+      `SELECT etapa.id, etapa.codigo, categoria.id AS categoria_id, indicador.id AS indicador_id,
+              indicador.calificacion_maxima
+       FROM etapas_rubrica etapa JOIN categorias_rubrica categoria ON categoria.id_etapa_rubrica = etapa.id
+       JOIN indicadores_rubrica indicador ON indicador.id_categoria = categoria.id
+       WHERE etapa.id_version_rubrica = $1 ORDER BY etapa.orden, categoria.orden, indicador.orden`, [v1.id],
+    );
+    const etapas3 = [
+      etapa('A', 'Etapa A', 1, 'TRABAJO_COMPARTIDO'),
+      etapa('B', 'Etapa B', 2, 'ESTUDIANTE_INDIVIDUAL', true),
+      etapa('C', 'Etapa C', 3, 'TRABAJO_COMPARTIDO'),
+    ];
+    const v2Response = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4.2', copiarDesdeVersionId: v1.id, revisionBase: v1.revision,
+      etapas: etapas3,
+      carreras: [asociacion(software, false, v1.id), asociacion(ti, true, null)],
+    }, 'corr-9h4-v2');
+    expect(v2Response.status).toBe(201);
+    const v2 = await v2Response.json();
+    expect(v2.estado).toBe('CONFIGURADA');
+    expect(v2.etapas).toHaveLength(3);
+    expect(v2.etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL', 'TRABAJO_COMPARTIDO']);
+    expect(await dataSource.query(
+      `SELECT scope FROM etapas_rubrica WHERE id_version_rubrica = $1 ORDER BY orden, id`, [v2.id],
+    )).toEqual([
+      { scope: 'TRABAJO_COMPARTIDO' },
+      { scope: 'ESTUDIANTE_INDIVIDUAL' },
+      { scope: 'TRABAJO_COMPARTIDO' },
+    ]);
+    expect(v2.etapas[1].categorias[0].indicadores).toHaveLength(5);
+    expect(v2.etapas.every((actual: { calificacionMaxima: string }) => actual.calificacionMaxima === '10.00')).toBe(true);
+    expect(v2.etapas.every((actual: { id: string }) => !v1.etapas.some((anterior: { id: string }) => anterior.id === actual.id))).toBe(true);
+    expect(await dataSource.query(
+      `SELECT id_version_rubrica FROM vigencias_rubrica_carrera WHERE id_carrera = $1 AND vigente_hasta IS NULL`, [software.id],
+    )).toEqual([{ id_version_rubrica: v1.id }]);
+    expect(await dataSource.query(
+      `SELECT id_version_rubrica FROM vigencias_rubrica_carrera WHERE id_carrera = $1 AND vigente_hasta IS NULL`, [ti.id],
+    )).toEqual([{ id_version_rubrica: v2.id }]);
+    expect(await dataSource.query(
+      `SELECT etapa.id, etapa.codigo, categoria.id AS categoria_id, indicador.id AS indicador_id,
+              indicador.calificacion_maxima
+       FROM etapas_rubrica etapa JOIN categorias_rubrica categoria ON categoria.id_etapa_rubrica = etapa.id
+       JOIN indicadores_rubrica indicador ON indicador.id_categoria = categoria.id
+       WHERE etapa.id_version_rubrica = $1 ORDER BY etapa.orden, categoria.orden, indicador.orden`, [v1.id],
+    )).toEqual(beforeV1);
+
+    const noVigente = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4.3', copiarDesdeVersionId: v2.id, revisionBase: v2.revision,
+      carreras: [asociacion(software, false, v1.id)],
+    });
+    expect(noVigente.status).toBe(201);
+    const v3 = await noVigente.json();
+    expect(v3.carreras[0].vigente).toBe(false);
+    expect(v3.etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL', 'TRABAJO_COMPARTIDO']);
+    expect(v2.etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL', 'TRABAJO_COMPARTIDO']);
+
+    const soloIndividuales = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4.4', copiarDesdeVersionId: v2.id, revisionBase: v2.revision,
+      etapas: [etapa('IND-A', 'Etapa personalizada A', 1), etapa('IND-B', 'Etapa personalizada B', 2)],
+      carreras: [asociacion(software, false, v1.id)],
+    });
+    expect(soloIndividuales.status).toBe(201);
+    expect((await soloIndividuales.json()).etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['ESTUDIANTE_INDIVIDUAL', 'ESTUDIANTE_INDIVIDUAL']);
+
+    const modalidadRollback = await dataSource.getRepository(Modalidad).save({
+      codigo: `FAIL-${Date.now()}`, nombre: 'Modalidad de rollback integral', estaActivo: true,
+    });
+    const rubricasAntesRollback = await rubricaRepository.count();
+    const auditoriaAntes = await dataSource.getRepository(EventoAuditoriaRubrica).count();
+    const versionesAntes = await versionRepository.count();
+    await dataSource.query(`
+      CREATE FUNCTION "test_rechazar_asociacion_9h4"() RETURNS trigger AS $$
+      BEGIN
+        IF NEW."accion" = 'VERSION_RUBRICA_ASOCIADA_CARRERA' THEN RAISE EXCEPTION 'fallo controlado 9H4'; END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+      CREATE TRIGGER "test_rechazar_asociacion_9h4" BEFORE INSERT ON "auditoria_rubricas"
+      FOR EACH ROW EXECUTE FUNCTION "test_rechazar_asociacion_9h4"();
+    `);
+    try {
+      const rollback = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
+        modalidadId: modalidadRollback.id, periodoId: periodoPrincipal.id, nombre: 'Debe revertir familia y versi\u00f3n',
+        version: '9H4-ROLLBACK', etapas: etapas2,
+        carreras: [asociacion(software, true, v1.id)],
+      });
+      expect(rollback.status).toBe(500);
+      expect(await rubricaRepository.count()).toBe(rubricasAntesRollback);
+      expect(await rubricaRepository.findOne({ where: { modalidad: { id: modalidadRollback.id } } })).toBeNull();
+      expect(await versionRepository.count()).toBe(versionesAntes);
+      expect(await dataSource.getRepository(EventoAuditoriaRubrica).count()).toBe(auditoriaAntes);
+    } finally {
+      await dataSource.query('DROP TRIGGER IF EXISTS "test_rechazar_asociacion_9h4" ON "auditoria_rubricas"');
+      await dataSource.query('DROP FUNCTION IF EXISTS "test_rechazar_asociacion_9h4"()');
+    }
+
+    for (const [version, total, alcance] of [
+      ['9H4-INVALIDA', '2.99', 'TRABAJO_COMPARTIDO'] as const,
+      ['9H4-INVALIDA-2', '3.01', 'ESTUDIANTE_INDIVIDUAL'] as const,
+    ]) {
+      const etapaIncorrecta = etapa('BAD', 'Total incorrecto', 1, alcance, true);
+      etapaIncorrecta.categorias[0].indicadores[4].calificacionMaxima = total;
+      const incorrecta = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+        periodoId: periodoPrincipal.id, version, etapas: [etapaIncorrecta],
+        carreras: [asociacion(software, false, v1.id)],
+      });
+      expect(incorrecta.status).toBe(400);
+    }
+    const invalidIndicator = structuredClone(etapas2);
+    invalidIndicator[0].categorias[0].indicadores[0].calificacionMaxima = '0';
+    expect((await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4-INVALIDA2', etapas: invalidIndicator,
+      carreras: [asociacion(software, false, v1.id)],
+    })).status).toBe(400);
+    expect((await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4-INVALIDA3', etapas: etapas2,
+      carreras: [asociacion(software, false, v1.id)], campoDesconocido: true,
+    })).status).toBe(400);
+    const alcanceInvalido = structuredClone(etapas2).map((actual, indice) => (
+      indice === 0 ? { ...actual, alcance: 'ALCANCE_INVALIDO' } : actual
+    ));
+    expect((await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4-INVALIDA4', etapas: alcanceInvalido,
+      carreras: [asociacion(software, false, v1.id)],
+    })).status).toBe(400);
+
+    const actualizarConfigurada = await request(`/api/v1/versiones-rubrica/${v1.id}`, 'administrador', 'PUT', {
+      revision: v1.revision, etapas: [],
+    });
+    expect(actualizarConfigurada.status).toBe(409);
+
+    const simultaneous = async (version: string) => request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version, copiarDesdeVersionId: v2.id, revisionBase: v2.revision,
+      etapas: etapas3, carreras: [asociacion(ti, true, v2.id)],
+    });
+    const responses = await Promise.all([simultaneous('9H4.5'), simultaneous('9H4.6')]);
+    expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+
+    const simultaneousDuplicate = () => request(`/api/v1/rubricas/${v1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, version: '9H4.7', copiarDesdeVersionId: v2.id, revisionBase: v2.revision,
+      etapas: etapas3, carreras: [asociacion(software, false, v1.id)],
+    });
+    const duplicateResponses = await Promise.all([simultaneousDuplicate(), simultaneousDuplicate()]);
+    expect(duplicateResponses.map(({ status }) => status).sort()).toEqual([201, 409]);
+  }, 30000);
 });

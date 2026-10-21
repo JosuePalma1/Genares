@@ -1,443 +1,132 @@
-# Estado actual del prototipo Genares
+# Estado del prototipo Genares
 
-## Propósito de este documento
+## Propósito y alcance
 
-Este documento explica, con palabras sencillas, qué partes del prototipo ya están listas y cuáles todavía necesitan trabajo.
+Genares prototipa la evaluación de trabajos de titulación, desde el registro del trabajo y la asignación del tribunal hasta la calificación y consulta de la rúbrica. No cubre el proceso completo de titulación ni sustituye al SGA, un acta institucional o la autenticación de la universidad.
 
-El sistema cubre únicamente la evaluación de trabajos de titulación, desde el registro del trabajo y la asignación del tribunal hasta el cierre e impresión de la rúbrica.
+La rama actual reúne las etapas 9H.4, 9H.4.1, 9H.5A, 9H.5B y 9H.6: rúbricas completas con etapas dinámicas, evaluaciones y traspasos, consolidación individual y catálogos de Maestros. El producto sigue siendo un prototipo; el recorrido general de React aún utiliza datos de demostración.
 
-No cubre el proceso completo de titulación ni las actividades posteriores a la evaluación.
+## Resumen del estado
 
-## Resumen general
+| Área | Estado actual |
+| --- | --- |
+| Demostración React | Flujo navegable con roles simulados y datos guardados en `localStorage`. |
+| Backend | NestJS y PostgreSQL con API versionada para rúbricas, evaluaciones y catálogos de carreras y modalidades. |
+| Rúbricas | Versiones completas de etapas dinámicas, con alcances compartidos o individuales y vigencia por carrera. |
+| Evaluaciones | Captura por etapa, cierre, traspasos trazables y consolidación individual bajo demanda. |
+| Maestros | Tablas reutilizables con búsqueda, filtro, orden y formularios para carreras y modalidades; conexión API opcional en desarrollo. |
+| Identidad | Simulación local protegida para desarrollo; no existe autenticación institucional. |
+| Uso con datos reales | No habilitado. La aplicación y la autorización institucional aún requieren integración y validación. |
 
-Actualmente existe una demostración navegable del flujo principal.
+## Funciones implementadas
 
-Una persona puede entrar con un perfil simulado, registrar un trabajo, revisar el avance, evaluar y generar una rúbrica. Los cambios de la demostración se guardan en el navegador para que no se pierdan al recargar la página.
+### 1. Demostración React
 
-Sin embargo, la aplicación todavía no guarda esos cambios en PostgreSQL. La estructura de la base de datos está preparada, pero falta conectar las pantallas con el backend.
+- Navegación adaptable y pantallas para revisar el flujo de evaluación.
+- Acceso con perfiles ficticios de Comisión Académica, tribunal, Secretaría, Coordinación y Administrador.
+- Datos demostrativos guardados en el navegador; no se comparten entre equipos.
+- Registro de trabajos y estudiantes, asignación manual de dos miembros del tribunal, notificaciones internas simuladas, revisión escrita, programación de sustentación y evaluación oral por estudiante.
+- Borradores separados de evaluaciones cerradas, consulta e impresión de la rúbrica del prototipo.
 
-Por esta razón, el sistema actual sirve para revisar y demostrar el proceso, pero todavía no debe usarse con información real.
+El flujo simulado todavía no guarda trabajos, tribunal, notificaciones ni sus evaluaciones en PostgreSQL. Las pantallas de evaluación no calculan ni sustituyen la consolidación académica servida por el backend.
 
----
+### 2. Rúbricas completas y dinámicas
 
-## Lo que ya está implementado
+- Una versión puede configurar una o más etapas, categorías e indicadores.
+- Cada etapa declara su ámbito: `TRABAJO_COMPARTIDO` o `ESTUDIANTE_INDIVIDUAL`. El ámbito no se infiere del nombre.
+- Una rúbrica puede combinar ámbitos en cualquier orden válido; el máximo de cada etapa se valida en `10.00`.
+- Las versiones se crean completas o como borradores. Los borradores se pueden editar con control de revisión; una versión activa o histórica no se modifica.
+- Clonar crea un borrador nuevo y conserva la estructura y el ámbito de cada etapa sin cambiar la versión original.
+- La vigencia se registra por carrera, modalidad y período, con historial y protección frente a concurrencia.
 
-### 1. Diseño y navegación
+### 3. Evaluaciones y consolidación
 
-- Se reutilizaron los colores, tarjetas, tablas, formularios y estilos del prototipo anterior.
-- Las pantallas ahora funcionan con React.
-- Existe un menú común para todas las pantallas.
-- El diseño se adapta a computadoras, tablets y teléfonos.
-- Las acciones importantes usan botones reales y no enlaces sin funcionamiento.
+- Cada miembro del tribunal realiza su evaluación por etapa. Se conserva el requisito actual de dos evaluadores.
+- Una etapa compartida se evalúa una vez por trabajo y miembro. Al cerrarla, la evaluación original se relaciona con cada estudiante del trabajo mediante registros de traspaso; los puntajes no se copian ni se vuelven editables por estudiante.
+- Una etapa individual utiliza la evaluación del estudiante indicado. El servidor verifica que pertenezca al trabajo.
+- Las evaluaciones guardan la versión y una instantánea de la rúbrica utilizada. Los cierres bloquean cambios y las operaciones de escritura registran auditoría.
+- La consolidación se calcula bajo demanda en una lectura consistente; el resultado derivado no se persiste como una segunda calificación.
 
-### 2. Acceso simulado
+La fórmula implementada es:
 
-- Existe una pantalla de entrada al prototipo.
-- Se puede seleccionar una persona ficticia para probar diferentes roles.
-- No se solicitan usuarios ni contraseñas institucionales.
-- No se ha inventado una conexión con Microsoft 365 o con otro proveedor de acceso.
+1. Para cada estudiante y etapa, promediar las evaluaciones cerradas de los dos miembros del tribunal.
+2. Promediar por igual los promedios exactos de todas las etapas de la versión fijada al trabajo.
+3. Presentar el resultado final sobre 10 con dos decimales y redondeo decimal `HALF_UP`.
 
-### 3. Roles
+Los cálculos intermedios usan racionales exactos. No se redondean los promedios de etapa antes del promedio final. Si falta una evaluación cerrada, no se publica un resultado final definitivo: la respuesta identifica el estado y los miembros pendientes. Los estados distinguen ausencia de evaluaciones, borradores en progreso, cierres incompletos y resultado completo.
 
-El prototipo permite revisar el sistema desde los siguientes perfiles:
+La consulta del resultado individual exige que la identidad corresponda al perfil de estudiante solicitado. La consulta de resultados de un trabajo requiere la capacidad de lectura del backend. La consolidación dinámica excluye las evaluaciones legacy.
 
-- Comisión Académica.
-- Miembro del tribunal.
-- Secretaría.
-- Coordinación.
-- Administrador.
+### 4. Catálogos y pantallas de Maestros
 
-Las acciones cambian según el perfil seleccionado. Por ejemplo, Secretaría y Coordinación pueden consultar información, pero no pueden modificar calificaciones.
+- Carreras y modalidades tienen operaciones de consulta, creación, edición y activación o desactivación en la API.
+- Las pantallas de Maestros usan una tabla común con búsqueda, filtro por estado, orden de columnas y formularios accesibles.
+- En modo API muestran datos de PostgreSQL; los controles de escritura aparecen solo cuando la capacidad del backend y la opción de desarrollo correspondiente están activas.
+- En el modo predeterminado del prototipo, modalidades son datos de demostración de solo lectura y no se simulan carreras.
+- Las ediciones detectan conflictos de revisión para evitar sobrescribir cambios concurrentes.
 
-### 4. Registro de trabajos
+### 5. API disponible
 
-- Se puede registrar el título del trabajo.
-- Se puede seleccionar la modalidad.
-- Se puede seleccionar el período académico.
-- Se puede seleccionar la carrera.
-- Se puede asociar un tutor.
-- Se puede registrar uno o varios estudiantes.
-- Cada estudiante tiene cédula, nombres y apellidos.
-- El trabajo inicia con el estado “Registrado”.
+Las rutas NestJS usan `/api/v1` y capacidades del servidor:
 
-### 5. Asignación del tribunal
+- `GET /api/v1/rubricas`, `GET /api/v1/rubricas/:id/versiones`, creación completa de rúbricas/versiones, edición de borradores y activación.
+- `POST /api/v1/evaluaciones/trabajos/:trabajoId`, guardado de puntajes y cierre de evaluaciones.
+- `GET /api/v1/evaluaciones/trabajos/:trabajoId/consolidados` y `GET /api/v1/evaluaciones/estudiantes/:estudianteId/consolidado`.
+- Rutas de consulta y administración para `/api/v1/carreras` y `/api/v1/modalidades`.
+- `GET /api/salud` para comprobar disponibilidad.
 
-- La Comisión Académica puede seleccionar dos miembros del tribunal.
-- No se permite seleccionar dos veces al mismo docente.
-- Se muestra el nombre del docente.
-- Se muestra su carrera.
-- Se muestra la cantidad de tribunales que tiene asignados.
-- La selección es manual; el sistema no decide automáticamente quién debe formar parte del tribunal.
-- La asignación se bloquea cuando ya existe una revisión escrita cerrada, para no dañar la información registrada.
+Los métodos de la API de rúbricas también se usan desde sus pantallas cuando se selecciona el modo API. La conexión de la demostración de trabajos y evaluaciones con los endpoints nuevos aún está pendiente.
 
-### 6. Notificaciones internas
+### 6. Datos históricos y migraciones
 
-- Existe una campana en la parte superior de la aplicación.
-- Se muestra la cantidad de notificaciones sin leer.
-- Se puede abrir el listado de notificaciones.
-- Se puede marcar una notificación como leída.
-- Se pueden marcar todas como leídas.
-- Cada notificación puede llevar a la pantalla relacionada.
-- Se generan notificaciones al asignar el tribunal.
-- Se generan notificaciones al programar una sustentación.
-- No se envían correos electrónicos.
+- Las evaluaciones históricas `ESCRITA`/`ORAL` conservan sus datos. La migración de etapas mantiene sus identificadores, versiones, estados y notas; no las convierte en resultados dinámicos.
+- Los resultados antiguos no se mezclan con la consolidación dinámica ni se reescriben al consultar.
+- Las migraciones 9H se agregaron en orden desde `1760000005000` hasta `1760000009000`: vigencias por carrera, catálogo de carreras, rúbricas completas, ámbitos de etapa y evaluaciones dinámicas con traspasos.
+- `synchronize` permanece desactivado. No se deben reescribir migraciones que ya pudieron ejecutarse.
 
-### 7. Estados y avance del trabajo
+## Entorno de desarrollo y seguridad
 
-El prototipo contempla estos estados:
+- La fuente de datos del frontend predeterminada es `prototipo`; `VITE_RUBRICAS_SOURCE=api` habilita consultas API en Vite de desarrollo.
+- Las escrituras desde el frontend requieren la opción correspondiente (`VITE_RUBRICAS_WRITE_API`, `VITE_MODALIDADES_WRITE_API` o `VITE_CARRERAS_WRITE_API`) y la capacidad habilitada en el servidor local.
+- La identidad local es fija en el servidor y está desactivada por defecto. No se debe publicar, exponer por túnel o usar en equipos compartidos.
+- Para pruebas PostgreSQL se debe usar el clúster desechable 9D, con su puerto, nombre y marca verificados por los scripts del backend. No usar el puerto 5432 ni la base persistente 8E y no borrar bases temporales anteriores.
+- Los `.env` locales, credenciales y bases de desarrollo se excluyen de Git.
+- No hay conexión con DIT, SGA, Microsoft 365 ni envío real de correos.
 
-1. Registrado.
-2. Tribunal asignado.
-3. Revisión escrita pendiente.
-4. Revisión escrita completada.
-5. Sustentación programada.
-6. Sustentación pendiente.
-7. Evaluación completada.
-8. Finalizado.
+Los pasos detallados de instalación y ejecución segura están en [backend/README.md](backend/README.md).
 
-También se muestra claramente qué miembro ya realizó la revisión escrita y cuál continúa pendiente.
+## Pendiente
 
-### 8. Revisión escrita
+### Para una integración funcional compartida
 
-- Cada miembro del tribunal realiza su propia revisión.
-- La revisión puede guardarse como borrador.
-- Guardar un borrador no cierra la evaluación.
-- Se calculan automáticamente los valores por categoría.
-- No se permite superar el máximo de cada indicador.
-- Antes de cerrar la revisión se muestra una confirmación.
-- Después del cierre, los campos quedan bloqueados.
-
-La revisión escrita pertenece al trabajo. Si el trabajo tiene dos estudiantes, ambos comparten esta parte de la calificación.
-
-### 9. Programación de la sustentación
-
-- Se puede registrar la fecha.
-- Se puede registrar la hora.
-- Se puede registrar la sala.
-- Se muestran el trabajo, los estudiantes y el tribunal relacionados.
-- No se puede programar la sustentación si falta la revisión escrita de uno de los dos miembros.
-- Al confirmar la programación se generan notificaciones internas.
-
-### 10. Evaluación oral individual
-
-- La evaluación oral se realiza por estudiante.
-- Cuando un trabajo tiene dos estudiantes, aparecen separados en la pantalla.
-- Se puede cambiar entre estudiantes sin perder ni reemplazar la información del otro.
-- Cada estudiante tiene su propio borrador.
-- Cada miembro del tribunal realiza una evaluación oral para cada estudiante.
-
-### 11. Rúbrica y cálculos
-
-La rúbrica del prototipo utiliza esta estructura:
-
-- Categoría A: máximo 1 punto.
-- Categoría B: máximo 1 punto.
-- Categoría C: máximo 3 puntos.
-- Total de la parte escrita: máximo 5 puntos.
-- Categoría D: máximo 2,5 puntos.
-- Categoría E: máximo 2,5 puntos.
-- Total de la sustentación: máximo 5 puntos.
-- Calificación final de cada miembro: máximo 10 puntos.
-
-El sistema calcula automáticamente:
-
-- El total de cada categoría.
-- El total de la parte escrita.
-- El total de la sustentación.
-- La nota final entregada por cada miembro.
-- El promedio final de los dos miembros del tribunal.
-
-Cuando existen dos estudiantes, cada uno recibe su propio promedio final.
-
-### 12. Cierre definitivo
-
-- Se diferencia entre “Guardar borrador” y “Finalizar”.
-- Antes del cierre definitivo aparece una alerta de confirmación.
-- La alerta permite volver y revisar.
-- La alerta permite confirmar la evaluación.
-- Una evaluación cerrada ya no se puede modificar.
-- Se muestra el estado “Evaluación finalizada”.
-- La rúbrica cerrada puede consultarse e imprimirse nuevamente.
-
-### 13. Documento para imprimir
-
-La impresión contiene:
-
-- Encabezado institucional provisional.
-- Modalidad.
-- Parte escrita y parte oral.
-- Título del trabajo.
-- Nombre del estudiante.
-- Cédula del estudiante.
-- Nombre del tutor.
-- Nombre del miembro del tribunal.
-- Indicadores.
-- Valores máximos.
-- Calificaciones.
-- Totales por categoría.
-- Resumen final.
-- Calificación final sobre 10 puntos.
-- Espacio para firma.
+- Conectar el registro y seguimiento de trabajos, tribunal, programación y notificaciones de React con operaciones persistentes del backend.
+- Conectar las pantallas de evaluación de React con la captura, cierre y consulta de evaluaciones del servidor; mostrar la consolidación que devuelve la API en vez de recalcularla en la interfaz.
+- Definir e implementar autenticación institucional y autorización de usuarios en servidor antes de manejar datos reales.
+- Completar la administración de usuarios, roles y alcance por carrera.
+- Acordar despliegue, infraestructura y operación con la universidad y DIT.
 
-El documento se llama “Rúbrica de evaluación”. No se presenta como un acta oficial.
+### Para cerrar contenidos del prototipo
 
-### 14. Dashboard y seguimiento
+- Sustituir los textos provisionales de indicadores cuando se confirme la rúbrica oficial completa.
+- Comparar la impresión de la rúbrica con el formato institucional autorizado.
+- Probar el diseño en tablets y ejecutar recorridos de extremo a extremo una vez conectados los flujos API.
+- Decidir cómo retirar o redirigir los HTML de referencia antiguos.
 
-El dashboard muestra:
+No están aprobadas reglas nuevas de ausencias, suplentes, ponderaciones entre etapas, aprobación/reprobación ni cambios al requisito de dos evaluadores. El traspaso efectivo de calificaciones y el cálculo final ya descritos corresponden a la etapa 9H.5B; no se añaden funciones de actas en esta etapa.
 
-- Trabajos registrados.
-- Tribunales sin asignar.
-- Revisiones escritas pendientes.
-- Revisiones escritas completadas.
-- Sustentaciones programadas.
-- Evaluaciones pendientes.
-- Evaluaciones completadas.
-- Trabajos finalizados.
+## Validación
 
-También existe una sección que muestra el estado de cada miembro del tribunal.
+Hay pruebas unitarias de reglas y cliente, y pruebas PostgreSQL aisladas para migraciones, rúbricas, carreras, evaluaciones, consolidación, auditoría, concurrencia y compatibilidad histórica. Los comandos para ejecutarlas y compilar son:
 
-### 15. Pantalla “Mis evaluaciones”
+```powershell
+# Desde prototipo-titulacion
+npm run test
+npm run build
 
-Un miembro del tribunal puede ver:
+# Desde backend
+npm test
+npm run build
+.\scripts\pruebas-postgres-9d.ps1
+```
 
-- Trabajo asignado.
-- Estudiante o estudiantes.
-- Modalidad.
-- Carrera.
-- Etapa actual.
-- Fecha, hora y sala de la sustentación.
-- Estado de cada estudiante.
-
-La pantalla muestra únicamente las acciones disponibles en ese momento:
-
-- Realizar revisión escrita.
-- Continuar borrador.
-- Evaluar sustentación.
-- Ver rúbrica.
-- Imprimir.
-
-### 16. Consulta e historial
-
-- Existe una pantalla para buscar por cédula, estudiante o trabajo.
-- Se pueden consultar los resultados ya generados.
-- No se realizó una carga masiva de estudiantes antiguos.
-- El historial se construye con los registros creados en el sistema.
-
-### 17. Preparación de la base de datos
-
-Existe una estructura PostgreSQL preparada para guardar:
-
-- Personas.
-- Estudiantes.
-- Docentes.
-- Usuarios y roles.
-- Carreras, períodos y modalidades.
-- Trabajos con uno o varios estudiantes.
-- Tutores.
-- Tribunales de dos miembros.
-- Programaciones de sustentación.
-- Notificaciones internas.
-- Rúbricas y sus versiones.
-- Revisiones escritas.
-- Evaluaciones orales por estudiante.
-- Calificaciones y cierres.
-
-La base también incluye reglas para evitar datos incorrectos, como una calificación mayor al máximo o una sustentación programada sin las dos revisiones escritas.
-
----
-
-## Lo que está simulado actualmente
-
-Las siguientes partes funcionan para demostrar el recorrido, pero todavía no están conectadas a un sistema real:
-
-- El inicio de sesión.
-- Los usuarios y roles.
-- Los datos de estudiantes y docentes.
-- Los trabajos de ejemplo.
-- Las notificaciones.
-- Las evaluaciones y sus borradores.
-- El historial.
-
-La información se guarda en el navegador mediante `localStorage`. Esto significa que los datos pertenecen únicamente a ese navegador y a ese equipo.
-
-Si se limpia la información del navegador, se pueden perder los cambios del prototipo.
-
----
-
-## Lo que quedó pendiente
-
-### Prioridad alta: necesaria antes de usar datos reales
-
-#### 1. Conectar las pantallas con el backend
-
-Actualmente las pantallas trabajan con datos de demostración.
-
-Falta hacer que React envíe y consulte la información mediante NestJS. Esto permitirá que varias personas trabajen con la misma información y que los datos no dependan de un solo navegador.
-
-#### 2. Guardar el flujo en PostgreSQL
-
-La estructura de la base ya existe, pero falta usarla desde las pantallas.
-
-Se deben guardar realmente:
-
-- Trabajos.
-- Estudiantes asociados.
-- Tutor.
-- Tribunal.
-- Notificaciones.
-- Revisiones escritas.
-- Programaciones.
-- Evaluaciones orales.
-- Cierres.
-- Resultados.
-
-#### 3. Crear las operaciones del backend
-
-El backend solamente tiene una dirección sencilla para comprobar que está encendido.
-
-Faltan las operaciones para registrar, consultar y actualizar los elementos del proceso.
-
-#### 4. Aplicar permisos también en el backend
-
-Las pantallas ocultan acciones según el rol, pero el backend también deberá comprobar los permisos.
-
-Por ejemplo:
-
-- Comisión Académica puede asignar tribunal.
-- Tribunal puede calificar únicamente sus trabajos.
-- Secretaría y Coordinación no pueden modificar notas.
-- Administrador puede gestionar usuarios y roles.
-
-#### 5. Completar la administración de rúbricas
-
-Actualmente se pueden consultar las versiones, crear copias, modificar borradores y activar versiones. Estos cambios se persisten únicamente en el `localStorage` del navegador; todavía no se guardan en PostgreSQL ni se comparten entre equipos.
-
-Antes de usar este módulo con datos reales, falta implementar en el backend:
-
-- Crear una rúbrica desde una fuente persistente.
-- Guardar cambios de un borrador en PostgreSQL.
-- Crear una nueva versión en PostgreSQL.
-- Activar una versión para una modalidad y período en PostgreSQL.
-- Impedir cambios sobre versiones activas o históricas.
-
-La protección histórica ya está considerada en el diseño de la base de datos.
-
-#### 6. Completar la administración de usuarios y roles
-
-La pantalla actual es de consulta.
-
-Falta permitir al administrador:
-
-- Crear o habilitar usuarios.
-- Asignar uno o varios roles.
-- Definir las carreras que puede consultar cada persona.
-- Desactivar un acceso cuando corresponda.
-
-### Prioridad media: completar el prototipo
-
-#### 7. Registro manual de docentes
-
-La base de datos permite diferenciar docentes registrados manualmente de docentes obtenidos en el futuro desde una fuente institucional.
-
-Falta crear la pantalla y el formulario para el registro manual, si finalmente esta opción es aprobada.
-
-#### 8. Completar los textos reales de los indicadores
-
-El documento recibido en el requerimiento indica los valores de los indicadores, pero no contiene su descripción completa.
-
-Por ahora se muestran como:
-
-- Indicador 1.
-- Indicador 2.
-- Indicador 3.
-
-Cuando se entregue la rúbrica física completa, deberán colocarse los textos oficiales sin cambiar los valores máximos ya configurados.
-
-#### 9. Confirmar el diseño final de impresión
-
-La impresión contiene toda la información solicitada, pero utiliza un encabezado institucional provisional.
-
-Falta comparar el resultado con la rúbrica física original para ajustar:
-
-- Logotipo autorizado.
-- Tipografías.
-- Espaciados.
-- Bordes y distribución.
-- Texto oficial de cada indicador.
-
-#### 10. Retirar o redirigir las páginas HTML antiguas
-
-Los archivos HTML del primer prototipo todavía están guardados como referencia.
-
-La aplicación actual debe abrirse desde `prototipo-titulacion/index.html`. Si alguien abre directamente una página HTML antigua, verá información que ya no corresponde al flujo nuevo.
-
-Antes de entregar una versión final, se deben mover esas páginas a una carpeta de respaldo o redirigirlas hacia React.
-
-#### 11. Realizar pruebas completas de navegación
-
-Ya existen pruebas para los cálculos y las reglas principales, y tanto el frontend como el backend compilan correctamente.
-
-Todavía faltan pruebas automáticas que recorran las pantallas como lo haría una persona:
-
-1. Registrar un trabajo.
-2. Asignar el tribunal.
-3. Completar las dos revisiones.
-4. Programar la sustentación.
-5. Evaluar a cada estudiante.
-6. Cerrar la evaluación.
-7. Imprimir la rúbrica.
-
-#### 12. Revisar visualmente en tablets reales
-
-El diseño incluye ajustes para tablets, pero todavía debe probarse en diferentes tamaños y orientaciones para confirmar que los botones, tablas y formularios sean cómodos de usar.
-
-### Pendiente de decisiones institucionales
-
-Estas tareas no deben desarrollarse hasta recibir una definición oficial:
-
-- Método definitivo de inicio de sesión.
-- Conexión con DIT.
-- Disponibilidad y contenido exacto de la futura API institucional.
-- Confirmación de si la API indica que un estudiante está apto para sustentar.
-- Infraestructura y servidor institucional.
-- Integración con Microsoft 365.
-- Reglas técnicas adicionales solicitadas por DIT.
-
----
-
-## Funciones que no deben agregarse
-
-Las siguientes funciones están fuera del alcance de Genares:
-
-- Ingreso de notas al SGA.
-- Modificación de información dentro del SGA.
-- Generación del acta oficial del SGA.
-- Envío real de correos electrónicos.
-- Gestión del repositorio institucional.
-- Proceso posterior de graduación.
-- Selección automática del tribunal mediante inteligencia artificial.
-
----
-
-## Orden recomendado para la siguiente iteración
-
-1. Crear las operaciones del backend para trabajos, tribunal, evaluaciones, sustentaciones y notificaciones.
-2. Conectar las pantallas React con esas operaciones.
-3. Guardar todo el recorrido en PostgreSQL.
-4. Completar la creación, edición y activación de versiones de rúbricas.
-5. Completar la administración de usuarios y roles.
-6. Agregar pruebas automáticas del recorrido completo.
-7. Probar y ajustar el diseño en tablets.
-8. Comparar la impresión con la rúbrica física oficial.
-
-Después de estos pasos, el prototipo dejará de depender de datos guardados en el navegador y estará listo para una validación funcional más cercana al uso real.
-
----
-
-## Comprobaciones realizadas
-
-- El frontend compila correctamente.
-- El backend compila correctamente.
-- Las pruebas de cálculo del frontend fueron aprobadas.
-- Las pruebas de reglas y cálculos del backend fueron aprobadas.
-- No se implementaron conexiones reales con DIT, SGA, Microsoft 365 o correo electrónico.
+La suite PostgreSQL protegida verifica la identidad y el carácter desechable de la base antes de escribir. Para el estado más reciente de las pruebas, revisar la salida de cada ejecución; las pruebas usan bases y fixtures controlados, no representan una validación de calificaciones históricas reales.

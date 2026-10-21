@@ -1,6 +1,7 @@
 import {
   API_BASE_URL,
   ESCRITURA_MODALIDADES_API_HABILITADA,
+  ESCRITURA_CARRERAS_API_HABILITADA,
   ESCRITURA_RUBRICAS_API_HABILITADA,
   FUENTE_RUBRICAS,
 } from '../configuracion/rubricas';
@@ -115,12 +116,14 @@ export function crearClientesHttpPorModulo({
   habilitado = false,
   escriturasRubricasHabilitadas = false,
   escriturasModalidadesHabilitadas = false,
+  escriturasCarrerasHabilitadas = false,
   fetcher,
 } = {}) {
   const comun = { baseUrl, habilitado, fetcher };
   return {
     rubricas: crearClienteHttp({ ...comun, escriturasHabilitadas: escriturasRubricasHabilitadas }),
     modalidades: crearClienteHttp({ ...comun, escriturasHabilitadas: escriturasModalidadesHabilitadas }),
+    carreras: crearClienteHttp({ ...comun, escriturasHabilitadas: escriturasCarrerasHabilitadas }),
   };
 }
 
@@ -128,6 +131,7 @@ const clientesApi = crearClientesHttpPorModulo({
   habilitado: import.meta.env.DEV === true && FUENTE_RUBRICAS === 'api',
   escriturasRubricasHabilitadas: import.meta.env.DEV === true && ESCRITURA_RUBRICAS_API_HABILITADA,
   escriturasModalidadesHabilitadas: import.meta.env.DEV === true && ESCRITURA_MODALIDADES_API_HABILITADA,
+  escriturasCarrerasHabilitadas: import.meta.env.DEV === true && ESCRITURA_CARRERAS_API_HABILITADA,
 });
 
 export const getJsonApi = (...argumentos) => clientesApi.rubricas.getJson(...argumentos);
@@ -137,3 +141,6 @@ export const patchJsonApi = (...argumentos) => clientesApi.rubricas.patchJson(..
 export const postJsonModalidadesApi = (...argumentos) => clientesApi.modalidades.postJson(...argumentos);
 export const putJsonModalidadesApi = (...argumentos) => clientesApi.modalidades.putJson(...argumentos);
 export const patchJsonModalidadesApi = (...argumentos) => clientesApi.modalidades.patchJson(...argumentos);
+export const postJsonCarrerasApi = (...argumentos) => clientesApi.carreras.postJson(...argumentos);
+export const putJsonCarrerasApi = (...argumentos) => clientesApi.carreras.putJson(...argumentos);
+export const patchJsonCarrerasApi = (...argumentos) => clientesApi.carreras.patchJson(...argumentos);

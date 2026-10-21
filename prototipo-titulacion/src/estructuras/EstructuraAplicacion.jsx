@@ -26,6 +26,7 @@ const NAVEGACION = [
     etiqueta: 'Maestros / Catálogos',
     elementos: [
       { to: '/maestros/modalidades', etiqueta: 'Modalidades de titulación', icon: ListChecks, roles: [ROL.ADMIN] },
+      { to: '/maestros/carreras', etiqueta: 'Carreras', icon: University, roles: [ROL.ADMIN] },
     ],
   },
   {

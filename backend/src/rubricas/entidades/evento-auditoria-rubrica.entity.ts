@@ -10,6 +10,8 @@ import {
 import { Rubrica } from './rubrica.entity';
 import { VersionRubrica } from './version-rubrica.entity';
 import { Modalidad } from '../../catalogo/entidades/modalidad.entity';
+import { Carrera } from '../../catalogo/entidades/carrera.entity';
+import { PeriodoAcademico } from '../../catalogo/entidades/periodo-academico.entity';
 
 @Entity('auditoria_rubricas')
 @Index('idx_auditoria_rubricas_rubrica_fecha', ['rubrica', 'ocurridoEn'])
@@ -35,6 +37,18 @@ export class EventoAuditoriaRubrica {
   @ManyToOne(() => VersionRubrica, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'version_id' })
   version!: VersionRubrica | null;
+
+  @ManyToOne(() => VersionRubrica, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'version_anterior_id' })
+  versionAnterior!: VersionRubrica | null;
+
+  @ManyToOne(() => Carrera, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'carrera_id' })
+  carrera!: Carrera | null;
+
+  @ManyToOne(() => PeriodoAcademico, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'periodo_academico_id' })
+  periodoAcademico!: PeriodoAcademico | null;
 
   @CreateDateColumn({ name: 'ocurrido_en', type: 'timestamptz' })
   ocurridoEn!: Date;

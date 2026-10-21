@@ -24,6 +24,7 @@ import PaginaUsuarios from './paginas/PaginaUsuarios';
 import PaginaNoEncontrada from './paginas/PaginaNoEncontrada';
 import PaginaModalidades from './paginas/PaginaModalidades';
 import PaginaDetalleModalidad from './paginas/PaginaDetalleModalidad';
+import PaginaCarreras from './paginas/PaginaCarreras';
 
 function RequerirRol({ roles, children }) {
   const { actorActual } = usarPrototipo();
@@ -54,6 +55,7 @@ export default function Aplicacion() {
         <Route path="/rubricas/:idRubrica" element={<RequerirRol roles={[ROL.COMISION, ROL.ADMIN]}><PaginaDetalleRubrica /></RequerirRol>} />
         <Route path="/maestros/modalidades" element={<RequerirRol roles={[ROL.ADMIN]}><PaginaModalidades /></RequerirRol>} />
         <Route path="/maestros/modalidades/:id" element={<RequerirRol roles={[ROL.ADMIN]}><PaginaDetalleModalidad /></RequerirRol>} />
+        <Route path="/maestros/carreras" element={<RequerirRol roles={[ROL.ADMIN]}><PaginaCarreras /></RequerirRol>} />
         <Route path="/secretaria" element={<RequerirRol roles={[ROL.SECRETARIA, ROL.ADMIN]}><PaginaSecretaria /></RequerirRol>} />
         <Route path="/coordinacion" element={<RequerirRol roles={[ROL.COORDINACION, ROL.ADMIN]}><PaginaCoordinacion /></RequerirRol>} />
         <Route path="/usuarios" element={<RequerirRol roles={[ROL.ADMIN]}><PaginaUsuarios /></RequerirRol>} />

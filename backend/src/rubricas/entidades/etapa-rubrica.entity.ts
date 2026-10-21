@@ -10,7 +10,7 @@ import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../comun/enums-dominio'
 import { VersionRubrica } from './version-rubrica.entity';
 
 @Entity('etapas_rubrica')
-@Unique('uq_etapas_rubrica_version_kind', ['rubricVersion', 'kind'])
+@Unique('uq_etapas_rubrica_version_code', ['rubricVersion', 'codigo'])
 @Unique('uq_etapas_rubrica_version_order', ['rubricVersion', 'orden'])
 export class EtapaRubrica {
   @PrimaryGeneratedColumn('uuid')
@@ -20,7 +20,7 @@ export class EtapaRubrica {
   @JoinColumn({ name: 'id_version_rubrica' })
   rubricVersion!: VersionRubrica;
 
-  // El tipo mantiene las dos reglas del flujo: trabajo escrito compartido y oral individual.
+  // PERSONALIZADA identifica etapas configurables nuevas; los valores antiguos se conservan.
   @Column({ type: 'enum', enum: EtapaEvaluacion, enumName: 'etapa_evaluacion_enum' })
   kind!: EtapaEvaluacion;
 

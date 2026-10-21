@@ -15,11 +15,12 @@ import { VersionRubrica } from '../../rubricas/entidades/version-rubrica.entity'
 import { InstantaneaRubrica } from '../../rubricas/instantanea-rubrica';
 import { MiembroTribunal } from '../../tribunales/entidades/miembro-tribunal.entity';
 import { TrabajoTitulacion } from '../../trabajos/entidades/trabajo-titulacion.entity';
+import { EtapaRubrica } from '../../rubricas/entidades/etapa-rubrica.entity';
 
 @Entity('evaluaciones')
 @Check(
   'chk_evaluaciones_stage_student',
-  `("etapa" = 'ESCRITA' AND "id_estudiante" IS NULL) OR ("etapa" = 'ORAL' AND "id_estudiante" IS NOT NULL)`,
+  `"id_etapa_rubrica" IS NOT NULL OR (("etapa" = 'ESCRITA' AND "id_estudiante" IS NULL) OR ("etapa" = 'ORAL' AND "id_estudiante" IS NOT NULL))`,
 )
 @Check(
   'chk_evaluaciones_closed_timestamp',
@@ -30,13 +31,22 @@ import { TrabajoTitulacion } from '../../trabajos/entidades/trabajo-titulacion.e
   'chk_evaluaciones_snapshot_version',
   `"instantanea_rubrica" ? 'rubricVersionId' AND "instantanea_rubrica" ->> 'rubricVersionId' = "id_version_rubrica"::text`,
 )
+@Check('chk_evaluaciones_revision_positive', '"revision" > 0')
 @Index('uq_evaluaciones_written_member_work', ['trabajo', 'tribunalMember'], {
   unique: true,
-  where: `"etapa" = 'ESCRITA'`,
+  where: `"id_etapa_rubrica" IS NULL AND "etapa" = 'ESCRITA'`,
 })
 @Index('uq_evaluaciones_oral_member_work_student', ['trabajo', 'tribunalMember', 'estudiante'], {
   unique: true,
-  where: `"etapa" = 'ORAL'`,
+  where: `"id_etapa_rubrica" IS NULL AND "etapa" = 'ORAL'`,
+})
+@Index('uq_evaluaciones_dynamic_shared_member_stage', ['trabajo', 'tribunalMember', 'rubricStage'], {
+  unique: true,
+  where: '"id_etapa_rubrica" IS NOT NULL AND "id_estudiante" IS NULL',
+})
+@Index('uq_evaluaciones_dynamic_individual_member_stage_student', ['trabajo', 'tribunalMember', 'rubricStage', 'estudiante'], {
+  unique: true,
+  where: '"id_etapa_rubrica" IS NOT NULL AND "id_estudiante" IS NOT NULL',
 })
 export class Evaluacion {
   @PrimaryGeneratedColumn('uuid')
@@ -58,6 +68,10 @@ export class Evaluacion {
   @JoinColumn({ name: 'id_version_rubrica' })
   rubricVersion!: VersionRubrica;
 
+  @ManyToOne(() => EtapaRubrica, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'id_etapa_rubrica' })
+  rubricStage!: EtapaRubrica | null;
+
   @Column({ type: 'enum', enum: EtapaEvaluacion, enumName: 'etapa_evaluacion_enum' })
   etapa!: EtapaEvaluacion;
 
@@ -77,6 +91,9 @@ export class Evaluacion {
 
   @Column({ name: 'instantanea_calificacion_maxima', type: 'numeric', precision: 4, scale: 2 })
   instantaneaCalificacionMaxima!: string;
+
+  @Column({ type: 'integer', default: 1 })
+  revision!: number;
 
   @Column({ name: 'cerrada_en', type: 'timestamptz', nullable: true })
   cerradoEn!: Date | null;

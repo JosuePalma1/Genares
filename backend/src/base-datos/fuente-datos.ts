@@ -15,6 +15,7 @@ export default new DataSource({
   database: process.env.DB_NAME ?? 'genares',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migraciones/*{.ts,.js}'],
+  migrationsTransactionMode: 'each',
   synchronize: false,
   ssl: ssl ? { rejectUnauthorized: false } : false,
 });

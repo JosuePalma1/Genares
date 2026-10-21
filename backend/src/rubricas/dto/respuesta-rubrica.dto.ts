@@ -77,6 +77,23 @@ export interface VersionRubricaDetalleDto extends VersionRubricaResumenDto {
   etapas: EtapaRubricaDto[];
 }
 
+export interface CarreraVersionRubricaDto {
+  id: string;
+  codigo: string;
+  nombre: string;
+  vigente: boolean;
+}
+
+export interface VersionRubricaCompletaDto extends VersionRubricaDetalleDto {
+  rubrica: {
+    id: string;
+    nombre: string;
+    descripcion: string | null;
+    modalidad: ModalidadRubricaDto;
+  };
+  carreras: CarreraVersionRubricaDto[];
+}
+
 export interface VersionesRubricaDto {
   rubricaId: string;
   versiones: VersionRubricaDetalleDto[];

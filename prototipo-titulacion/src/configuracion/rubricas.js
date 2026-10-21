@@ -25,4 +25,10 @@ export const ESCRITURA_MODALIDADES_API_HABILITADA = resolverEscrituraApi({
   escrituraConfigurada: entorno.VITE_MODALIDADES_WRITE_API,
 });
 
+export const ESCRITURA_CARRERAS_API_HABILITADA = resolverEscrituraApi({
+  esDesarrollo: entorno.DEV === true,
+  fuente: FUENTE_RUBRICAS,
+  escrituraConfigurada: entorno.VITE_CARRERAS_WRITE_API,
+});
+
 export const API_BASE_URL = (entorno.VITE_API_BASE_URL || '/api/v1').replace(/\/+$/, '');

@@ -20,15 +20,17 @@ export default function LoginPage() {
     <main className="login-shell login-page">
       <section className="login-hero" aria-labelledby="system-name">
         <div className="login-brand">
-          <img src="/assets/ULEAM.png" width="58" height="66" alt="Identidad visual provisional" />
+          <span className="login-brand-logo">
+            <img src="/assets/ULEAM.png" alt="Logotipo de la Universidad Laica Eloy Alfaro de Manabí" />
+          </span>
           <div><strong>Universidad Laica Eloy Alfaro de Manabí</strong><br /><small>Facultad de Ciencias de la Vida y Tecnologías</small></div>
         </div>
         <div className="login-copy">
-          <span className="eyebrow">Prototipo funcional</span>
+          <span className="eyebrow">Prototipo</span>
           <h1 id="system-name">Gestión de evaluación de trabajos de titulación</h1>
           <p>Seguimiento desde la asignación del tribunal hasta el cierre e impresión de las rúbricas de evaluación.</p>
         </div>
-        <p className="login-foot">No se conecta con DIT, SGA, Microsoft 365 ni servicios de correo.</p>
+        <p className="login-foot"></p>
       </section>
       <section className="login-panel" aria-label="Acceso simulado">
         <form className="login-card" onSubmit={enter}>
@@ -46,13 +48,6 @@ export default function LoginPage() {
           <button className="button button-primary button-block institution-button mt-4" type="submit">
             <ShieldCheck size={19} aria-hidden="true" /> Entrar al prototipo
           </button>
-          <AlertaInstitucional
-            className="mt-4"
-            titulo="Simulación para validación funcional"
-          >
-            Este selector es provisional para fines académicos. No solicita ni almacena credenciales reales, ni constituye la autenticación institucional definitiva.
-          </AlertaInstitucional>
-          <p className="login-note"><strong>Datos ficticios</strong><br />Uso exclusivo para validación del flujo del proceso de titulación.</p>
         </form>
       </section>
     </main>

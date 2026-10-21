@@ -20,6 +20,10 @@ import { ActivarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
 import { ConsultarRubricasDto } from './dto/consultar-rubricas.dto';
 import { CrearRubricaDto } from './dto/crear-rubrica.dto';
 import { CrearVersionRubricaDto } from './dto/crear-version-rubrica.dto';
+import {
+  CrearRubricaCompletaDto,
+  CrearVersionRubricaCompletaDto,
+} from './dto/estructura-rubrica-completa.dto';
 import { RubricasService } from './rubricas.service';
 
 @Controller({ path: 'rubricas', version: '1' })
@@ -56,6 +60,16 @@ export class RubricasController {
     return this.rubricas.crear(dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
   }
 
+  @Post('completas')
+  @RequiereCapacidades('rubricas:administrar')
+  crearCompleta(
+    @Req() solicitud: SolicitudConIdentidad,
+    @Headers('x-correlation-id') correlationId: string | string[] | undefined,
+    @Body() dto: CrearRubricaCompletaDto,
+  ) {
+    return this.rubricas.crearCompleta(dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
+  }
+
   @Get(':id/versiones')
   @RequiereCapacidades('rubricas:leer')
   listarVersiones(@Param('id', new ParseUUIDPipe({ version: '4' })) id: string) {
@@ -71,6 +85,17 @@ export class RubricasController {
     @Body() dto: CrearVersionRubricaDto,
   ) {
     return this.rubricas.crearVersion(id, dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
+  }
+
+  @Post(':id/versiones/completas')
+  @RequiereCapacidades('rubricas:administrar')
+  crearVersionCompleta(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Req() solicitud: SolicitudConIdentidad,
+    @Headers('x-correlation-id') correlationId: string | string[] | undefined,
+    @Body() dto: CrearVersionRubricaCompletaDto,
+  ) {
+    return this.rubricas.crearVersionCompleta(id, dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
   }
 }
 
