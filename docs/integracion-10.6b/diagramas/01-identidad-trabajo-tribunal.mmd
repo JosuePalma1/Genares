@@ -1,0 +1,138 @@
+﻿erDiagram
+    %% Modelo fisico actual: identidad, trabajo y tribunal.
+    %% Subconjunto; consultar el DER principal para notas y contexto.
+    ALCANCES_CARRERA_CUENTA {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_cuenta FK "uuid NOT NULL"
+        uuid id_carrera FK "uuid NOT NULL"
+    }
+    ASIGNACIONES_TRIBUNAL {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_trabajo FK "uuid NOT NULL"
+        estado_asignacion_tribunal_enum estado "estado_asignacion_tribunal_enum NOT NULL"
+        uuid assigned_by_id_cuenta FK "uuid NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz confirmada_en "timestamptz NULL"
+    }
+    ASIGNACIONES_TUTOR_TRABAJO {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_trabajo FK "uuid NOT NULL"
+        uuid id_docente FK "uuid NOT NULL"
+        uuid assigned_by_id_cuenta FK "uuid NOT NULL"
+        timestamptz asignada_en "timestamptz NOT NULL"
+        timestamptz finalizada_en "timestamptz NULL"
+    }
+    CARRERAS {
+        uuid id PK "uuid NOT NULL PK"
+        varchar codigo "varchar(30) NOT NULL"
+        varchar nombre "varchar(160) NOT NULL"
+        boolean esta_activo "boolean NOT NULL"
+        integer revision "integer NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz actualizado_en "timestamptz NOT NULL"
+    }
+    CUENTAS_USUARIO {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_persona FK "uuid NOT NULL"
+        varchar sujeto_autenticacion "varchar(255) NULL"
+        boolean esta_activo "boolean NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz actualizado_en "timestamptz NOT NULL"
+    }
+    ESTUDIANTES_TRABAJO {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_trabajo FK "uuid NOT NULL"
+        uuid id_estudiante FK "uuid NOT NULL"
+        smallint orden_autoria "smallint NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+    }
+    MIEMBROS_TRIBUNAL {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_asignacion FK "uuid NOT NULL"
+        uuid id_docente FK "uuid NOT NULL"
+        smallint position "smallint NOT NULL"
+    }
+    MODALIDADES {
+        uuid id PK "uuid NOT NULL PK"
+        varchar codigo "varchar(40) NOT NULL"
+        varchar nombre "varchar(160) NOT NULL"
+        boolean esta_activo "boolean NOT NULL"
+        text descripcion "text NULL"
+        integer revision "integer NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz actualizado_en "timestamptz NOT NULL"
+    }
+    PERFILES_DOCENTE {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_persona FK "uuid NOT NULL"
+        uuid id_carrera FK "uuid NOT NULL"
+        fuente_directorio_enum fuente "fuente_directorio_enum NOT NULL"
+        varchar referencia_externa "varchar(120) NULL"
+        boolean esta_activo "boolean NOT NULL"
+    }
+    PERFILES_ESTUDIANTE {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_persona FK "uuid NOT NULL"
+        uuid id_carrera FK "uuid NOT NULL"
+    }
+    PERIODOS_ACADEMICOS {
+        uuid id PK "uuid NOT NULL PK"
+        varchar codigo "varchar(20) NOT NULL"
+        date fecha_inicio "date NULL"
+        date fecha_fin "date NULL"
+        boolean esta_activo "boolean NOT NULL"
+    }
+    PERSONAS {
+        uuid id PK "uuid NOT NULL PK"
+        varchar identificacion_nacional "varchar(20) NOT NULL"
+        varchar nombres "varchar(160) NOT NULL"
+        varchar surnames "varchar(160) NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz actualizado_en "timestamptz NOT NULL"
+    }
+    ROLES {
+        uuid id PK "uuid NOT NULL PK"
+        varchar codigo "varchar(60) NOT NULL"
+        varchar nombre "varchar(120) NOT NULL"
+    }
+    ROLES_CUENTA {
+        uuid id PK "uuid NOT NULL PK"
+        uuid id_cuenta FK "uuid NOT NULL"
+        uuid id_rol FK "uuid NOT NULL"
+        timestamptz asignada_en "timestamptz NOT NULL"
+    }
+    TRABAJOS_TITULACION {
+        uuid id PK "uuid NOT NULL PK"
+        varchar codigo "varchar(40) NOT NULL"
+        text titulo "text NOT NULL"
+        uuid id_modalidad FK "uuid NOT NULL"
+        uuid periodo_academico_id FK "uuid NOT NULL"
+        uuid id_carrera FK "uuid NOT NULL"
+        uuid id_version_rubrica FK "uuid NULL"
+        estado_trabajo_enum estado "estado_trabajo_enum NOT NULL"
+        uuid created_by_id_cuenta FK "uuid NOT NULL"
+        timestamptz creado_en "timestamptz NOT NULL"
+        timestamptz actualizado_en "timestamptz NOT NULL"
+    }
+    CARRERAS ||--o{ ALCANCES_CARRERA_CUENTA : id_carrera
+    CUENTAS_USUARIO ||--o{ ALCANCES_CARRERA_CUENTA : id_cuenta
+    CUENTAS_USUARIO ||--o{ ASIGNACIONES_TRIBUNAL : assigned_by_id_cuenta
+    TRABAJOS_TITULACION ||--o{ ASIGNACIONES_TRIBUNAL : id_trabajo
+    CUENTAS_USUARIO ||--o{ ASIGNACIONES_TUTOR_TRABAJO : assigned_by_id_cuenta
+    PERFILES_DOCENTE ||--o{ ASIGNACIONES_TUTOR_TRABAJO : id_docente
+    TRABAJOS_TITULACION ||--o{ ASIGNACIONES_TUTOR_TRABAJO : id_trabajo
+    PERSONAS ||--o| CUENTAS_USUARIO : id_persona
+    PERFILES_ESTUDIANTE ||--o{ ESTUDIANTES_TRABAJO : id_estudiante
+    TRABAJOS_TITULACION ||--o{ ESTUDIANTES_TRABAJO : id_trabajo
+    ASIGNACIONES_TRIBUNAL ||--o{ MIEMBROS_TRIBUNAL : id_asignacion
+    PERFILES_DOCENTE ||--o{ MIEMBROS_TRIBUNAL : id_docente
+    CARRERAS ||--o{ PERFILES_DOCENTE : id_carrera
+    PERSONAS ||--o| PERFILES_DOCENTE : id_persona
+    CARRERAS ||--o{ PERFILES_ESTUDIANTE : id_carrera
+    PERSONAS ||--o| PERFILES_ESTUDIANTE : id_persona
+    CUENTAS_USUARIO ||--o{ ROLES_CUENTA : id_cuenta
+    ROLES ||--o{ ROLES_CUENTA : id_rol
+    CUENTAS_USUARIO ||--o{ TRABAJOS_TITULACION : created_by_id_cuenta
+    CARRERAS ||--o{ TRABAJOS_TITULACION : id_carrera
+    MODALIDADES ||--o{ TRABAJOS_TITULACION : id_modalidad
+    PERIODOS_ACADEMICOS ||--o{ TRABAJOS_TITULACION : periodo_academico_id
