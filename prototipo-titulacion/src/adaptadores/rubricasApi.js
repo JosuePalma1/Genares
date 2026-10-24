@@ -1,7 +1,7 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECIMAL = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/;
-const ESTADOS = new Set(['BORRADOR', 'ACTIVA', 'ARCHIVADA']);
-const ETAPAS = new Set(['ESCRITA', 'ORAL']);
+const ESTADOS = new Set(['BORRADOR', 'CONFIGURADA', 'ACTIVA', 'ARCHIVADA']);
+const ETAPAS = new Set(['ESCRITA', 'ORAL', 'PERSONALIZADA']);
 const ALCANCES = new Set(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL']);
 
 export class ErrorDtoRubricas extends Error {
@@ -48,6 +48,21 @@ function validarResumen(resumen) {
   if (!texto(resumen.periodo.codigo)) throw new ErrorDtoRubricas();
   validarFecha(resumen.activadaEn, true);
   validarFecha(resumen.creadaEn);
+}
+
+function validarCarreras(version) {
+  if (!Array.isArray(version.carreras)) throw new ErrorDtoRubricas();
+  return version.carreras.map((carrera) => {
+    if (!objeto(carrera) || !texto(carrera.codigo) || !texto(carrera.nombre) || typeof carrera.vigente !== 'boolean') {
+      throw new ErrorDtoRubricas();
+    }
+    return {
+      id: validarUuid(carrera.id),
+      codigo: carrera.codigo,
+      nombre: carrera.nombre,
+      vigente: carrera.vigente,
+    };
+  });
 }
 
 function validarListado(rubrica) {
@@ -138,6 +153,7 @@ function validarVersionDetalle(version) {
   return {
     etapas: etapasValidadas.map(({ etapa }) => etapa),
     categorias: etapasValidadas.flatMap(({ categorias }) => categorias),
+    carreras: validarCarreras(version),
   };
 }
 
@@ -179,6 +195,7 @@ export function adaptarRubricaApi(rubricaDto, versionesDto) {
       creadaEn: versionDto.creadaEn,
       etapas: estructura.etapas,
       categorias: estructura.categorias,
+      carreras: estructura.carreras,
       fuenteDatos: 'api',
     };
   });

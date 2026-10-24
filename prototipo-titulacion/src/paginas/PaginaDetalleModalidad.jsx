@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowUpRight, BookOpenCheck, PencilLine, RefreshCw } from 'lucide-react';
+import { ArrowUpRight, Layers, PencilLine, RefreshCw } from 'lucide-react';
+import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
-import { ROL, modalidades as modalidadesPrototipo } from '../datos/datosPrototipo';
-import { FUENTE_RUBRICAS, ESCRITURA_MODALIDADES_API_HABILITADA } from '../configuracion/rubricas';
-import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { modalidades as modalidadesPrototipo } from '../datos/datosPrototipo';
+import { FUENTE_RUBRICAS, ESCRITURA_MODALIDADES_API_HABILITADA, ESCRITURA_RUBRICAS_API_HABILITADA } from '../configuracion/rubricas';
+import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { actualizarModalidadApi, cargarCapacidadesModalidadesApi, cargarModalidadApi } from '../servicios/modalidadesApi';
 import { ErrorApiHttp } from '../servicios/clienteHttp';
 import './modalidades.css';
@@ -13,14 +13,13 @@ import './modalidades.css';
 const vacio = (modalidad) => ({ codigo: modalidad?.codigo ?? '', nombre: modalidad?.nombre ?? '', descripcion: modalidad?.descripcion ?? '' });
 
 function mensajeError(error) {
-  if (error instanceof ErrorApiHttp && error.status === 401) return 'La API requiere una identidad validada.';
-  if (error instanceof ErrorApiHttp && error.status === 403) return 'La identidad no tiene permiso para consultar esta modalidad.';
+  if (error instanceof ErrorApiHttp && error.status === 401) return 'El servidor no habilitó esta consulta en el entorno actual.';
+  if (error instanceof ErrorApiHttp && error.status === 403) return 'La consulta no está disponible en el entorno actual.';
   return error?.message || 'No fue posible cargar la modalidad.';
 }
 
 export default function PaginaDetalleModalidad() {
   const { id } = useParams();
-  const { actorActual } = usarPrototipo();
   const esApi = FUENTE_RUBRICAS === 'api';
   const [modalidad, setModalidad] = useState(null);
   const [puedeAdministrar, setPuedeAdministrar] = useState(false);
@@ -51,7 +50,7 @@ export default function PaginaDetalleModalidad() {
       setFormulario(vacio(registro));
       setRevisionGuardada(registro.revision);
       setConflicto(false);
-      setPuedeAdministrar(capacidades.puedeAdministrar && ESCRITURA_MODALIDADES_API_HABILITADA);
+      setPuedeAdministrar(capacidades.puedeAdministrar);
     } catch (causa) {
       if (signal?.aborted || causa?.name === 'AbortError') return;
       setError(mensajeError(causa));
@@ -74,7 +73,7 @@ export default function PaginaDetalleModalidad() {
 
   const guardar = async (evento) => {
     evento.preventDefault();
-    if (!puedeAdministrar || !modalidad || guardando) return;
+    if (!puedeAdministrar || !ESCRITURA_MODALIDADES_API_HABILITADA || !modalidad || guardando) return;
     setGuardando(true);
     setAviso('');
     setConflicto(false);
@@ -84,31 +83,56 @@ export default function PaginaDetalleModalidad() {
       setFormulario(vacio(actualizada));
       setRevisionGuardada(actualizada.revision);
       setEditando(false);
+      await Swal.fire({
+        icon: 'success',
+        title: 'Modalidad actualizada',
+        text: `${actualizada.codigo} se guardó correctamente.`,
+        confirmButtonText: 'Continuar',
+      });
     } catch (causa) {
-      setAviso(mensajeError(causa));
-      setConflicto(causa instanceof ErrorApiHttp && causa.status === 409);
+      const hayConflicto = causa instanceof ErrorApiHttp && causa.status === 409;
+      const texto = mensajeError(causa);
+      setAviso(texto);
+      setConflicto(hayConflicto);
+      await Swal.fire({
+        icon: hayConflicto ? 'warning' : 'error',
+        title: hayConflicto ? 'La modalidad cambió en otra sesión' : 'No se guardaron los cambios',
+        text: texto,
+        confirmButtonText: 'Entendido',
+      });
     } finally {
       setGuardando(false);
     }
   };
 
-  const descartarEdicion = () => {
-    if (!confirmarDescarteCambios()) return;
+  const descartarEdicion = async () => {
+    if (!(await confirmarDescarteCambiosConDialogo())) return;
     setFormulario(vacio(modalidad));
     setEditando(false);
     setConflicto(false);
     setAviso('');
   };
 
-  const recargarConflicto = () => {
-    if (dirty && !window.confirm('Recargar descartará los cambios locales de este formulario. ¿Desea continuar?')) return;
+  const recargarConflicto = async () => {
+    if (dirty) {
+      const confirmacion = await Swal.fire({
+        icon: 'warning',
+        title: 'Recargar datos de modalidad',
+        text: 'Se descartarán los cambios locales del formulario. ¿Desea continuar?',
+        showCancelButton: true,
+        confirmButtonText: 'Recargar datos',
+        cancelButtonText: 'Seguir editando',
+        reverseButtons: true,
+      });
+      if (!confirmacion.isConfirmed) return;
+    }
     setEditando(false);
     setConflicto(false);
     recargar();
   };
 
   const volver = <BotonVolver respaldo="/maestros/modalidades" />;
-  const esAdministradorPrototipo = actorActual?.roles.includes(ROL.ADMIN) ?? false;
+  const puedeAsociarFamilia = modalidad?.estaActivo && puedeAdministrar && ESCRITURA_RUBRICAS_API_HABILITADA;
   if (cargando) return <div className="modalidades-page"><EncabezadoPagina title="Modalidad de titulación" actions={volver} /><p className="modalidades-status" role="status">Consultando modalidad…</p></div>;
   if (error) return <div className="modalidades-page"><EncabezadoPagina title="Modalidad de titulación" actions={volver} /><AlertaInstitucional tono="danger" titulo="No fue posible cargar el detalle"><p role="alert">{error}</p>{esApi && <button className="button button-outline" type="button" onClick={() => recargar()}>Reintentar</button>}</AlertaInstitucional></div>;
   if (!modalidad) return <div className="modalidades-page"><EncabezadoPagina title="Modalidad de titulación" actions={volver} /><EstadoVacio title="Modalidad no encontrada" /></div>;
@@ -120,7 +144,7 @@ export default function PaginaDetalleModalidad() {
         title={modalidad.nombre}
         description={`Código estable: ${modalidad.codigo}`}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Modalidades', to: '/maestros/modalidades' }, { etiqueta: modalidad.nombre }]}
-        actions={<>{esApi && puedeAdministrar && !editando && <button className="button button-primary" type="button" onClick={() => { setFormulario(vacio(modalidad)); setEditando(true); setAviso(''); }}><PencilLine size={17} /> Editar datos</button>}{volver}</>}
+        actions={<>{esApi && puedeAdministrar && ESCRITURA_MODALIDADES_API_HABILITADA && !editando && <button className="button button-primary" type="button" onClick={() => { setFormulario(vacio(modalidad)); setEditando(true); setAviso(''); }}><PencilLine size={17} /> Editar datos</button>}{volver}</>}
       />
 
       <AlertaInstitucional tono="info" titulo={esApi ? 'Origen: API PostgreSQL' : 'Origen: prototipo local'}>
@@ -144,9 +168,21 @@ export default function PaginaDetalleModalidad() {
       </section>}
 
       <section className="card modalidad-family-card">
-        <header><div><span className="section-kicker">Rúbricas</span><h2>Familia asociada</h2></div><BookOpenCheck size={22} aria-hidden="true" /></header>
+        <header><div><span className="section-kicker">Rúbricas</span><h2>Familia asociada</h2></div></header>
         {!esApi ? <p>La asociación de familias y las versiones se consultan únicamente desde la API.</p>
-          : !modalidad.familiaRubricas ? <><EstadoVacio title="Sin familia de rúbricas" description="La modalidad puede asociarse a una familia cuando esté activa y tenga autorización administrativa." /><Link className="button button-outline" to="/rubricas">Ir a Rúbricas</Link></>
+          : !modalidad.familiaRubricas ? <EstadoVacio
+            className="modalidad-family-empty"
+            icon={Layers}
+            title="Aún no hay una familia asociada"
+            description={!modalidad.estaActivo
+              ? 'Activa esta modalidad para poder vincularla con una familia de rúbricas.'
+              : !puedeAdministrar
+                ? 'La asociación de familias requiere autorización administrativa.'
+                : !ESCRITURA_RUBRICAS_API_HABILITADA
+                  ? 'La creación y asociación de rúbricas está deshabilitada en este entorno.'
+                  : 'Puedes vincular una familia al crear una rúbrica para esta modalidad.'}
+            accion={puedeAsociarFamilia && <Link className="button button-outline" to="/rubricas/nueva">Crear rúbrica</Link>}
+          />
             : <><div className="modalidad-family-summary"><div><span>Familia</span><h3>{modalidad.familiaRubricas.nombre}</h3>{modalidad.familiaRubricas.descripcion && <p>{modalidad.familiaRubricas.descripcion}</p>}</div><InsigniaEstado estado={`${modalidad.familiaRubricas.cantidadVersiones} versiones`} tono="info" /></div>
               {modalidad.familiaRubricas.versiones?.length ? <div className="modalidad-versiones">
                 {modalidad.familiaRubricas.versiones.map((version) => <article key={version.id}>
@@ -158,7 +194,6 @@ export default function PaginaDetalleModalidad() {
               <Link className="button button-outline" to="/rubricas">Administrar versiones</Link>
             </>}
       </section>
-      {!esApi && !esAdministradorPrototipo && <EstadoVacio title="Permiso insuficiente" description="El detalle administrativo está disponible para el perfil administrador." />}
     </div>
   );
 }

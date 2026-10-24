@@ -13,6 +13,8 @@ import {
   tonoEstado,
 } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { CoordinacionSeguimientoApi } from './SeguimientoApi';
 
 function nombresPersonas(estado, ids) {
   return ids
@@ -20,16 +22,12 @@ function nombresPersonas(estado, ids) {
     .join(' · ');
 }
 
-export default function PaginaCoordinacion() {
-  const { estado, personaActual } = usarPrototipo();
+function PaginaCoordinacionPrototipo() {
+  const { estado } = usarPrototipo();
   const [periodo, establecerPeriodo] = useState('ALL');
   const [filtroEstado, establecerFiltroEstado] = useState('ALL');
-  const carrera = personaActual?.carrera;
-
-  const trabajosCarrera = useMemo(
-    () => estado.trabajos.filter((trabajo) => trabajo.carrera === carrera),
-    [carrera, estado.trabajos],
-  );
+  const trabajosCarrera = useMemo(() => estado.trabajos, [estado.trabajos]);
+  const carrera = 'TI y SOFT';
   const periodos = [...new Set(trabajosCarrera.map((trabajo) => trabajo.periodo))];
   const trabajosFiltrados = trabajosCarrera.filter((trabajo) => (
     (periodo === 'ALL' || trabajo.periodo === periodo)
@@ -39,7 +37,7 @@ export default function PaginaCoordinacion() {
 
   const metricas = [
     {
-      etiqueta: 'Trabajos de la carrera',
+      etiqueta: 'Trabajos registrados',
       value: trabajosCarrera.length,
       detail: carrera || 'Sin carrera asignada',
       className: '',
@@ -82,19 +80,19 @@ export default function PaginaCoordinacion() {
       <EncabezadoPagina
         eyebrow="Solo lectura"
         title="Seguimiento de Coordinación"
-        description={`Consulta de trabajos y evaluaciones de ${carrera || 'la carrera asignada'}.`}
+        description="Consulta de trabajos y evaluaciones de las carreras TI y SOFT."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Coordinación' }]}
-        actions={<InsigniaEstado estado={`Acceso: ${carrera || 'sin carrera'}`} tono="info" />}
+        actions={<InsigniaEstado estado="TI · SOFT" tono="info" />}
       />
 
-      <AlertaInstitucional titulo="Información segmentada por carrera">
-        Coordinación puede consultar avance y resultados, pero no asignar tribunales ni modificar calificaciones.
+      <AlertaInstitucional titulo="Seguimiento académico">
+        La vista reúne el avance de ambas carreras y conserva las reglas de asignación y cierre del dominio.
       </AlertaInstitucional>
 
       {trabajosCarrera.length === 0 ? (
         <EstadoVacio
-          title="No hay trabajos para la carrera asignada"
-          description={`No existen trabajos visibles para ${carrera || 'la carrera asociada al perfil actual'}.`}
+          title="No hay trabajos registrados"
+          description="No existen trabajos para mostrar."
           className="coordinacion-empty"
         />
       ) : (
@@ -111,7 +109,7 @@ export default function PaginaCoordinacion() {
             </header>
             <div className="coordinacion-filter-grid">
               <div className="field">
-                <label htmlFor="coordination-carrera">Carrera</label>
+                <label htmlFor="coordination-carrera">Carreras incluidas</label>
                 <input className="input" id="coordination-carrera" value={carrera || 'Sin asignar'} readOnly />
               </div>
               <div className="field">
@@ -159,13 +157,13 @@ export default function PaginaCoordinacion() {
                 <span className="section-kicker">Seguimiento de la carrera</span>
                 <h2 id="coordinacion-results-title">Trabajos y resultados</h2>
               </div>
-              <p>Tutores, tribunal, agenda, estado y resultados disponibles dentro del alcance de la carrera.</p>
+              <p>Tutores, tribunal, agenda, estado y resultados de TI y SOFT.</p>
             </div>
 
             {trabajosFiltrados.length === 0 ? (
               <EstadoVacio
                 title="No hay trabajos para los filtros seleccionados"
-                description={`No existen coincidencias dentro de ${carrera || 'la carrera asignada'}.`}
+                description="No existen coincidencias con los filtros seleccionados."
                 accion={<button className="button button-outline" type="button" onClick={limpiarFiltros}>Limpiar filtros</button>}
                 className="coordinacion-empty"
               />
@@ -173,7 +171,7 @@ export default function PaginaCoordinacion() {
               <div className="coordinacion-results-card">
                 <div className="table-wrap">
                   <table className="data-table responsive-table coordinacion-table">
-                    <caption className="sr-only">Trabajos y resultados de la carrera asignada a Coordinación</caption>
+                    <caption className="sr-only">Trabajos y resultados de las carreras TI y SOFT</caption>
                     <thead>
                       <tr>
                         <th scope="col">Trabajo y participantes</th>
@@ -286,4 +284,8 @@ export default function PaginaCoordinacion() {
       )}
     </div>
   );
+}
+
+export default function PaginaCoordinacion() {
+  return FUENTE_TRABAJOS === 'api' ? <CoordinacionSeguimientoApi /> : <PaginaCoordinacionPrototipo />;
 }

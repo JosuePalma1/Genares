@@ -12,6 +12,22 @@ export interface EtapaRubricaNormalizada {
   categorias: CategoriaRubricaNormalizada[];
 }
 
+/** Asigna la siguiente etiqueta Vn de una familia, sin depender del cliente. */
+export const siguienteEtiquetaVersionRubrica = (versiones: string[]): string => {
+  const existentes = new Set(versiones.map((version) => version.trim().toLocaleLowerCase('es')));
+  const mayorNumero = versiones.reduce((mayor, version) => {
+    const coincidencia = /^v(\d+)$/i.exec(version.trim());
+    if (!coincidencia) return mayor;
+    const numero = Number(coincidencia[1]);
+    return Number.isSafeInteger(numero) ? Math.max(mayor, numero) : mayor;
+  }, versiones.length);
+  for (let numero = mayorNumero + 1; numero <= 2147483647; numero += 1) {
+    const candidata = `V${numero}`;
+    if (!existentes.has(candidata.toLocaleLowerCase('es'))) return candidata;
+  }
+  throw new BadRequestException('No fue posible asignar un identificador de versión disponible.');
+};
+
 const centavosDe = (valor: string, nombre: string): bigint => {
   if (!/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/.test(valor)) {
     throw new BadRequestException(`${nombre} debe tener como m\u00e1ximo dos decimales.`);

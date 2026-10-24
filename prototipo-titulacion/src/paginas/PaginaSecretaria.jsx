@@ -12,6 +12,8 @@ import {
   tonoEstado,
 } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { SecretariaSeguimientoApi } from './SeguimientoApi';
 
 function nombresPersonas(estado, ids) {
   return ids
@@ -49,8 +51,8 @@ function avanceOral(estado, trabajo) {
   };
 }
 
-export default function PaginaSecretaria() {
-  const { estado, personaActual } = usarPrototipo();
+function PaginaSecretariaPrototipo() {
+  const { estado } = usarPrototipo();
   const resultadosEstudiantesDisponibles = estado.trabajos.reduce((total, trabajo) => (
     total + trabajo.idsEstudiantes.filter(
       (idEstudiante) => calificacionFinalEstudiante(estado, trabajo, idEstudiante) !== null,
@@ -101,7 +103,7 @@ export default function PaginaSecretaria() {
       <EncabezadoPagina
         eyebrow="Solo lectura"
         title="Seguimiento de Secretaría"
-        description={`Consulta del avance y resultados necesarios para el proceso administrativo posterior. Usuario: ${nombreCompleto(personaActual)}.`}
+        description="Consulta del avance y resultados necesarios para el proceso administrativo posterior."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Secretaría' }]}
         actions={<Link className="button button-outline" to="/consulta">Buscar en el historial</Link>}
       />
@@ -231,4 +233,8 @@ export default function PaginaSecretaria() {
       </section>
     </div>
   );
+}
+
+export default function PaginaSecretaria() {
+  return FUENTE_TRABAJOS === 'api' ? <SecretariaSeguimientoApi /> : <PaginaSecretariaPrototipo />;
 }

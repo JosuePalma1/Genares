@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
   BellRing,
@@ -16,10 +16,12 @@ import {
 import { estanCerradasRevisionesEscritas, fechaLocalISO, formatearFecha, nombreCompleto } from '../dominio/flujoTrabajo';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { FUENTE_PROGRAMACIONES } from '../configuracion/programaciones';
 import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 
 export default function PaginaProgramacionSustentacion() {
   const { idTrabajo } = useParams();
+  if (FUENTE_PROGRAMACIONES === 'api') return <Navigate replace to="/cronograma" />;
   const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);

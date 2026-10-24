@@ -1,13 +1,5 @@
 const CLAVE_HISTORIAL = 'genares.historial-interno.v1';
 
-const RESTRICCIONES_RUTA = [
-  { patron: /^\/usuarios(?:\/|$)/, roles: ['ADMIN'] },
-  { patron: /^\/rubricas(?:\/|$)/, roles: ['ADMIN', 'COMISION'] },
-  { patron: /^\/secretaria(?:\/|$)/, roles: ['ADMIN', 'SECRETARIA'] },
-  { patron: /^\/coordinacion(?:\/|$)/, roles: ['ADMIN', 'COORDINACION'] },
-  { patron: /^\/trabajos\/[^/]+\/(?:tribunal|sustentacion)(?:\/|$)/, roles: ['ADMIN', 'COMISION'] },
-];
-
 export function esRutaInternaGenares(ruta) {
   if (typeof ruta !== 'string' || !ruta.startsWith('/') || ruta.startsWith('//')) return false;
   try {
@@ -20,18 +12,16 @@ export function esRutaInternaGenares(ruta) {
   }
 }
 
-export function puedeAccederRutaInterna(ruta, roles = []) {
+export function puedeAccederRutaInterna(ruta) {
   if (!esRutaInternaGenares(ruta)) return false;
-  const pathname = new URL(ruta, 'https://genares.local').pathname;
-  const restriccion = RESTRICCIONES_RUTA.find(({ patron }) => patron.test(pathname));
-  return !restriccion || restriccion.roles.some((rol) => roles.includes(rol));
+  return true;
 }
 
-export function resolverNavegacionRetorno({ rutaAnterior, rutaRespaldo, roles = [] }) {
-  if (puedeAccederRutaInterna(rutaAnterior, roles)) {
+export function resolverNavegacionRetorno({ rutaAnterior, rutaRespaldo }) {
+  if (puedeAccederRutaInterna(rutaAnterior)) {
     return { destino: rutaAnterior, usarHistorial: true };
   }
-  if (puedeAccederRutaInterna(rutaRespaldo, roles)) {
+  if (puedeAccederRutaInterna(rutaRespaldo)) {
     return { destino: rutaRespaldo, usarHistorial: false };
   }
   return { destino: '/dashboard', usarHistorial: false };

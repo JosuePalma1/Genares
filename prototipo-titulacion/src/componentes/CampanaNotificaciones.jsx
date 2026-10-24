@@ -18,19 +18,16 @@ function formatearFechaNotificacion(value) {
 }
 
 export function CampanaNotificaciones() {
-  const { estado, actorActual, despachar } = usarPrototipo();
+  const { estado, despachar } = usarPrototipo();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef(null);
   const triggerRef = useRef(null);
   const closeButtonRef = useRef(null);
   const wasOpenRef = useRef(false);
-  const idActor = actorActual?.id ?? estado.idActorActual;
-
   const notificaciones = useMemo(
     () => (estado.notificaciones ?? [])
-      .filter((notificacion) => notificacion.idDestinatario === idActor)
       .sort((left, right) => new Date(right.creadoEn) - new Date(left.creadoEn)),
-    [idActor, estado.notificaciones],
+    [estado.notificaciones],
   );
 
   const unreadCount = notificaciones.filter((notificacion) => !notificacion.leidoEn).length;

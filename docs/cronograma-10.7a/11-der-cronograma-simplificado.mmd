@@ -1,0 +1,41 @@
+flowchart LR
+  subgraph ACTUAL["MODELO ACTUAL — PostgreSQL existente"]
+    ACT_PER["periodos_academicos"]
+    ACT_CAR["carreras"]
+    ACT_TRAB["trabajos_titulacion"]
+    ACT_PROG["programaciones_sustentacion<br/>fecha + hora sin zona + sala textual + estado"]
+    ACT_CUENTA["cuentas_usuario"]
+    ACT_TRIB["asignaciones_tribunal / miembros_tribunal"]
+    ACT_EST["estudiantes_trabajo"]
+    ACT_PER --> ACT_TRAB
+    ACT_CAR --> ACT_TRAB
+    ACT_TRAB --> ACT_PROG
+    ACT_CUENTA --> ACT_PROG
+    ACT_TRAB --> ACT_TRIB
+    ACT_TRAB --> ACT_EST
+  end
+
+  subgraph FUTURO["MODELO PROPUESTO — no implementado"]
+    PROP_CRON["cronogramas_sustentacion<br/>identidad de agenda"]
+    PROP_VER["versiones_cronograma<br/>aprobación + estado + número"]
+    EVOL_PROG["programaciones_sustentacion evolucionada<br/>sesiones de una versión"]
+    PROP_SALA["salas_sustentacion"]
+    PROP_PART["participantes_sesion"]
+    PROP_RES["reservas_recurso_sesion<br/>rangos temporales"]
+    PROP_EVT["eventos_cronograma<br/>append-only"]
+    PROP_CRON --> PROP_VER
+    PROP_VER --> EVOL_PROG
+    PROP_SALA --> PROP_RES
+    EVOL_PROG --> PROP_RES
+    EVOL_PROG --> PROP_PART
+    PROP_CRON --> PROP_EVT
+    PROP_VER --> PROP_EVT
+    EVOL_PROG --> PROP_EVT
+  end
+
+  ACT_PER -. "FK propuesta" .-> PROP_CRON
+  ACT_TRAB -. "FK existente conservada; cardinalidad futura" .-> EVOL_PROG
+  ACT_TRIB -. "referencia participante propuesta" .-> PROP_PART
+  ACT_EST -. "estudiantes derivados del trabajo" .-> EVOL_PROG
+  ACT_CUENTA -. "actor / creador propuesto" .-> PROP_EVT
+  ACT_CAR -. "carrera derivada vía trabajo" .-> PROP_CRON

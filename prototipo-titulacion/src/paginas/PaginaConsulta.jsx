@@ -3,6 +3,8 @@ import { ArrowRight, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { ConsultaSeguimientoApi } from './SeguimientoApi';
 import {
   calificacionFinalEstudiante,
   derivarEstadoTrabajo,
@@ -10,7 +12,7 @@ import {
   tonoEstado,
 } from '../dominio/flujoTrabajo';
 
-export default function PaginaConsulta() {
+function PaginaConsultaPrototipo() {
   const { estado } = usarPrototipo();
   const [consulta, establecerConsulta] = useState('');
   const campoBusqueda = useRef(null);
@@ -150,4 +152,8 @@ export default function PaginaConsulta() {
       )}
     </div>
   );
+}
+
+export default function PaginaConsulta() {
+  return FUENTE_TRABAJOS === 'api' ? <ConsultaSeguimientoApi /> : <PaginaConsultaPrototipo />;
 }

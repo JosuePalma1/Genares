@@ -42,6 +42,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'No se pudieron verificar las migraciones aplicadas en PostgreSQL 9D.' }
     Write-Output "Migraciones presentes en $($config.DB_NAME) (127.0.0.1:55441):"
     $migraciones | ForEach-Object { Write-Output " - $_" }
+    & (Join-Path $PSScriptRoot 'aplicar-permisos-catalogo-9d.ps1')
   }
   finally { Pop-Location }
 }

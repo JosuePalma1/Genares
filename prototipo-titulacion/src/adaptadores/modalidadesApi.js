@@ -10,7 +10,7 @@ function fechaIso(valor) {
 
 function adaptarVersion(valor) {
   if (!esObjeto(valor) || !UUID_V4.test(valor.id ?? '') || typeof valor.version !== 'string'
-    || !['BORRADOR', 'ACTIVA', 'ARCHIVADA'].includes(valor.estado)
+    || !['BORRADOR', 'CONFIGURADA', 'ACTIVA', 'ARCHIVADA'].includes(valor.estado)
     || !Number.isInteger(valor.revision) || valor.revision < 1
     || !esObjeto(valor.periodo) || !UUID_V4.test(valor.periodo.id ?? '')
     || typeof valor.periodo.codigo !== 'string'

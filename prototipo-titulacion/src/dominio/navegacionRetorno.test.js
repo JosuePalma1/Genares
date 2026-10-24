@@ -23,11 +23,10 @@ describe('navegacion de retorno', () => {
     expect(esRutaInternaGenares('//example.com')).toBe(false);
   });
 
-  it('respeta las restricciones conocidas por rol', () => {
-    expect(puedeAccederRutaInterna('/usuarios', ['ADMIN'])).toBe(true);
-    expect(puedeAccederRutaInterna('/usuarios', ['TRIBUNAL'])).toBe(false);
-    expect(puedeAccederRutaInterna('/trabajos/trabajo-184/tribunal', ['COMISION'])).toBe(true);
-    expect(puedeAccederRutaInterna('/trabajos/trabajo-184/tribunal', ['SECRETARIA'])).toBe(false);
+  it('permite el retorno a cualquier módulo interno existente sin depender de perfiles', () => {
+    expect(puedeAccederRutaInterna('/rubricas')).toBe(true);
+    expect(puedeAccederRutaInterna('/secretaria')).toBe(true);
+    expect(puedeAccederRutaInterna('/trabajos/trabajo-184/tribunal')).toBe(true);
   });
 
   it('prefiere el historial interno y usa respaldo seguro cuando no es valido', () => {

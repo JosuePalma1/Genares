@@ -18,11 +18,6 @@ export class GuardiaCapacidades implements CanActivate {
     const controller = contexto.getClass();
     const solicitud = contexto.switchToHttp().getRequest<SolicitudConIdentidad & { method?: string }>();
     const identidad = solicitud?.identidadApi;
-    const modoPermiteIdentidadSimulada = ['development', 'test'].includes(process.env.NODE_ENV ?? '');
-    if (identidad?.tipo === 'SIMULADA' && !modoPermiteIdentidadSimulada) {
-      throw new UnauthorizedException('La identidad simulada solo está permitida en desarrollo y pruebas.');
-    }
-
     const publica = this.reflector.getAllAndOverride<boolean>(CLAVE_RUTA_PUBLICA, [handler, controller]);
     if (publica) {
       if (!['GET', 'HEAD', 'OPTIONS'].includes(solicitud?.method ?? '')) {
@@ -46,7 +41,14 @@ export class GuardiaCapacidades implements CanActivate {
       throw new UnauthorizedException('Se requiere una identidad verificada.');
     }
 
-    if (identidad.tipo !== 'VERIFICADA' && identidad.tipo !== 'SIMULADA') {
+    if (identidad.tipo !== 'VERIFICADA') {
+      if (identidad.tipo === 'DESARROLLO_LOCAL' && ['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
+        const capacidadesOtorgadas = new Set(identidad.capacidades);
+        if (!capacidades.every((capacidad) => capacidadesOtorgadas.has(capacidad))) {
+          throw new ForbiddenException('La operación no está disponible en el entorno local.');
+        }
+        return true;
+      }
       throw new UnauthorizedException('La identidad no es válida.');
     }
 

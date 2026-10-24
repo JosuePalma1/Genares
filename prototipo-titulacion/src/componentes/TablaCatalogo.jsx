@@ -1,5 +1,5 @@
 import { useId, useMemo, useState } from 'react';
-import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowDownUp, ArrowUp, FolderOpen, Search, X } from 'lucide-react';
 import { EstadoVacio } from './interfaz';
 import { filtrarCatalogo, ordenarCatalogo } from '../dominio/tablaCatalogo';
 import './maestros.css';
@@ -16,7 +16,8 @@ export function TablaCatalogo({
 }) {
   const id = useId();
   const [busqueda, setBusqueda] = useState('');
-  const [estado, setEstado] = useState('TODAS');
+  const [estado, setEstado] = useState('ACTIVAS');
+  const [mensajeVacioCerrado, setMensajeVacioCerrado] = useState(false);
   const [orden, setOrden] = useState({ clave: 'codigo', direccion: 'asc' });
   const filtrados = useMemo(
     () => filtrarCatalogo(registros, { busqueda, estado }),
@@ -36,10 +37,31 @@ export function TablaCatalogo({
   }
 
   function contenidoVacio() {
-    if (registros.length === 0) {
-      return <EstadoVacio title={`No hay ${etiquetaRegistro} para mostrar`} description="El catálogo todavía no tiene registros." />;
-    }
-    return <EstadoVacio title="No se encontraron resultados" description="Cambie la búsqueda o el filtro de estado." />;
+    if (mensajeVacioCerrado) return null;
+    const estadoVacio = registros.length === 0
+      ? <EstadoVacio
+        className="tabla-catalogo-vacio"
+        icon={FolderOpen}
+        title={`Todavía no hay ${etiquetaRegistro} registradas`}
+        description="Este catálogo aún no tiene registros para mostrar."
+      />
+      : <EstadoVacio
+        className="tabla-catalogo-vacio"
+        icon={Search}
+        title="Sin resultados con estos filtros"
+        description="Prueba otra búsqueda o selecciona otro estado."
+      />;
+
+    return <div className="tabla-catalogo-vacio-contenedor">
+      <button
+        className="tabla-catalogo-vacio-cerrar"
+        type="button"
+        aria-label="Cerrar mensaje"
+        title="Cerrar mensaje"
+        onClick={() => setMensajeVacioCerrado(true)}
+      ><X size={18} aria-hidden="true" /></button>
+      {estadoVacio}
+    </div>;
   }
 
   return (
@@ -51,13 +73,13 @@ export function TablaCatalogo({
             id={`${id}-buscar`}
             type="search"
             value={busqueda}
-            onChange={(evento) => setBusqueda(evento.target.value)}
+            onChange={(evento) => { setBusqueda(evento.target.value); setMensajeVacioCerrado(false); }}
             autoComplete="off"
           />
         </label>
         <label htmlFor={`${id}-estado`}>
           <span>Estado</span>
-          <select id={`${id}-estado`} value={estado} onChange={(evento) => setEstado(evento.target.value)}>
+          <select id={`${id}-estado`} value={estado} onChange={(evento) => { setEstado(evento.target.value); setMensajeVacioCerrado(false); }}>
             <option value="TODAS">Todas</option>
             <option value="ACTIVAS">Activas</option>
             <option value="INACTIVAS">Inactivas</option>

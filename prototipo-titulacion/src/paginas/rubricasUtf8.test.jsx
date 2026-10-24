@@ -1,6 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ROL } from '../datos/datosPrototipo';
 import PaginaRubricas from './PaginaRubricas';
 import PaginaDetalleRubrica from './PaginaDetalleRubrica';
 
@@ -23,7 +22,13 @@ function configurar(fuente, estado = 'BORRADOR') {
     id: 'version-utf8', idRubrica: 'rubrica-utf8', fuenteDatos: fuente,
     titulo: 'Rúbrica de Diseño · año 2026', modalidad: 'Proyecto integrador',
     periodo: '2026-2', version: 'v1.0', estado,
-    ...(fuente === 'api' ? { revision: 1 } : {}),
+    ...(fuente === 'api' ? {
+      revision: 1,
+      carreras: [
+        { id: 'carrera-software', nombre: 'Ingeniería de Software', vigente: true },
+        { id: 'carrera-ti', nombre: 'Tecnologías de Información', vigente: false },
+      ],
+    } : {}),
     etapas: [{
       id: 'ESCRITA', codigo: 'PARTE_I', nombre: 'Revisión escrita',
       descripcion: 'Evaluación común del diseño.', orden: 1, maximo: 1.25,
@@ -35,7 +40,6 @@ function configurar(fuente, estado = 'BORRADOR') {
   };
   escenario.contexto = {
     estado: { versionesRubrica: [version] },
-    actorActual: { roles: [ROL.COMISION] },
     despachar: vi.fn(),
   };
   escenario.lectura = {
@@ -79,6 +83,20 @@ describe('texto UTF-8 renderizado en Rúbricas', () => {
     ]);
     expect(html).not.toContain('Añadir categoría');
     expect(html).not.toContain('Eliminar indicador');
+  });
+
+  it('muestra la vigencia por carrera y vuelve al catálogo desde una versión API guardada', () => {
+    configurar('api', 'CONFIGURADA');
+    const html = renderToStaticMarkup(<PaginaDetalleRubrica />);
+    comprobarTexto(html, [
+      'Vigencia por carrera',
+      'Ingeniería de Software: Vigente · Tecnologías de Información: No vigente',
+      'Máximos por etapa',
+      'Suma de máximos por etapa',
+      'no es la calificación final de un estudiante',
+    ]);
+    expect(html).not.toContain('Puntaje total');
+    expect(html).toContain('<a href="/rubricas" class="button button-outline back-button">');
   });
 
   it.each(['prototipo', 'api'])('conserva las tildes en los mensajes de versión inexistente en modo %s', (fuente) => {

@@ -3,6 +3,7 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 
 interface RespuestaExcepcion {
@@ -11,6 +12,8 @@ interface RespuestaExcepcion {
 
 @Catch()
 export class FiltroErroresApi implements ExceptionFilter {
+  private readonly logger = new Logger(FiltroErroresApi.name);
+
   catch(excepcion: unknown, host: ArgumentsHost): void {
     const contexto = host.switchToHttp();
     const respuesta = contexto.getResponse<{
@@ -19,11 +22,17 @@ export class FiltroErroresApi implements ExceptionFilter {
     const solicitud = contexto.getRequest<{ path?: string; originalUrl?: string; url?: string }>();
     const esHttp = excepcion instanceof HttpException;
     const statusCode = esHttp ? excepcion.getStatus() : 500;
+    if (statusCode >= 500) this.registrarErrorInterno(excepcion);
     const cuerpoHttp = esHttp ? excepcion.getResponse() : undefined;
     const mensajeOriginal = this.obtenerMensaje(cuerpoHttp);
-    const detalles = statusCode === 400 && Array.isArray(mensajeOriginal)
+    const detallesValidacion = statusCode === 400 && Array.isArray(mensajeOriginal)
       ? mensajeOriginal.filter((elemento): elemento is string => typeof elemento === 'string')
       : undefined;
+    const detallesConflicto = statusCode === 409 && typeof cuerpoHttp === 'object' && cuerpoHttp !== null
+      && 'details' in cuerpoHttp && Array.isArray(cuerpoHttp.details)
+      ? cuerpoHttp.details.filter((elemento): elemento is string => typeof elemento === 'string')
+      : undefined;
+    const detalles = detallesValidacion ?? detallesConflicto;
 
     const cuerpo = {
       statusCode,
@@ -35,6 +44,16 @@ export class FiltroErroresApi implements ExceptionFilter {
     };
 
     respuesta.status(statusCode).json(cuerpo);
+  }
+
+  private registrarErrorInterno(excepcion: unknown): void {
+    const tipo = excepcion instanceof Error ? excepcion.name : typeof excepcion;
+    // El mensaje puede incluir datos de entrada o de PostgreSQL. Se conserva
+    // solo la traza del servidor para diagnóstico y nunca se devuelve al cliente.
+    const traza = excepcion instanceof Error && excepcion.stack
+      ? excepcion.stack.split('\n').slice(1).join('\n')
+      : undefined;
+    this.logger.error(`Error interno no controlado (${tipo}).`, traza);
   }
 
   private obtenerMensaje(cuerpo: unknown): unknown {

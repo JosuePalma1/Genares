@@ -32,6 +32,25 @@ describe('cliente HTTP de escritura local', () => {
     expect(request.headers).not.toHaveProperty('x-principal-prueba');
   });
 
+  it('no emite encabezados de identidad ni selección de perfiles', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), { status: 200 }));
+    const cliente = crearClienteHttp({
+      baseUrl: '/api/v1',
+      habilitado: true,
+      fetcher,
+    });
+
+    await cliente.getJson('/documentos/trabajos');
+    await cliente.getJson('/evaluaciones/trabajos/uuid');
+
+    for (const [, request] of fetcher.mock.calls) {
+      expect(request.headers).not.toHaveProperty('X-Genares-Dev-Identity');
+      expect(request.headers).not.toHaveProperty('Authorization');
+    }
+  });
+
   it('mantiene las escrituras deshabilitadas por defecto y no intenta conectar', async () => {
     const fetcher = vi.fn();
     const cliente = crearClienteHttp({ baseUrl: '/api/v1', habilitado: true, fetcher });

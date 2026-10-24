@@ -1,3 +1,8 @@
+param(
+  [switch] $PreservarBaseEvaluaciones,
+  [switch] $PreservarBasesPrueba
+)
+
 $ErrorActionPreference = 'Stop'
 $backendPath = Split-Path -Parent $PSScriptRoot
 $dotenvPath = Join-Path $backendPath '.env.9d.local'
@@ -76,8 +81,14 @@ try {
           if ($LASTEXITCODE -ne 0 -or $marker.Trim() -ne 'GENARES:9D:DISPOSABLE') {
             throw 'La base temporal no conserva la marca esperada; se deja intacta para revisión.'
           }
-          & $dropdb -h 127.0.0.1 -p 55441 -U genares_9d_admin -w --force $testDatabaseName
-          if ($LASTEXITCODE -ne 0) { throw 'La suite pasó, pero no se pudo retirar su base temporal 9D.' }
+          if ($PreservarBasesPrueba) {
+            Write-Output "Base temporal preservada para $suitePath : $testDatabaseName"
+          } elseif ($PreservarBaseEvaluaciones -and $suitePath -eq 'src/evaluaciones/evaluaciones.postgres.e2e.spec.ts') {
+            Write-Output "Se conservó la base temporal verificada para la integración de evaluaciones: $testDatabaseName"
+          } else {
+            & $dropdb -h 127.0.0.1 -p 55441 -U genares_9d_admin -w --force $testDatabaseName
+            if ($LASTEXITCODE -ne 0) { throw 'La suite pasó, pero no se pudo retirar su base temporal 9D.' }
+          }
         }
         elseif ($testDatabaseCreated) {
           Write-Warning "Se preservó la base temporal aislada para diagnóstico: $testDatabaseName"

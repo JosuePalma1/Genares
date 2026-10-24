@@ -45,7 +45,8 @@ export enum EstadoEvaluacion {
 
 export enum EstadoSustentacion {
   PROGRAMADA = 'PROGRAMADA',
-  COMPLETADA = 'COMPLETADA',
+  EN_SUSTENTACION = 'EN_SUSTENTACION',
+  FINALIZADA = 'FINALIZADA',
   CANCELADA = 'CANCELADA',
 }
 

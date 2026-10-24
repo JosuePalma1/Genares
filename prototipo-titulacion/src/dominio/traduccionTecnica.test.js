@@ -46,18 +46,20 @@ describe('contratos técnicos después de la traducción', () => {
   it('conserva el nombre técnico isActive entregado por React Router', () => {
     const estructura = leer('../estructuras/EstructuraAplicacion.jsx');
 
-    expect(estructura).toContain('isActive: estaActivo');
+    expect(estructura).toContain('({ isActive })');
     expect(estructura).not.toContain('({ estaActivo })');
   });
 
-  it('autoriza las evaluaciones por asignación de tribunal y no solo por rol global', () => {
+  it('mantiene la evaluación en rutas académicas abiertas y delega la selección al tribunal del trabajo', () => {
     const rutas = leer('../Aplicacion.jsx');
     const detalle = leer('../paginas/PaginaDetalleTrabajo.jsx');
     const evaluaciones = leer('../paginas/PaginaMisEvaluaciones.jsx');
 
     expect(rutas).toContain('path="/evaluaciones/:idTrabajo/escrita" element={<PaginaEvaluacionEscrita />}');
-    expect(detalle).toContain('const isAssignedMember = trabajo.idsTribunal.includes(personaActual?.id);');
-    expect(evaluaciones).not.toContain('actorActual.roles.includes(ROL.TRIBUNAL)');
+    expect(rutas).toContain('path="/evaluaciones/:idTrabajo/escrita" element={<PaginaEvaluacionEscrita />}');
+    expect(detalle).not.toContain('personaActual');
+    expect(evaluaciones).not.toContain('actorActual');
+    expect(evaluaciones).not.toContain('ROL.TRIBUNAL');
   });
 
   it('evita ocultar el estado global al calcular el estado de cada trabajo', () => {

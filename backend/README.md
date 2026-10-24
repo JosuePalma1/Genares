@@ -2,54 +2,22 @@
 
 Base NestJS + TypeORM + PostgreSQL para el flujo de evaluación. No implementa autenticación institucional, correo, SGA ni Microsoft 365.
 
-## Desarrollo
+## Inicio local
 
-1. Copiar `.env.example` a `.env` y apuntar a una base PostgreSQL local.
-2. Ejecutar `npm install`.
-3. Ejecutar `npm run migration:run`.
-4. Iniciar con `npm run start:dev`.
+Desde la raíz, ejecuta `npm run db:prepare` una vez. El comando prepara únicamente el clúster PostgreSQL local de 10.9B, aplica las migraciones actuales, carga el fixture sintético y detiene el clúster que inició. Después, `npm run dev` inicia PostgreSQL, NestJS y Vite juntos. `npm run dev:web` inicia solo Vite sin base de datos; `npm run dev:api` inicia solo NestJS y la base local. Detén los servicios con `Ctrl+C`.
 
-El endpoint de vida es `GET /api/salud`. Las migraciones nunca usan `synchronize`; las restricciones del modelo viven tanto en PostgreSQL como en las reglas puras de dominio.
+La base exclusiva es `127.0.0.1:55442/genares_dev_10_9`, con datos en `.local-postgres-10.9/`. `npm run db:prepare` genera una configuración separada `backend/.env.10.9` con claves aleatorias, la ignora Git y no sobrescribe `backend/.env`. Antes de cualquier conexión, los scripts comprueban el host, puerto, base, propietario y marcador del clúster. NestJS usa `synchronize: false` y `migrationsRun: false`; las migraciones se ejecutan explícitamente solo contra esa base aprobada. El arranque diario falla de forma cerrada si el puerto está ocupado por otro proceso o la identidad de PostgreSQL no coincide.
 
-### PostgreSQL local aislado para Rúbricas (Windows)
+PostgreSQL 9D queda reservado para las pruebas de integración. No uses el puerto 5432 ni la base persistente 8E para el desarrollo cotidiano. `npm run dev` no requiere ni inicia el clúster 9D.
 
-Para una base persistente local independiente del servicio PostgreSQL del equipo, ejecutar desde `backend`:
+El endpoint de vida es `GET /api/salud`. Las restricciones del modelo viven en PostgreSQL y en las reglas puras de dominio. `fixtures/entorno-desarrollo-10.9b.sql` contiene solo datos ficticios; la preparación lo aplica de forma idempotente. El arranque de producción no crea datos.
 
-```powershell
-.\scripts\preparar-postgres-desarrollo.ps1
-npm run migration:run
-```
-
-El script inicializa una instancia local en `.local-postgres-dev`, enlazada exclusivamente a `127.0.0.1:55440`, y crea `.env` con credenciales aleatorias de desarrollo. No sobrescribe un `.env` existente ni toca la instancia PostgreSQL del sistema. La carpeta y `.env` están excluidos de Git. Para detenerla: `& "$env:ProgramFiles\PostgreSQL\18\bin\pg_ctl.exe" -D .\.local-postgres-dev\data stop -m fast`.
-
-Antes de insertar el fixture manual, la suite PostgreSQL HTTP puede ejecutarse una vez en la base nueva y vacía:
-
-```powershell
-$config = @{}
-foreach ($line in Get-Content .env) { if ($line -match '^([^#=]+)=(.*)$') { $config[$matches[1]] = $matches[2] } }
-$env:TEST_DATABASE_URL = "postgres://$($config.DB_USERNAME):$([Uri]::EscapeDataString($config.DB_PASSWORD))@$($config.DB_HOST):$($config.DB_PORT)/$($config.DB_NAME)"
-npm test
-Remove-Item Env:TEST_DATABASE_URL
-```
-
-La suite requiere que el nombre contenga `test`, aplica las migraciones faltantes y conserva filas ficticias para inspección; para repetirla, usar otra base `*_test` vacía. Después se puede cargar el fixture manual:
-
-```powershell
-$config = @{}
-foreach ($line in Get-Content .env) { if ($line -match '^([^#=]+)=(.*)$') { $config[$matches[1]] = $matches[2] } }
-$env:PGPASSWORD = $config.DB_PASSWORD
-& "$env:ProgramFiles\PostgreSQL\18\bin\psql.exe" -h 127.0.0.1 -p 55440 -U genares_dev_app -d genares_dev_8e_test -f .\fixtures\rubricas-desarrollo.sql
-Remove-Item Env:PGPASSWORD
-```
-
-`fixtures/rubricas-desarrollo.sql` es idempotente e inserta únicamente una modalidad, un período y una rúbrica ficticios. No se ejecuta al arrancar la aplicación ni en producción. Las identidades y cabeceras de prueba existen solo dentro de los tests.
-
-## Validación
+## Pruebas unitarias y de integración
 
 - `npm run build`
-- `npm test`
+- `npm test` (pruebas unitarias sin base de datos; los casos PostgreSQL requieren `TEST_DATABASE_URL`)
 
-Las pruebas unitarias no requieren una base de datos y cubren topes de indicadores, sumatorias, habilitación de sustentación, independencia de evaluaciones orales y promedio de los dos miembros.
+Las pruebas unitarias no requieren una base de datos y cubren reglas de evaluación y dominio. La suite PostgreSQL 9D es exclusivamente de integración: `scripts/pruebas-postgres-9d.ps1 -PreservarBasesPrueba` verifica la huella 9D y conserva las bases temporales que crea; no se necesita para iniciar el prototipo.
 
 ## Identidad local de solo lectura desde React
 
@@ -61,28 +29,28 @@ LOCAL_DEV_IDENTITY_ENABLED=true
 LOCAL_DEV_IDENTITY_PROFILE=lector
 ```
 
-## Preparación de escritura local 9D
+## Identidades locales de API y PostgreSQL 9D
 
-La identidad `administrador-rubricas` solo se instala con `NODE_ENV=development`, `LOCAL_DEV_IDENTITY_ENABLED=true` y `LOCAL_DEV_WRITE_ENABLED=true`. `scripts/iniciar-api-9d.ps1 -HabilitarEscrituraAdministrativa` es el flujo preparado para activarla; sin el switch inicia como lector. NestJS exige conexión real a `127.0.0.1:55441/genares_9d_disposable`, `DB_DISPOSABLE=true` y el comentario PostgreSQL `GENARES:9D:DISPOSABLE`. Verifica esos valores antes de instalar la identidad. Producción y las demás bases fallan cerradas.
+La identidad simulada del backend es independiente del selector de demostración de React. En 10.9B, `.env.10.9.example` usa `lector-academico-desarrollo`, una identidad fija asociada al primer evaluador sintético y validada exclusivamente contra la base marcada 10.9 en `127.0.0.1:55442`. Puede consultar carreras, rúbricas, trabajos, evaluaciones, consolidaciones y documentos autorizados para ese miembro del tribunal. El modo API deja las escrituras deshabilitadas por defecto; ningún header del navegador puede elegir identidad o capacidades. El selector de React solo cambia la perspectiva simulada del prototipo.
 
-Preparación en Windows, desde `backend`:
+La lectura individual como estudiante requiere una identidad de estudiante correspondiente: con el perfil fijo de jurado, esos endpoints devuelven 403 por autorización. No se relajan las reglas de acceso para ocultar ese resultado. La identidad local no se habilita en producción. PostgreSQL 9D se reserva para integración y no se usa para iniciar la API cotidiana.
+
+Preparación y ejecución de las pruebas protegidas en Windows, desde `backend`:
 
 ```powershell
 .\scripts\preparar-postgres-9d-desechable.ps1
-.\scripts\migrar-base-9d.ps1
-.\scripts\cargar-fixture-9d.ps1
-.\scripts\iniciar-api-9d.ps1
-# Solo para probar escrituras localmente:
-.\scripts\iniciar-api-9d.ps1 -HabilitarEscrituraAdministrativa
+.\scripts\pruebas-postgres-9d.ps1 -PreservarBasesPrueba
 ```
 
-El clúster 9D vive bajo `.local-postgres-9d-desechable`, usa el puerto 55441 y credenciales aleatorias ignoradas por Git; la base persistente 8E del puerto 55440 queda separada. El script PostgreSQL crea una base vacía con nombre único, ejecuta la suite real y la elimina solo si todas las pruebas pasan. Si falla, la conserva aislada para diagnóstico.
+El clúster 9D vive bajo `.local-postgres-9d-desechable`, usa el puerto 55441 y credenciales aleatorias ignoradas por Git. El script verifica host, puerto, marcador y usuario antes de ejecutar pruebas en bases temporales aisladas. Con `-PreservarBasesPrueba` conserva cada base temporal.
+
+La concesión adicional de permisos del catálogo vive en `scripts/migraciones-administrativas/1760000010000-permisos-lectura-catalogo-rubricas.sql`. La suite protegida comprueba que los permisos se limitan a la cuenta de aplicación y no se otorgan a `PUBLIC`.
 
 Las escrituras simuladas requieren `Origin` exacto de `LOCAL_DEV_WRITE_ORIGINS`, `Sec-Fetch-Site: same-origin`, `application/json` y `X-Genares-Write-Intent: local-development`. NestJS comprueba esas señales antes del guard global; el control no depende de CORS. Vite tampoco habilita CORS en su servidor de desarrollo. El marcador de intención no autentica ni concede capacidades. La identidad/capacidad permanece fija en NestJS. Esto confía en el usuario y procesos locales del equipo; no sirve para máquinas compartidas ni reemplaza autenticación institucional.
 
 Se añade `GET /api/v1/rubricas/catalogos` (`rubricas:leer`) con modalidades y períodos activos, sus UUID y los campos mínimos requeridos para seleccionar referencias. No requiere migración ni semillas automáticas.
 
-El cliente web tiene mapeadores puros y métodos HTTP opt-in, pero ninguna pantalla los invoca. Vite exige modo desarrollo, fuente `api` y `VITE_RUBRICAS_WRITE_API=true` para habilitar el cliente; esto no habilita controles ni autoriza al backend. Los métodos no envían credenciales, capacidades ni identidades. La actualización serializa la jerarquía completa, conserva UUID y revisión, y exige importes textuales. Los conflictos 409 se informan sin reintentar.
+Las pantallas de rúbricas, catálogos, evaluaciones, programación y documentos se conectan a la API cuando su fuente está habilitada. Vite exige modo desarrollo y las variables de fuente/escritura correspondientes; esto no concede capacidades al servidor. Los métodos no envían credenciales, permisos ni identidades. Los cambios conservan UUID, revisión, transacciones y auditoría; los conflictos 409 se informan sin reintentar.
 
 Reinicia NestJS al cambiar el perfil. `lector` solo recibe `rubricas:leer`; `sin-capacidades` sirve para comprobar 403 y `sin-identidad` conserva 401. El perfil administrador se limita al clúster 9D descrito abajo. El navegador no puede elegir perfil ni capacidades. El middleware comprueba la dirección loopback del socket (no confía en `X-Forwarded-For`) y NestJS en `development` enlaza a `127.0.0.1`. Si se intenta habilitar fuera de `development` o `test`, el proceso falla al iniciar.
 

@@ -1,22 +1,13 @@
 import { Link } from 'react-router-dom';
 import { EncabezadoPagina, EstadoVacio } from '../componentes/interfaz';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { nombreCompleto } from '../dominio/flujoTrabajo';
 
 export default function PaginaNoEncontrada() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
-
-  // La página conserva el mismo contexto de sesión simulada sin alterar el estado.
-  void estado;
-  void actorActual;
-  void despachar;
-
   return (
     <>
       <EncabezadoPagina
         eyebrow="Error 404"
         title="Página no encontrada"
-        description={`La ruta solicitada no está disponible para ${nombreCompleto(personaActual)}.`}
+        description="La ruta solicitada no está disponible."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Página no encontrada' }]}
       />
       <section className="card">

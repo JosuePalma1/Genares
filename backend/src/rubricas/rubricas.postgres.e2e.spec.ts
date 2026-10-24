@@ -342,6 +342,7 @@ suite('API de rúbricas (PostgreSQL real)', () => {
     expect(body.rubricaId).toBe(rubricaPrincipal.id);
     expect(body.versiones.map((version: { estado: string }) => version.estado)).toEqual(['ARCHIVADA', 'ACTIVA']);
     expect(body.versiones[1].revision).toBe(1);
+    expect(body.versiones[1].carreras).toEqual([]);
     const escrita = body.versiones[1].etapas[0];
     expect(escrita).toMatchObject({ tipo: 'ESCRITA', alcance: 'TRABAJO_COMPARTIDO', calificacionMaxima: '5.00' });
     expect(escrita.categorias[0]).toMatchObject({ calificacionMaxima: '5.00', orden: 1 });
@@ -990,6 +991,65 @@ suite('API de rúbricas (PostgreSQL real)', () => {
       expect.objectContaining({ id: software.id, vigente: true }),
       expect.objectContaining({ id: ti.id, vigente: false }),
     ]));
+
+    const familiaVacia = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
+      modalidadId: modalidadSinVersiones.id, periodoId: periodoPrincipal.id,
+      nombre: 'Rúbrica nombrada desde el editor completo', version: 'V1', etapas: etapas2,
+      carreras: [asociacion(software, false, null)],
+    }, 'corr-nombre-familia-vacia');
+    expect(familiaVacia.status).toBe(201);
+    const versionFamiliaVacia = await familiaVacia.json();
+    expect(versionFamiliaVacia.rubrica).toMatchObject({
+      id: rubricaSinVersiones.id,
+      nombre: 'Rúbrica nombrada desde el editor completo',
+    });
+    expect(await dataSource.query(
+      `SELECT actor_id, accion, rubrica_id, version_id, correlation_id
+       FROM auditoria_rubricas WHERE rubrica_id = $1 AND accion = 'RUBRICA_NOMBRE_ACTUALIZADO'`,
+      [rubricaSinVersiones.id],
+    )).toEqual([{
+      actor_id: 'prueba-admin', accion: 'RUBRICA_NOMBRE_ACTUALIZADO',
+      rubrica_id: rubricaSinVersiones.id, version_id: null,
+      correlation_id: 'corr-nombre-familia-vacia',
+    }]);
+
+    const modalidadAuto = await dataSource.getRepository(Modalidad).save({
+      codigo: `AUTO-${Date.now()}`, nombre: 'Modalidad con versión asignada por servidor', estaActivo: true,
+    });
+    const carreraAuto = await carreras.save(carreras.create({ codigo: `A9-${Date.now()}`, nombre: 'Carrera automática 9H7C', estaActivo: true }));
+    const autoV1Response = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
+      modalidadId: modalidadAuto.id, periodoId: periodoPrincipal.id, nombre: 'Familia con identificador de servidor',
+      version: 'V1', etapas: etapas2, carreras: [asociacion(carreraAuto, false, null)],
+    });
+    expect(autoV1Response.status).toBe(201);
+    const autoV1 = await autoV1Response.json();
+    const autoV1Estructura = await dataSource.query(
+      `SELECT etapa.id, etapa.codigo, etapa.scope, indicador.id AS indicador_id, indicador.calificacion_maxima
+       FROM etapas_rubrica etapa JOIN categorias_rubrica categoria ON categoria.id_etapa_rubrica = etapa.id
+       JOIN indicadores_rubrica indicador ON indicador.id_categoria = categoria.id
+       WHERE etapa.id_version_rubrica = $1 ORDER BY etapa.orden, categoria.orden, indicador.orden`, [autoV1.id],
+    );
+    const autoV2Response = await request(`/api/v1/rubricas/${autoV1.rubrica.id}/versiones/completas`, 'administrador', 'POST', {
+      periodoId: periodoPrincipal.id, copiarDesdeVersionId: autoV1.id, revisionBase: autoV1.revision,
+      carreras: [asociacion(carreraAuto, false, null)],
+    });
+    expect(autoV2Response.status).toBe(201);
+    const autoV2 = await autoV2Response.json();
+    expect(autoV2.version).toBe('V2');
+    expect(autoV2.etapas.map((actual: { alcance: string }) => actual.alcance))
+      .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL']);
+    expect(autoV2.etapas.every((actual: { id: string }) => !autoV1.etapas.some((anterior: { id: string }) => anterior.id === actual.id))).toBe(true);
+    const autoHistorialResponse = await request(`/api/v1/rubricas/${autoV1.rubrica.id}/versiones`, 'autorizado');
+    expect(autoHistorialResponse.status).toBe(200);
+    const autoHistorial = await autoHistorialResponse.json();
+    expect(autoHistorial.versiones.map((version: { version: string }) => version.version).sort()).toEqual(['V1', 'V2']);
+    expect(await dataSource.query(
+      `SELECT etapa.id, etapa.codigo, etapa.scope, indicador.id AS indicador_id, indicador.calificacion_maxima
+       FROM etapas_rubrica etapa JOIN categorias_rubrica categoria ON categoria.id_etapa_rubrica = etapa.id
+       JOIN indicadores_rubrica indicador ON indicador.id_categoria = categoria.id
+       WHERE etapa.id_version_rubrica = $1 ORDER BY etapa.orden, categoria.orden, indicador.orden`, [autoV1.id],
+    )).toEqual(autoV1Estructura);
+
     const familiaReutilizada = await request('/api/v1/rubricas/completas', 'administrador', 'POST', {
       modalidadId: modalidad.id, periodoId: periodoPrincipal.id, nombre: 'Nombre no reemplaza la familia',
       version: '9H4.1B', etapas: etapas2, carreras: [asociacion(software, false, v1.id)],
@@ -1028,6 +1088,17 @@ suite('API de rúbricas (PostgreSQL real)', () => {
     const v2 = await v2Response.json();
     expect(v2.estado).toBe('CONFIGURADA');
     expect(v2.etapas).toHaveLength(3);
+    const historialConVigencias = await request(`/api/v1/rubricas/${v1.rubrica.id}/versiones`, 'autorizado');
+    expect(historialConVigencias.status).toBe(200);
+    const versionesHistorial = (await historialConVigencias.json()).versiones;
+    expect(versionesHistorial.find((version: { id: string }) => version.id === v1.id).carreras).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: software.id, vigente: true }),
+      expect.objectContaining({ id: ti.id, vigente: false }),
+    ]));
+    expect(versionesHistorial.find((version: { id: string }) => version.id === v2.id).carreras).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: software.id, vigente: false }),
+      expect.objectContaining({ id: ti.id, vigente: true }),
+    ]));
     expect(v2.etapas.map((actual: { alcance: string }) => actual.alcance))
       .toEqual(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL', 'TRABAJO_COMPARTIDO']);
     expect(await dataSource.query(

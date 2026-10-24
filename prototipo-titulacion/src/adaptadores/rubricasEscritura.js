@@ -1,3 +1,5 @@
+import { estructuraEditorCoincideConVersion } from '../dominio/clonacionVersionRubrica';
+
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECIMAL_CANONICO = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/;
 const TIPOS_ETAPA = new Set(['ESCRITA', 'ORAL']);
@@ -90,6 +92,132 @@ export function mapearCrearVersionRubricaDto(datos) {
     periodoId: uuid(datos.periodoId, 'periodoId'),
     version: texto(datos.version, 'version', 30),
   };
+}
+
+/** Construye el único cuerpo integral admitido por POST /rubricas/completas. */
+export function mapearCrearRubricaCompletaDto(datos) {
+  if (!objeto(datos)) throw new ErrorMapeoEscrituraRubrica('Los datos de la rúbrica completa no son válidos.');
+  if (!Array.isArray(datos.etapas) || datos.etapas.length === 0) {
+    throw new ErrorMapeoEscrituraRubrica('La rúbrica debe contener al menos una etapa.');
+  }
+  if (!Array.isArray(datos.carreras) || datos.carreras.length === 0) {
+    throw new ErrorMapeoEscrituraRubrica('Seleccione al menos una carrera.');
+  }
+
+  const codigosEtapa = new Set();
+  const etapas = datos.etapas.map((etapa, indiceEtapa) => {
+    if (!objeto(etapa) || !ALCANCES.has(etapa.alcance) || !Array.isArray(etapa.categorias) || etapa.categorias.length === 0) {
+      throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1} requiere nombre, ámbito y categorías.`);
+    }
+    const codigo = texto(etapa.codigo, `etapas[${indiceEtapa}].codigo`, 40);
+    if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(codigo) || codigosEtapa.has(codigo.toUpperCase())) {
+      throw new ErrorMapeoEscrituraRubrica(`El código de la etapa ${indiceEtapa + 1} no es válido o está repetido.`);
+    }
+    codigosEtapa.add(codigo.toUpperCase());
+
+    const codigosCategoria = new Set();
+    const categorias = etapa.categorias.map((categoria, indiceCategoria) => {
+      if (!objeto(categoria) || !Array.isArray(categoria.indicadores) || categoria.indicadores.length === 0) {
+        throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1}, categoría ${indiceCategoria + 1}, requiere indicadores.`);
+      }
+      const codigoCategoria = texto(categoria.codigo, `categorías[${indiceCategoria}].codigo`, 10);
+      if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(codigoCategoria) || codigosCategoria.has(codigoCategoria.toUpperCase())) {
+        throw new ErrorMapeoEscrituraRubrica(`El código de la categoría ${indiceCategoria + 1} no es válido o está repetido.`);
+      }
+      codigosCategoria.add(codigoCategoria.toUpperCase());
+
+      const indicadores = categoria.indicadores.map((indicador, indiceIndicador) => ({
+        label: texto(indicador?.label, `indicadores[${indiceIndicador}].label`, 40),
+        descripcion: descripcion(indicador?.descripcion, `indicadores[${indiceIndicador}].descripcion`),
+        calificacionMaxima: decimal(indicador?.calificacionMaxima, `indicadores[${indiceIndicador}].calificacionMaxima`),
+        orden: indiceIndicador + 1,
+      }));
+      const centesimas = indicadores.reduce((total, indicador) => {
+        const [entero, fraccion = ''] = indicador.calificacionMaxima.split('.');
+        return total + BigInt(entero) * 100n + BigInt(fraccion.padEnd(2, '0') || '0');
+      }, 0n);
+      return {
+        codigo: codigoCategoria,
+        nombre: texto(categoria.nombre, `categorías[${indiceCategoria}].nombre`, 240),
+        orden: indiceCategoria + 1,
+        indicadores,
+        centesimas,
+      };
+    });
+    const centesimasEtapa = categorias.reduce((total, categoria) => total + categoria.centesimas, 0n);
+    if (centesimasEtapa !== 1000n) {
+      throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1} debe sumar exactamente 10.00 puntos.`);
+    }
+    return {
+      codigo,
+      nombre: texto(etapa.nombre, `etapas[${indiceEtapa}].nombre`, 220),
+      alcance: etapa.alcance,
+      ...(etapa.descripcion === undefined ? {} : { descripcion: descripcionOpcional(etapa.descripcion, `etapas[${indiceEtapa}].descripcion`) }),
+      orden: indiceEtapa + 1,
+      categorias: categorias.map(({ centesimas: _centesimas, ...categoria }) => categoria),
+    };
+  });
+
+  const idsCarrera = new Set();
+  const carreras = datos.carreras.map((carrera, indice) => {
+    const carreraId = uuid(carrera?.carreraId, `carreras[${indice}].carreraId`);
+    if (idsCarrera.has(carreraId.toLowerCase())) throw new ErrorMapeoEscrituraRubrica('Una carrera está seleccionada más de una vez.');
+    idsCarrera.add(carreraId.toLowerCase());
+    if (!Number.isInteger(carrera.revision) || carrera.revision < 1 || carrera.revision > 2147483647) {
+      throw new ErrorMapeoEscrituraRubrica(`La revisión de la carrera ${indice + 1} no es válida.`);
+    }
+    if (typeof carrera.vigente !== 'boolean' || !objeto(carrera.vigenciaEsperada)) {
+      throw new ErrorMapeoEscrituraRubrica(`La elección de vigencia de la carrera ${indice + 1} no es válida.`);
+    }
+    const versionId = carrera.vigenciaEsperada.versionId;
+    if (versionId !== null) uuid(versionId, `carreras[${indice}].vigenciaEsperada.versionId`);
+    return {
+      carreraId,
+      revision: carrera.revision,
+      vigente: carrera.vigente,
+      vigenciaEsperada: { versionId },
+    };
+  });
+
+  return {
+    modalidadId: uuid(datos.modalidadId, 'modalidadId'),
+    periodoId: uuid(datos.periodoId, 'periodoId'),
+    nombre: texto(datos.nombre, 'nombre', 220),
+    ...(datos.descripcion === undefined ? {} : { descripcion: datos.descripcion === null ? null : texto(datos.descripcion, 'descripcion', 1000) }),
+    version: texto(datos.version, 'version', 30),
+    etapas,
+    carreras,
+  };
+}
+
+/** Prepara copia directa o estructura nueva en el endpoint de versión completa. */
+export function mapearCrearVersionCompletaRubrica(datos) {
+  const versionBase = datos?.versionBase;
+  if (!objeto(datos) || !objeto(versionBase) || versionBase.fuenteDatos !== 'api') {
+    throw new ErrorMapeoEscrituraRubrica('La clonación requiere una versión de origen procedente de la API.');
+  }
+  const rubricaId = uuid(versionBase.idRubrica, 'versionBase.idRubrica');
+  const versionBaseId = uuid(versionBase.id, 'versionBase.id');
+  if (!Number.isInteger(versionBase.revision) || versionBase.revision < 1 || versionBase.revision > 2147483647) {
+    throw new ErrorMapeoEscrituraRubrica('La revisión de servidor de la versión base no es válida.');
+  }
+
+  const estructura = mapearCrearRubricaCompletaDto({
+    modalidadId: versionBase.modalidadId,
+    periodoId: datos.periodoId ?? versionBase.periodoId,
+    nombre: versionBase.titulo,
+    version: 'ASIGNADA-POR-SERVIDOR',
+    etapas: datos.etapas,
+    carreras: datos.carreras,
+  });
+  const dto = {
+    periodoId: estructura.periodoId,
+    copiarDesdeVersionId: versionBaseId,
+    revisionBase: versionBase.revision,
+    carreras: estructura.carreras,
+  };
+  if (!estructuraEditorCoincideConVersion(datos.etapas, versionBase)) dto.etapas = estructura.etapas;
+  return { rubricaId, dto };
 }
 
 export function mapearClonarVersionRubrica(datos) {

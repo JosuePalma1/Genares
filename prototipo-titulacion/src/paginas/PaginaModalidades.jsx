@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpenCheck, Pencil, Plus, RefreshCw } from 'lucide-react';
+import { BookOpenCheck, Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado } from '../componentes/interfaz';
 import { ModalFormularioCatalogo } from '../componentes/ModalFormularioCatalogo';
 import { TablaCatalogo } from '../componentes/TablaCatalogo';
-import { ROL, modalidades as modalidadesPrototipo } from '../datos/datosPrototipo';
+import { modalidades as modalidadesPrototipo } from '../datos/datosPrototipo';
 import { FUENTE_RUBRICAS, ESCRITURA_MODALIDADES_API_HABILITADA } from '../configuracion/rubricas';
-import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
-import { usarPrototipo } from '../estado/ContextoPrototipo';
+import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import {
   actualizarModalidadApi, cambiarEstadoModalidadApi, cargarCapacidadesModalidadesApi,
   cargarModalidadApi, cargarModalidadesApi, crearModalidadApi,
@@ -19,28 +18,26 @@ import './modalidades.css';
 const FORMULARIO_VACIO = { codigo: '', nombre: '', descripcion: '', estaActivo: true };
 
 function mensajeError(error, modo) {
-  if (error instanceof ErrorApiHttp && error.status === 401) return 'La API requiere una identidad validada.';
-  if (error instanceof ErrorApiHttp && error.status === 403) return 'La identidad no tiene permiso para esta operación.';
+  if (error instanceof ErrorApiHttp && error.status === 401) return 'El servidor no habilitó esta operación en el entorno actual.';
+  if (error instanceof ErrorApiHttp && error.status === 403) return 'La operación no está disponible en el entorno actual.';
   if (error instanceof ErrorApiHttp && error.status === 404) return 'La modalidad ya no existe. Recargue el catálogo.';
   if (error instanceof ErrorApiHttp && error.status === 409) {
-    return modo === 'editar'
-      ? 'Otra sesión modificó esta modalidad. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.'
-      : 'Ya existe una modalidad con ese código. Revise el código técnico e inténtelo de nuevo.';
+    if (modo === 'editar') return 'Otra sesión modificó esta modalidad. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.';
+    if (modo === 'estado') return 'Otra sesión modificó el estado de esta modalidad. Se recargaron los datos actuales.';
+    return 'Ya existe una modalidad con ese código. Revise el código técnico e inténtelo de nuevo.';
   }
   return error?.message || 'No fue posible completar la operación.';
 }
 
 export default function PaginaModalidades() {
-  const { actorActual } = usarPrototipo();
   const esApi = FUENTE_RUBRICAS === 'api';
   const puedeEscribir = esApi && ESCRITURA_MODALIDADES_API_HABILITADA;
-  const rolAdministrador = actorActual?.roles.includes(ROL.ADMIN) ?? false;
   const [modalidades, setModalidades] = useState([]);
-  const [puedeAdministrar, setPuedeAdministrar] = useState(false);
+  const [puedeAdministrar, setPuedeAdministrar] = useState(!esApi);
+  const puedeGestionarCatalogo = !esApi || puedeAdministrar;
   const [cargando, setCargando] = useState(esApi);
+  const [mostrarAvisoOrigen, setMostrarAvisoOrigen] = useState(true);
   const [errorLectura, setErrorLectura] = useState('');
-  const [aviso, setAviso] = useState('');
-  const [conflictoLista, setConflictoLista] = useState(false);
   const [modo, setModo] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [original, setOriginal] = useState(FORMULARIO_VACIO);
@@ -54,20 +51,22 @@ export default function PaginaModalidades() {
   usarAdvertenciaCambiosSinGuardar(sucio);
 
   const recargar = useCallback(async (signal) => {
-    if (!esApi) return;
+    if (!esApi) return false;
     setCargando(true);
     setErrorLectura('');
     try {
       const [registros, capacidades] = await Promise.all([
         cargarModalidadesApi({ signal }), cargarCapacidadesModalidadesApi({ signal }),
       ]);
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
       setModalidades(registros);
       setPuedeAdministrar(capacidades.puedeAdministrar && puedeEscribir);
+      return true;
     } catch (causa) {
-      if (signal?.aborted || causa?.name === 'AbortError') return;
+      if (signal?.aborted || causa?.name === 'AbortError') return false;
       setPuedeAdministrar(false);
       setErrorLectura(mensajeError(causa));
+      return false;
     } finally {
       if (!signal?.aborted) setCargando(false);
     }
@@ -120,8 +119,8 @@ export default function PaginaModalidades() {
     },
   ], [esApi, puedeAdministrar, cambiandoId]);
 
-  function cerrarFormulario() {
-    if (guardando || !confirmarDescarteCambios()) return;
+  async function cerrarFormulario() {
+    if (guardando || !(await confirmarDescarteCambiosConDialogo())) return;
     setModo(null);
     setRegistroEditado(null);
     setFormulario(FORMULARIO_VACIO);
@@ -130,19 +129,18 @@ export default function PaginaModalidades() {
     setConflictoFormulario(false);
   }
 
-  function abrirNuevo() {
-    if (!puedeAdministrar || !confirmarDescarteCambios()) return;
+  async function abrirNuevo() {
+    if (!puedeAdministrar || !(await confirmarDescarteCambiosConDialogo())) return;
     setModo('crear');
     setRegistroEditado(null);
     setFormulario(FORMULARIO_VACIO);
     setOriginal(FORMULARIO_VACIO);
-    setAviso('');
     setErrorFormulario('');
     setConflictoFormulario(false);
   }
 
-  function abrirEdicion(modalidad) {
-    if (!puedeAdministrar || !confirmarDescarteCambios()) return;
+  async function abrirEdicion(modalidad) {
+    if (!puedeAdministrar || !(await confirmarDescarteCambiosConDialogo())) return;
     const datos = {
       codigo: modalidad.codigo, nombre: modalidad.nombre,
       descripcion: modalidad.descripcion ?? '', estaActivo: modalidad.estaActivo,
@@ -151,7 +149,6 @@ export default function PaginaModalidades() {
     setRegistroEditado(modalidad);
     setFormulario(datos);
     setOriginal(datos);
-    setAviso('');
     setErrorFormulario('');
     setConflictoFormulario(false);
   }
@@ -163,8 +160,10 @@ export default function PaginaModalidades() {
     setGuardando(true);
     setErrorFormulario('');
     setConflictoFormulario(false);
+    const operacion = modo;
+    const codigo = operacion === 'crear' ? formulario.codigo.trim() : registroEditado.codigo;
     try {
-      if (modo === 'crear') {
+      if (operacion === 'crear') {
         await crearModalidadApi(formulario);
       } else {
         await actualizarModalidadApi({
@@ -176,10 +175,27 @@ export default function PaginaModalidades() {
       setRegistroEditado(null);
       setFormulario(FORMULARIO_VACIO);
       setOriginal(FORMULARIO_VACIO);
-      await recargar();
+      const listaActualizada = await recargar();
+      const titulo = operacion === 'crear' ? 'Modalidad creada' : 'Modalidad actualizada';
+      await Swal.fire({
+        icon: listaActualizada ? 'success' : 'warning',
+        title: listaActualizada ? titulo : `${titulo}; listado pendiente`,
+        text: listaActualizada
+          ? `${codigo} se guardó correctamente.`
+          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+        confirmButtonText: 'Continuar',
+      });
     } catch (causa) {
-      setErrorFormulario(mensajeError(causa, modo));
-      setConflictoFormulario(causa instanceof ErrorApiHttp && causa.status === 409 && modo === 'editar');
+      const texto = mensajeError(causa, operacion);
+      const conflicto = causa instanceof ErrorApiHttp && causa.status === 409 && operacion === 'editar';
+      setErrorFormulario(texto);
+      setConflictoFormulario(conflicto);
+      await Swal.fire({
+        icon: causa instanceof ErrorApiHttp && causa.status === 409 ? 'warning' : 'error',
+        title: conflicto ? 'La modalidad cambió en otra sesión' : operacion === 'crear' ? 'No se creó la modalidad' : 'No se guardaron los cambios',
+        text: texto,
+        confirmButtonText: 'Entendido',
+      });
     } finally {
       guardandoRef.current = false;
       setGuardando(false);
@@ -187,7 +203,7 @@ export default function PaginaModalidades() {
   }
 
   async function recargarEdicion() {
-    if (!registroEditado || !confirmarDescarteCambios()) return;
+    if (!registroEditado || !(await confirmarDescarteCambiosConDialogo())) return;
     try {
       const actual = await cargarModalidadApi(registroEditado.id);
       const datos = {
@@ -201,7 +217,14 @@ export default function PaginaModalidades() {
       setConflictoFormulario(false);
       await recargar();
     } catch (causa) {
-      setErrorFormulario(mensajeError(causa, 'editar'));
+      const texto = mensajeError(causa, 'editar');
+      setErrorFormulario(texto);
+      await Swal.fire({
+        icon: causa instanceof ErrorApiHttp && causa.status === 409 ? 'warning' : 'error',
+        title: 'No se pudieron recargar los datos',
+        text: texto,
+        confirmButtonText: 'Entendido',
+      });
     }
   }
 
@@ -215,14 +238,28 @@ export default function PaginaModalidades() {
     });
     if (!confirmacion.isConfirmed) return;
     setCambiandoId(modalidad.id);
-    setAviso('');
-    setConflictoLista(false);
     try {
       await cambiarEstadoModalidadApi({ id: modalidad.id, revision: modalidad.revision, estaActivo: activar });
-      await recargar();
+      const listaActualizada = await recargar();
+      await Swal.fire({
+        icon: listaActualizada ? 'success' : 'warning',
+        title: listaActualizada
+          ? activar ? 'Modalidad activada' : 'Modalidad desactivada'
+          : activar ? 'Activación confirmada; listado pendiente' : 'Desactivación confirmada; listado pendiente',
+        text: listaActualizada
+          ? `${modalidad.codigo} quedó ${activar ? 'activa' : 'inactiva'}. Sus rúbricas y evaluaciones existentes permanecen intactas.`
+          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+        confirmButtonText: 'Continuar',
+      });
     } catch (causa) {
-      setAviso(mensajeError(causa, 'estado'));
-      setConflictoLista(causa instanceof ErrorApiHttp && causa.status === 409);
+      const conflicto = causa instanceof ErrorApiHttp && causa.status === 409;
+      if (conflicto) await recargar();
+      await Swal.fire({
+        icon: conflicto ? 'warning' : 'error',
+        title: conflicto ? 'La modalidad cambió en otra sesión' : 'No se cambió el estado',
+        text: mensajeError(causa, 'estado'),
+        confirmButtonText: 'Entendido',
+      });
     } finally {
       setCambiandoId(null);
     }
@@ -240,18 +277,22 @@ export default function PaginaModalidades() {
       </> : null}
     />
 
-    <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
-      <p>{esApi
-        ? 'Los registros se consultan directamente en PostgreSQL. Los cambios se muestran después de que NestJS los confirma.'
-        : 'El catálogo simulado es de solo lectura. El modo prototipo no envía escrituras API ni modifica datos locales.'}</p>
-    </AlertaInstitucional>
+    {mostrarAvisoOrigen && <div className="modalidades-origen-alerta">
+      <AlertaInstitucional className="modalidades-origen-alerta-contenido" tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
+        <p>{esApi
+          ? 'Los registros se consultan directamente en PostgreSQL. Los cambios se muestran después de que NestJS los confirma.'
+          : 'El catálogo simulado es de solo lectura. El modo prototipo no envía escrituras API ni modifica datos locales.'}</p>
+      </AlertaInstitucional>
+      <button
+        className="modalidades-origen-alerta-cerrar"
+        type="button"
+        aria-label="Cerrar aviso de origen"
+        title="Cerrar aviso"
+        onClick={() => setMostrarAvisoOrigen(false)}
+      ><X size={18} aria-hidden="true" /></button>
+    </div>}
 
-    {aviso && <AlertaInstitucional tono={conflictoLista ? 'warning' : 'danger'} titulo={conflictoLista ? 'La modalidad cambió en otra sesión' : 'No se completó la operación'}>
-      <p role="alert">{aviso}</p>
-      {conflictoLista && <button className="button button-outline" type="button" onClick={() => recargar()}>Recargar catálogo</button>}
-    </AlertaInstitucional>}
-
-    {(esApi || rolAdministrador) && <section className="card modalidades-catalog" aria-labelledby="modalidades-titulo">
+    {(esApi || puedeGestionarCatalogo) && <section className="card modalidades-catalog" aria-labelledby="modalidades-titulo">
       <header className="modalidades-catalog-header"><div><span className="section-kicker">Catálogo institucional</span><h2 id="modalidades-titulo">Modalidades registradas</h2></div></header>
       <TablaCatalogo
         caption="Modalidades registradas"
@@ -293,11 +334,6 @@ export default function PaginaModalidades() {
           data-enfoque-inicial={modo === 'editar' ? 'true' : undefined}
           onChange={(evento) => setFormulario({ ...formulario, nombre: evento.target.value })} />
       </label>
-      {modo === 'crear' && <label htmlFor="modalidad-estado">Estado inicial
-        <select id="modalidad-estado" value={String(formulario.estaActivo)} onChange={(evento) => setFormulario({ ...formulario, estaActivo: evento.target.value === 'true' })}>
-          <option value="true">Activa</option><option value="false">Inactiva</option>
-        </select>
-      </label>}
       <label htmlFor="modalidad-descripcion" className="modal-catalogo-campo-ancho">Descripción (opcional)
         <textarea id="modalidad-descripcion" maxLength={4000} rows={4} value={formulario.descripcion}
           onChange={(evento) => setFormulario({ ...formulario, descripcion: evento.target.value })} />

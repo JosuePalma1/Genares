@@ -11,7 +11,9 @@ import {
 } from 'lucide-react';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { ESTADO_EVALUACION, ROL, etiquetasRol } from '../datos/datosPrototipo';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { DashboardSeguimientoApi } from './SeguimientoApi';
+import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import {
   estanCerradasEvaluacionesOrales,
   estanCerradasRevisionesEscritas,
@@ -19,16 +21,6 @@ import {
   nombreCompleto,
   tonoEstado,
 } from '../dominio/flujoTrabajo';
-
-function worksVisibleToActor(estado, actorActual, personaActual) {
-  if (actorActual?.rolActivo === ROL.TRIBUNAL) {
-    return estado.trabajos.filter((trabajo) => trabajo.idsTribunal.includes(personaActual?.id));
-  }
-  if (actorActual?.rolActivo === ROL.COORDINACION) {
-    return estado.trabajos.filter((trabajo) => trabajo.carrera === personaActual?.carrera);
-  }
-  return estado.trabajos;
-}
 
 function authorsForWork(estado, trabajo) {
   return trabajo.idsEstudiantes
@@ -64,9 +56,9 @@ function TarjetaMetrica({ metrica }) {
   );
 }
 
-export default function DashboardPage() {
-  const { estado, actorActual, personaActual, despachar } = usarPrototipo();
-  const visibleWorks = worksVisibleToActor(estado, actorActual, personaActual);
+function DashboardPrototipo() {
+  const { estado, despachar } = usarPrototipo();
+  const visibleWorks = estado.trabajos;
 
   const metricas = [
     {
@@ -158,9 +150,9 @@ export default function DashboardPage() {
     <div className="dashboard-page">
       <EncabezadoPagina
         className="dashboard-page-header"
-        eyebrow={etiquetasRol[actorActual?.rolActivo] ?? 'Resumen operativo'}
+        eyebrow="Resumen operativo"
         title="Resumen operativo"
-        description={`Seguimiento del proceso para ${nombreCompleto(personaActual)}.`}
+        description="Seguimiento del proceso académico de titulación."
         breadcrumbs={[{ etiqueta: 'Inicio' }, { etiqueta: 'Dashboard' }]}
         actions={(
           <div className="header-actions">
@@ -175,7 +167,7 @@ export default function DashboardPage() {
           <div>
             <span className="dashboard-section-kicker">Atención prioritaria</span>
             <h2 id="dashboard-priority-title">Acciones que requieren seguimiento</h2>
-            <p>Indicadores con actividades pendientes dentro del alcance del perfil activo.</p>
+            <p>Indicadores con actividades pendientes en los trabajos registrados.</p>
           </div>
           <InsigniaEstado estado="Acción requerida" tono="pending" />
         </div>
@@ -273,4 +265,8 @@ export default function DashboardPage() {
       </section>
     </div>
   );
+}
+
+export default function DashboardPage() {
+  return FUENTE_TRABAJOS === 'api' ? <DashboardSeguimientoApi /> : <DashboardPrototipo />;
 }

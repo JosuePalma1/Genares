@@ -84,6 +84,10 @@ export interface CarreraVersionRubricaDto {
   vigente: boolean;
 }
 
+export interface VersionRubricaCatalogoDto extends VersionRubricaDetalleDto {
+  carreras: CarreraVersionRubricaDto[];
+}
+
 export interface VersionRubricaCompletaDto extends VersionRubricaDetalleDto {
   rubrica: {
     id: string;
@@ -96,7 +100,7 @@ export interface VersionRubricaCompletaDto extends VersionRubricaDetalleDto {
 
 export interface VersionesRubricaDto {
   rubricaId: string;
-  versiones: VersionRubricaDetalleDto[];
+  versiones: VersionRubricaCatalogoDto[];
 }
 
 export interface ActivacionVersionRubricaDto {

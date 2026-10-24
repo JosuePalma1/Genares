@@ -22,9 +22,10 @@ import { EventoAuditoriaEvaluacion } from './entidades/evento-auditoria-evaluaci
 import { TraspasoEvaluacionEstudiante } from './entidades/traspaso-evaluacion-estudiante.entity';
 import { EvaluacionesController } from './evaluaciones.controller';
 import { EvaluacionesService } from './evaluaciones.service';
+import { TrabajosModule } from '../trabajos/trabajos.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([
+  imports: [TrabajosModule, TypeOrmModule.forFeature([
     Evaluacion,
     CalificacionEvaluacion,
     TraspasoEvaluacionEstudiante,
@@ -48,5 +49,6 @@ import { EvaluacionesService } from './evaluaciones.service';
   ])],
   controllers: [EvaluacionesController],
   providers: [EvaluacionesService],
+  exports: [EvaluacionesService],
 })
 export class EvaluacionesModule {}

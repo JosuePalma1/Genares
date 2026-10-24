@@ -6,8 +6,10 @@ import { puedeEditarTribunal, nombreCompleto } from '../dominio/flujoTrabajo';
 import { validarAsignacionTribunal } from '../dominio/validacionFormulariosHeredados';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { PaginaTribunalTrabajoApi } from './PaginaTrabajosApi';
 
-export default function PaginaAsignacionTribunal() {
+function PaginaAsignacionTribunalPrototipo() {
   const { idTrabajo } = useParams();
   const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
@@ -99,4 +101,8 @@ export default function PaginaAsignacionTribunal() {
       </form>
     </>
   );
+}
+
+export default function PaginaAsignacionTribunal() {
+  return FUENTE_TRABAJOS === 'api' ? <PaginaTribunalTrabajoApi /> : <PaginaAsignacionTribunalPrototipo />;
 }

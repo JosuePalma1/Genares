@@ -15,7 +15,7 @@ import {
   Users,
   UsersRound,
 } from 'lucide-react';
-import { ESTADO_EVALUACION, ROL } from '../datos/datosPrototipo';
+import { ESTADO_EVALUACION } from '../datos/datosPrototipo';
 import {
   calificacionFinalEstudiante,
   derivarEstadoTrabajo,
@@ -31,6 +31,8 @@ import {
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { AvanceTrabajo } from '../componentes/AvanceTrabajo';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { PaginaDetalleTrabajoApi } from './PaginaTrabajosApi';
 
 function estadoEvaluacion(valor) {
   if (valor === ESTADO_EVALUACION.CERRADA) return { etiqueta: 'Cerrada', tono: 'success' };
@@ -45,9 +47,9 @@ function formatearFechaHora(valor) {
   }).format(new Date(valor));
 }
 
-export default function PaginaDetalleTrabajo() {
+function PaginaDetalleTrabajoPrototipo() {
   const { idTrabajo } = useParams();
-  const { estado, actorActual, personaActual } = usarPrototipo();
+  const { estado } = usarPrototipo();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);
   if (!trabajo) return <EstadoVacio title="Trabajo no encontrado" description="El registro solicitado no existe en los datos del prototipo." />;
 
@@ -56,9 +58,6 @@ export default function PaginaDetalleTrabajo() {
   const miembros = trabajo.idsTribunal.map((id) => estado.personas.find((persona) => persona.id === id)).filter(Boolean);
   const evaluaciones = obtenerEvaluacionesTrabajo(estado, trabajo.id);
   const estadoProceso = derivarEstadoTrabajo(estado, trabajo);
-  const puedeGestionar = actorActual.roles.some((role) => [ROL.COMISION, ROL.ADMIN].includes(role));
-  const isAssignedMember = trabajo.idsTribunal.includes(personaActual?.id);
-  const ownEvaluation = evaluaciones.find((evaluacion) => evaluacion.idMiembro === personaActual?.id);
   const writtenReady = estanCerradasRevisionesEscritas(estado, trabajo);
   const tribunalEditable = puedeEditarTribunal(estado, trabajo);
   const rubricaAsignada = estado.versionesRubrica.find((rubrica) => rubrica.id === trabajo.idVersionRubrica);
@@ -91,12 +90,12 @@ export default function PaginaDetalleTrabajo() {
   const actions = (
     <>
       <BotonVolver respaldo="/trabajos">Volver</BotonVolver>
-      {puedeGestionar && <Link className="button button-outline" to={`/trabajos/${trabajo.id}/tribunal`}><Users size={18} /> {trabajo.idsTribunal.length ? (tribunalEditable ? 'Modificar tribunal' : 'Ver tribunal') : 'Asignar tribunal'}</Link>}
-      {puedeGestionar && writtenReady && <Link className="button button-secondary" to={`/trabajos/${trabajo.id}/sustentacion`}><CalendarPlus size={18} /> {trabajo.programacion ? 'Ver programación' : 'Programar sustentación'}</Link>}
-      {isAssignedMember && ownEvaluation?.escrita.estado !== ESTADO_EVALUACION.CERRADA && <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}><ClipboardCheck size={18} /> Revisar trabajo escrito</Link>}
-      {isAssignedMember && ownEvaluation?.escrita.estado === ESTADO_EVALUACION.CERRADA && oralDisponible && estudiantes.some((estudiante) => ownEvaluation?.oralPorEstudiante?.[estudiante.id]?.estado !== ESTADO_EVALUACION.CERRADA) && (
-        <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/oral/${estudiantes.find((estudiante) => ownEvaluation?.oralPorEstudiante?.[estudiante.id]?.estado !== ESTADO_EVALUACION.CERRADA)?.id}`}><BookOpenCheck size={18} /> Evaluar sustentación</Link>
-      )}
+      <Link className="button button-outline" to={`/trabajos/${trabajo.id}/tribunal`}><Users size={18} /> {trabajo.idsTribunal.length ? (tribunalEditable ? 'Modificar tribunal' : 'Ver tribunal') : 'Asignar tribunal'}</Link>
+      {writtenReady && <Link className="button button-secondary" to={`/trabajos/${trabajo.id}/sustentacion`}><CalendarPlus size={18} /> {trabajo.programacion ? 'Ver programación' : 'Programar sustentación'}</Link>}
+      {miembros.length === 2 && <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}><ClipboardCheck size={18} /> Registrar evaluación escrita</Link>}
+      {oralDisponible && estudiantes.map((estudiante) => (
+        <Link className="button button-primary" key={estudiante.id} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}><BookOpenCheck size={18} /> Evaluar oral · {nombreCompleto(estudiante)}</Link>
+      ))}
     </>
   );
 
@@ -153,7 +152,7 @@ export default function PaginaDetalleTrabajo() {
       <section className="trabajo-tribunal-panel" aria-labelledby="trabajo-tribunal-title">
         <header>
           <div><span className="section-kicker">Tribunal y revisión escrita</span><h2 id="trabajo-tribunal-title">Seguimiento de evaluadores</h2><p>{revisionesCerradas} de 2 revisiones escritas cerradas.</p></div>
-          {puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/tribunal`}>{tribunalEditable ? 'Gestionar tribunal' : 'Consultar tribunal'}</Link> : null}
+          <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/tribunal`}>{tribunalEditable ? 'Gestionar tribunal' : 'Consultar tribunal'}</Link>
         </header>
         <div className="trabajo-evaluator-grid">
           {Array.from({ length: 2 }, (_, indice) => {
@@ -180,7 +179,7 @@ export default function PaginaDetalleTrabajo() {
         <section className="trabajo-sustentacion-summary" aria-labelledby="trabajo-sustentacion-title">
           <header>
             <div className="trabajo-sustentacion-heading"><span aria-hidden="true"><CalendarDays size={22} /></span><div><small>Agenda de sustentación</small><h2 id="trabajo-sustentacion-title">Sustentación programada</h2></div></div>
-            <div className="trabajo-sustentacion-heading-actions"><InsigniaEstado tono="progress">Programada</InsigniaEstado>{puedeGestionar ? <Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/sustentacion`}>Editar programación</Link> : null}</div>
+            <div className="trabajo-sustentacion-heading-actions"><InsigniaEstado tono="progress">Programada</InsigniaEstado><Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/sustentacion`}>Editar programación</Link></div>
           </header>
           <div className="trabajo-sustentacion-grid">
             <div><CalendarDays size={19} /><span>Fecha</span><strong>{formatearFecha(trabajo.programacion.fecha)}</strong></div>
@@ -219,4 +218,8 @@ export default function PaginaDetalleTrabajo() {
       </section>
     </div>
   );
+}
+
+export default function PaginaDetalleTrabajo() {
+  return FUENTE_TRABAJOS === 'api' ? <PaginaDetalleTrabajoApi /> : <PaginaDetalleTrabajoPrototipo />;
 }

@@ -1,11 +1,3 @@
-export const ROL = Object.freeze({
-  ADMIN: 'ADMIN',
-  COMISION: 'COMISION',
-  TRIBUNAL: 'TRIBUNAL',
-  SECRETARIA: 'SECRETARIA',
-  COORDINACION: 'COORDINACION',
-});
-
 export const ESTADO_EVALUACION = Object.freeze({
   PENDIENTE: 'PENDIENTE',
   BORRADOR: 'BORRADOR',
@@ -16,6 +8,11 @@ export const ALCANCE_ETAPA_RUBRICA = Object.freeze({
   TRABAJO_COMPARTIDO: 'TRABAJO_COMPARTIDO',
   ESTUDIANTE_INDIVIDUAL: 'ESTUDIANTE_INDIVIDUAL',
 });
+
+export const CARRERAS_DEMOSTRACION = Object.freeze([
+  Object.freeze({ codigo: 'TI', nombre: 'Tecnologías de la Información' }),
+  Object.freeze({ codigo: 'SOFT', nombre: 'Ingeniería en Software' }),
+]);
 
 export const modalidades = [
   { id: 'mod-proyecto-integrador', codigo: 'PROYECTO_INTEGRADOR', nombre: 'Proyecto integrador', estaActivo: true },
@@ -30,39 +27,21 @@ export const periodosAcademicos = [
 ];
 
 export const personas = [
-  { id: 'docente-daniela', tipoPersona: 'DOCENTE', cedula: '1300000101', nombres: 'Daniela', apellidos: 'Cedeño', carrera: 'Tecnologías de la Información' },
-  { id: 'docente-maria', tipoPersona: 'DOCENTE', cedula: '1300000102', nombres: 'María Elena', apellidos: 'López Vera', carrera: 'Tecnologías de la Información', cargaTrabajo: 3 },
-  { id: 'docente-jose', tipoPersona: 'DOCENTE', cedula: '1300000103', nombres: 'José Antonio', apellidos: 'Mendoza Ruiz', carrera: 'Software', cargaTrabajo: 2 },
-  { id: 'docente-paola', tipoPersona: 'DOCENTE', cedula: '1300000104', nombres: 'Paola', apellidos: 'Reyes Cedeño', carrera: 'Software', cargaTrabajo: 1 },
-  { id: 'docente-jorge', tipoPersona: 'DOCENTE', cedula: '1300000105', nombres: 'Jorge Luis', apellidos: 'Vera Macías', carrera: 'Tecnologías de la Información', cargaTrabajo: 4 },
-  { id: 'docente-carlos', tipoPersona: 'DOCENTE', cedula: '1300000106', nombres: 'Carlos', apellidos: 'Andrade Moreira', carrera: 'Tecnologías de la Información', cargaTrabajo: 2 },
-  { id: 'docente-elena', tipoPersona: 'DOCENTE', cedula: '1300000107', nombres: 'Elena', apellidos: 'Ponce Delgado', carrera: 'Agropecuaria', cargaTrabajo: 2 },
-  { id: 'docente-esteban', tipoPersona: 'DOCENTE', cedula: '1300000108', nombres: 'Esteban', apellidos: 'Quiroz Loor', carrera: 'Agroindustria', cargaTrabajo: 1 },
+  { id: 'docente-daniela', tipoPersona: 'DOCENTE', cedula: '1300000101', nombres: 'Daniela', apellidos: 'Cedeño', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI' },
+  { id: 'docente-maria', tipoPersona: 'DOCENTE', cedula: '1300000102', nombres: 'María Elena', apellidos: 'López Vera', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI', cargaTrabajo: 3 },
+  { id: 'docente-jose', tipoPersona: 'DOCENTE', cedula: '1300000103', nombres: 'José Antonio', apellidos: 'Mendoza Ruiz', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT', cargaTrabajo: 2 },
+  { id: 'docente-paola', tipoPersona: 'DOCENTE', cedula: '1300000104', nombres: 'Paola', apellidos: 'Reyes Cedeño', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT', cargaTrabajo: 1 },
+  { id: 'docente-jorge', tipoPersona: 'DOCENTE', cedula: '1300000105', nombres: 'Jorge Luis', apellidos: 'Vera Macías', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT', cargaTrabajo: 4 },
+  { id: 'docente-carlos', tipoPersona: 'DOCENTE', cedula: '1300000106', nombres: 'Carlos', apellidos: 'Andrade Moreira', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI', cargaTrabajo: 2 },
+  { id: 'docente-elena', tipoPersona: 'DOCENTE', cedula: '1300000107', nombres: 'Elena', apellidos: 'Ponce Delgado', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI', cargaTrabajo: 2 },
+  { id: 'docente-esteban', tipoPersona: 'DOCENTE', cedula: '1300000108', nombres: 'Esteban', apellidos: 'Quiroz Loor', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI', cargaTrabajo: 1 },
   { id: 'staff-lucia', tipoPersona: 'STAFF', cedula: '1300000109', nombres: 'Lucía', apellidos: 'Santamaría Mera', carrera: 'Facultad' },
-  { id: 'estudiante-andrea', tipoPersona: 'ESTUDIANTE', cedula: '1300001842', nombres: 'Andrea Sofía', apellidos: 'Mendoza Loor', carrera: 'Tecnologías de la Información' },
-  { id: 'estudiante-mateo', tipoPersona: 'ESTUDIANTE', cedula: '1300001843', nombres: 'Mateo Andrés', apellidos: 'Alcívar Pico', carrera: 'Tecnologías de la Información' },
-  { id: 'estudiante-camila', tipoPersona: 'ESTUDIANTE', cedula: '1300003261', nombres: 'Camila Alejandra', apellidos: 'Vélez Mera', carrera: 'Software' },
-  { id: 'estudiante-luis', tipoPersona: 'ESTUDIANTE', cedula: '1300002415', nombres: 'Luis Fernando', apellidos: 'Zambrano Loor', carrera: 'Agropecuaria' },
-  { id: 'estudiante-noelia', tipoPersona: 'ESTUDIANTE', cedula: '1300004198', nombres: 'Noelia Isabel', apellidos: 'Vera Cedeño', carrera: 'Ingeniería Ambiental' },
+  { id: 'estudiante-andrea', tipoPersona: 'ESTUDIANTE', cedula: '1300001842', nombres: 'Andrea Sofía', apellidos: 'Mendoza Loor', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI' },
+  { id: 'estudiante-mateo', tipoPersona: 'ESTUDIANTE', cedula: '1300001843', nombres: 'Mateo Andrés', apellidos: 'Alcívar Pico', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI' },
+  { id: 'estudiante-camila', tipoPersona: 'ESTUDIANTE', cedula: '1300003261', nombres: 'Camila Alejandra', apellidos: 'Vélez Mera', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT' },
+  { id: 'estudiante-luis', tipoPersona: 'ESTUDIANTE', cedula: '1300002415', nombres: 'Luis Fernando', apellidos: 'Zambrano Loor', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI' },
+  { id: 'estudiante-noelia', tipoPersona: 'ESTUDIANTE', cedula: '1300004198', nombres: 'Noelia Isabel', apellidos: 'Vera Cedeño', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT' },
 ];
-
-export const actores = [
-  { id: 'actor-daniela', idPersona: 'docente-daniela', etiqueta: 'Daniela Cedeño', roles: [ROL.COMISION, ROL.ADMIN], rolActivo: ROL.COMISION },
-  { id: 'actor-maria', idPersona: 'docente-maria', etiqueta: 'María López', roles: [ROL.TRIBUNAL], rolActivo: ROL.TRIBUNAL },
-  { id: 'actor-jose', idPersona: 'docente-jose', etiqueta: 'José Mendoza', roles: [ROL.TRIBUNAL], rolActivo: ROL.TRIBUNAL },
-  { id: 'actor-paola', idPersona: 'docente-paola', etiqueta: 'Paola Reyes', roles: [ROL.TRIBUNAL], rolActivo: ROL.TRIBUNAL },
-  { id: 'actor-jorge', idPersona: 'docente-jorge', etiqueta: 'Jorge Vera', roles: [ROL.TRIBUNAL], rolActivo: ROL.TRIBUNAL },
-  { id: 'actor-lucia', idPersona: 'staff-lucia', etiqueta: 'Lucía Santamaría', roles: [ROL.SECRETARIA], rolActivo: ROL.SECRETARIA },
-  { id: 'actor-esteban', idPersona: 'docente-esteban', etiqueta: 'Esteban Quiroz', roles: [ROL.COORDINACION], rolActivo: ROL.COORDINACION },
-];
-
-export const etiquetasRol = {
-  [ROL.ADMIN]: 'Administrador',
-  [ROL.COMISION]: 'Comisión Académica',
-  [ROL.TRIBUNAL]: 'Miembro de tribunal',
-  [ROL.SECRETARIA]: 'Secretaría',
-  [ROL.COORDINACION]: 'Coordinación',
-};
 
 const writtenCategories = [
   {
@@ -181,7 +160,7 @@ const trabajosIniciales = [
   {
     id: 'trabajo-184', codigo: 'TT-2026-0184',
     titulo: 'Sistema web para la gestión y seguimiento de proyectos académicos',
-    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Tecnologías de la Información',
+    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI',
     idsEstudiantes: ['estudiante-andrea', 'estudiante-mateo'], idTutor: 'docente-carlos',
     idsTribunal: ['docente-maria', 'docente-jose'], tribunalAsignadoEn: '2026-09-18T14:30:00-05:00',
     idVersionRubrica: 'rubrica-pi-2026-2-v1', registradoEn: '2026-09-15T09:00:00-05:00',
@@ -189,21 +168,21 @@ const trabajosIniciales = [
   },
   {
     id: 'trabajo-326', codigo: 'TT-2026-0326', titulo: 'Aplicación para trazabilidad de proyectos de software',
-    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Software',
-    idsEstudiantes: ['estudiante-camila'], idTutor: 'docente-paola', idsTribunal: [],
+    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT',
+    idsEstudiantes: ['estudiante-camila'], idTutor: 'docente-paola', idsTribunal: ['docente-jose', 'docente-jorge'],
     idVersionRubrica: 'rubrica-pi-2026-2-v1', registradoEn: '2026-09-22T11:00:00-05:00', programacion: null,
   },
   {
-    id: 'trabajo-241', codigo: 'TT-2026-0241', titulo: 'Plataforma de monitoreo agrícola para pequeños productores',
-    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Agropecuaria',
+    id: 'trabajo-241', codigo: 'TT-2026-0241', titulo: 'Plataforma de seguimiento de prácticas de laboratorio',
+    modalidad: 'Proyecto integrador', periodo: '2026-2', carrera: 'Tecnologías de la Información', carreraCodigo: 'TI',
     idsEstudiantes: ['estudiante-luis'], idTutor: 'docente-elena', idsTribunal: ['docente-maria', 'docente-jose'],
     tribunalAsignadoEn: '2026-09-10T10:00:00-05:00', idVersionRubrica: 'rubrica-pi-2026-2-v1',
     registradoEn: '2026-09-08T08:00:00-05:00',
     programacion: { fecha: '2026-10-01', hora: '10:00', sala: 'Sala 2', programadoEn: '2026-09-25T13:00:00-05:00' },
   },
   {
-    id: 'trabajo-419', codigo: 'TT-2026-0419', titulo: 'Análisis de indicadores de calidad ambiental en zonas costeras',
-    modalidad: 'Proyecto integrador', periodo: '2026-1', carrera: 'Ingeniería Ambiental',
+    id: 'trabajo-419', codigo: 'TT-2026-0419', titulo: 'Sistema de control de calidad y seguimiento de incidencias de software',
+    modalidad: 'Proyecto integrador', periodo: '2026-1', carrera: 'Ingeniería en Software', carreraCodigo: 'SOFT',
     idsEstudiantes: ['estudiante-noelia'], idTutor: 'docente-jorge', idsTribunal: ['docente-maria', 'docente-jose'],
     tribunalAsignadoEn: '2026-06-10T10:00:00-05:00', idVersionRubrica: 'rubrica-pi-2026-1-v1',
     registradoEn: '2026-06-01T08:00:00-05:00',
@@ -237,6 +216,8 @@ const evaluacionesIniciales = [
   crearEvaluacion('trabajo-184', 'docente-jose', 'rubrica-pi-2026-2-v1', {
     escrita: { estado: ESTADO_EVALUACION.BORRADOR, calificaciones: { A1: 0.3, A2: 0.3, A3: 0.32, B1: 0.3, B2: 0.3, B3: 0.32, C1: 0.9, C2: 0.9, C3: 0.92 }, observaciones: {}, updatedAt: '2026-09-29T15:00:00-05:00' },
   }),
+  crearEvaluacion('trabajo-326', 'docente-jose', 'rubrica-pi-2026-2-v1'),
+  crearEvaluacion('trabajo-326', 'docente-jorge', 'rubrica-pi-2026-2-v1'),
   crearEvaluacion('trabajo-241', 'docente-maria', 'rubrica-pi-2026-2-v1', {
     escrita: { estado: ESTADO_EVALUACION.CERRADA, calificaciones: closedWrittenA, observaciones: {}, finalizedAt: '2026-09-20T10:00:00-05:00' },
     oralPorEstudiante: { 'estudiante-luis': { estado: ESTADO_EVALUACION.BORRADOR, calificaciones: { D1: 0.75, D2: 0.78, D3: 0.8 }, observaciones: {}, updatedAt: '2026-10-01T10:10:00-05:00' } },
@@ -255,17 +236,16 @@ const evaluacionesIniciales = [
 ];
 
 const notificacionesIniciales = [
-  { id: 'aviso-1', idDestinatario: 'actor-maria', tipo: 'TRIBUNAL_ASIGNADO', idTrabajo: 'trabajo-184', titulo: 'Nueva asignación de tribunal', mensaje: 'Ha sido asignada como miembro del tribunal del trabajo “Sistema web para la gestión y seguimiento de proyectos académicos”.', ruta: '/mis-evaluaciones', creadoEn: '2026-09-18T14:30:00-05:00', leidoEn: '2026-09-19T09:00:00-05:00' },
-  { id: 'aviso-2', idDestinatario: 'actor-jose', tipo: 'REVISION_ESCRITA_PENDIENTE', idTrabajo: 'trabajo-184', titulo: 'Revisión escrita pendiente', mensaje: 'Tiene pendiente la revisión escrita del trabajo TT-2026-0184.', ruta: '/evaluaciones/trabajo-184/escrita', creadoEn: '2026-09-29T08:00:00-05:00', leidoEn: null },
-  { id: 'aviso-3', idDestinatario: 'actor-maria', tipo: 'SUSTENTACION_PROGRAMADA', idTrabajo: 'trabajo-241', titulo: 'Sustentación programada', mensaje: 'La sustentación del trabajo TT-2026-0241 fue programada para el 01/10/2026 a las 10:00, Sala 2.', ruta: '/evaluaciones/trabajo-241/oral/estudiante-luis', creadoEn: '2026-09-25T13:00:00-05:00', leidoEn: null },
-  { id: 'aviso-4', idDestinatario: 'actor-jose', tipo: 'SUSTENTACION_PROGRAMADA', idTrabajo: 'trabajo-241', titulo: 'Sustentación programada', mensaje: 'La sustentación del trabajo TT-2026-0241 fue programada para el 01/10/2026 a las 10:00, Sala 2.', ruta: '/evaluaciones/trabajo-241/oral/estudiante-luis', creadoEn: '2026-09-25T13:00:00-05:00', leidoEn: null },
-  { id: 'aviso-5', idDestinatario: 'actor-daniela', tipo: 'SEGUIMIENTO', idTrabajo: 'trabajo-184', titulo: 'Actividad pendiente', mensaje: 'José Mendoza aún debe cerrar la revisión escrita del trabajo TT-2026-0184.', ruta: '/trabajos/trabajo-184', creadoEn: '2026-09-30T08:00:00-05:00', leidoEn: null },
+  { id: 'aviso-1', idDestinatario: null, tipo: 'TRIBUNAL_ASIGNADO', idTrabajo: 'trabajo-184', titulo: 'Nueva asignación de tribunal', mensaje: 'El tribunal fue asignado al trabajo “Sistema web para la gestión y seguimiento de proyectos académicos”.', ruta: '/mis-evaluaciones', creadoEn: '2026-09-18T14:30:00-05:00', leidoEn: '2026-09-19T09:00:00-05:00' },
+  { id: 'aviso-2', idDestinatario: null, tipo: 'REVISION_ESCRITA_PENDIENTE', idTrabajo: 'trabajo-184', titulo: 'Revisión escrita pendiente', mensaje: 'Está pendiente la revisión escrita del trabajo TT-2026-0184.', ruta: '/evaluaciones/trabajo-184/escrita', creadoEn: '2026-09-29T08:00:00-05:00', leidoEn: null },
+  { id: 'aviso-3', idDestinatario: null, tipo: 'SUSTENTACION_PROGRAMADA', idTrabajo: 'trabajo-241', titulo: 'Sustentación programada', mensaje: 'La sustentación del trabajo TT-2026-0241 fue programada para el 01/10/2026 a las 10:00, Sala 2.', ruta: '/evaluaciones/trabajo-241/oral/estudiante-luis', creadoEn: '2026-09-25T13:00:00-05:00', leidoEn: null },
+  { id: 'aviso-4', idDestinatario: null, tipo: 'SUSTENTACION_PROGRAMADA', idTrabajo: 'trabajo-241', titulo: 'Sustentación programada', mensaje: 'La sustentación del trabajo TT-2026-0241 fue programada para el 01/10/2026 a las 10:00, Sala 2.', ruta: '/evaluaciones/trabajo-241/oral/estudiante-luis', creadoEn: '2026-09-25T13:00:00-05:00', leidoEn: null },
+  { id: 'aviso-5', idDestinatario: null, tipo: 'SEGUIMIENTO', idTrabajo: 'trabajo-184', titulo: 'Actividad pendiente', mensaje: 'Un miembro debe cerrar la revisión escrita del trabajo TT-2026-0184.', ruta: '/trabajos/trabajo-184', creadoEn: '2026-09-30T08:00:00-05:00', leidoEn: null },
 ];
 
 export function crearEstadoInicial() {
   return {
-    schemaVersion: 3,
-    actores: JSON.parse(JSON.stringify(actores)),
+    schemaVersion: 6,
     personas: JSON.parse(JSON.stringify(personas)),
     modalidades: JSON.parse(JSON.stringify(modalidades)),
     periodosAcademicos: JSON.parse(JSON.stringify(periodosAcademicos)),
@@ -273,6 +253,5 @@ export function crearEstadoInicial() {
     trabajos: JSON.parse(JSON.stringify(trabajosIniciales)),
     evaluaciones: JSON.parse(JSON.stringify(evaluacionesIniciales)),
     notificaciones: JSON.parse(JSON.stringify(notificacionesIniciales)),
-    idActorActual: 'actor-daniela',
   };
 }

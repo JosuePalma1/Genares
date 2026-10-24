@@ -7,7 +7,9 @@ import {
   mapearActivarVersionRubricaDto,
   mapearActualizarVersionRubricaDto,
   mapearClonarVersionRubrica,
+  mapearCrearRubricaCompletaDto,
   mapearCrearRubricaDto,
+  mapearCrearVersionCompletaRubrica,
   mapearCrearVersionRubricaDto,
 } from '../adaptadores/rubricasEscritura';
 import { getJsonApi, postJsonApi, putJsonApi } from './clienteHttp';
@@ -39,6 +41,15 @@ export async function cargarCapacidadesRubricasApi({ signal, solicitarJson = get
 
 export function crearRubricaApi(datos, { solicitarJson = postJsonApi } = {}) {
   return solicitarJson('/rubricas', mapearCrearRubricaDto(datos));
+}
+
+export function crearRubricaCompletaApi(datos, { solicitarJson = postJsonApi } = {}) {
+  return solicitarJson('/rubricas/completas', mapearCrearRubricaCompletaDto(datos));
+}
+
+export function crearVersionCompletaRubricaApi(datos, { solicitarJson = postJsonApi } = {}) {
+  const { rubricaId, dto } = mapearCrearVersionCompletaRubrica(datos);
+  return solicitarJson(`/rubricas/${encodeURIComponent(rubricaId)}/versiones/completas`, dto);
 }
 
 export function crearVersionRubricaApi(rubricaId, datos, { solicitarJson = postJsonApi } = {}) {

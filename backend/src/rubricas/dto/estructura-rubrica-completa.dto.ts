@@ -179,11 +179,12 @@ export class CrearVersionRubricaCompletaDto {
   @IsUUID('4')
   periodoId!: string;
 
+  @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
   @MinLength(1)
   @MaxLength(30)
-  version!: string;
+  version?: string;
 
   @IsOptional()
   @IsUUID('4')

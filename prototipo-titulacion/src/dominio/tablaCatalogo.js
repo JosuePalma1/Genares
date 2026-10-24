@@ -2,9 +2,10 @@ const colacionEspanol = new Intl.Collator('es', { numeric: true, sensitivity: 'b
 
 function textoBusqueda(valor) {
   return String(valor ?? '')
+    .toLocaleLowerCase('es')
+    .replace(/ñ/g, 'n')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .toLocaleLowerCase('es');
 }
 
 export function filtrarCatalogo(registros, { busqueda = '', estado = 'TODAS' } = {}) {

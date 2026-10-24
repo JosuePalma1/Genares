@@ -84,6 +84,7 @@ export function crearClienteHttp({
         method,
         headers,
         credentials: 'omit',
+        cache: 'no-store',
         signal,
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });

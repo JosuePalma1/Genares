@@ -2,11 +2,12 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { Plus, Trash2 } from 'lucide-react';
-import { ROL } from '../datos/datosPrototipo';
+import { CARRERAS_DEMOSTRACION } from '../datos/datosPrototipo';
 import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { validarFormularioTrabajo } from '../dominio/validacionFormulariosHeredados';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { AlertaInstitucional, EncabezadoPagina } from '../componentes/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina } from '../componentes/interfaz';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
 
 const estudianteVacio = () => ({ cedula: '', nombres: '', apellidos: '', carrera: 'Tecnologías de la Información' });
 
@@ -14,10 +15,9 @@ function EtiquetaObligatoria({ children }) {
   return <>{children} <span className="required-indicator" aria-hidden="true">*</span><span className="sr-only"> (obligatorio)</span></>;
 }
 
-export default function PaginaFormularioTrabajo() {
-  const { estado, actorActual, despachar } = usarPrototipo();
+function PaginaFormularioTrabajoPrototipo() {
+  const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
-  const puedeGestionar = actorActual.roles.some((role) => [ROL.COMISION, ROL.ADMIN].includes(role));
   const docentes = estado.personas.filter((persona) => persona.tipoPersona === 'DOCENTE');
   const modalidadesDisponibles = (estado.modalidades ?? []).filter((modalidad) => modalidad.estaActivo);
   const periodosDisponibles = (estado.periodosAcademicos ?? []).filter((periodo) => periodo.estaActivo);
@@ -46,7 +46,6 @@ export default function PaginaFormularioTrabajo() {
     establecerErrores({});
   });
 
-  if (!puedeGestionar) return <AlertaInstitucional tono="warning" titulo="Acción no disponible">Solo Comisión Académica o Administración puede registrar trabajos.</AlertaInstitucional>;
 
   const limpiarError = (...claves) => establecerErrores((actuales) => {
     const siguientes = { ...actuales };
@@ -108,7 +107,12 @@ export default function PaginaFormularioTrabajo() {
       return;
     }
     const sufijo = Date.now().toString(36);
-    const estudiantesCreados = estudiantes.map((estudiante, indice) => ({ ...estudiante, id: `estudiante-${sufijo}-${indice + 1}`, tipoPersona: 'ESTUDIANTE', cedula: estudiante.cedula.trim(), nombres: estudiante.nombres.trim(), apellidos: estudiante.apellidos.trim() }));
+    const carreraSeleccionada = CARRERAS_DEMOSTRACION.find(({ nombre }) => nombre === formulario.carrera);
+    if (!carreraSeleccionada) {
+      await Swal.fire({ icon: 'error', title: 'Carrera inválida', text: 'Seleccione una de las carreras de demostración disponibles.' });
+      return;
+    }
+    const estudiantesCreados = estudiantes.map((estudiante, indice) => ({ ...estudiante, id: `estudiante-${sufijo}-${indice + 1}`, tipoPersona: 'ESTUDIANTE', cedula: estudiante.cedula.trim(), nombres: estudiante.nombres.trim(), apellidos: estudiante.apellidos.trim(), carrera: formulario.carrera, carreraCodigo: carreraSeleccionada.codigo }));
     const rubrica = estado.versionesRubrica.find((elemento) => elemento.estado === 'ACTIVA' && elemento.modalidad === formulario.modalidad && elemento.periodo === formulario.periodo);
     if (!rubrica) {
       await Swal.fire({ icon: 'error', title: 'No existe una rúbrica vigente', text: 'Active una versión para esta modalidad y período antes de registrar el trabajo.' });
@@ -118,7 +122,7 @@ export default function PaginaFormularioTrabajo() {
     const trabajo = {
       id,
       codigo: `TT-${formulario.periodo.slice(0, 4)}-${String(estado.trabajos.length + 1).padStart(4, '0')}`,
-      titulo: formulario.titulo.trim(), modalidad: formulario.modalidad, periodo: formulario.periodo, carrera: formulario.carrera,
+      titulo: formulario.titulo.trim(), modalidad: formulario.modalidad, periodo: formulario.periodo, carrera: formulario.carrera, carreraCodigo: carreraSeleccionada.codigo,
       idsEstudiantes: estudiantesCreados.map((estudiante) => estudiante.id), idTutor: formulario.idTutor, idsTribunal: [],
       idVersionRubrica: rubrica.id, registradoEn: new Date().toISOString(), programacion: null,
     };
@@ -151,7 +155,7 @@ export default function PaginaFormularioTrabajo() {
             <div className="field"><label htmlFor="trabajo-mode"><EtiquetaObligatoria>Modalidad</EtiquetaObligatoria></label><select id="trabajo-mode" className="select" aria-required="true" value={formulario.modalidad} onChange={(evento) => actualizarFormulario('modalidad', evento.target.value)}>{modalidadesDisponibles.map((modalidad) => <option key={modalidad.id} value={modalidad.nombre}>{modalidad.nombre}</option>)}</select></div>
             <div className="field"><label htmlFor="trabajo-periodo-formulario"><EtiquetaObligatoria>Período académico</EtiquetaObligatoria></label><select id="trabajo-periodo-formulario" className="select" aria-required="true" value={formulario.periodo} onChange={(evento) => actualizarFormulario('periodo', evento.target.value)}>{periodosDisponibles.map((periodo) => <option key={periodo.id} value={periodo.codigo}>{periodo.codigo}</option>)}</select></div>
             <div className="field span-2"><span className="field-label">Rúbrica que se asociará</span><AlertaInstitucional tono={rubricaAsignada ? 'info' : 'warning'} titulo={rubricaAsignada ? `${rubricaAsignada.titulo} · ${rubricaAsignada.version}` : 'No existe una versión vigente'}>{rubricaAsignada ? `Se conservará esta versión para el trabajo del período ${formulario.periodo}.` : 'Seleccione otra combinación o active primero una versión para esta modalidad y período.'}</AlertaInstitucional></div>
-            <div className="field"><label htmlFor="trabajo-carrera-formulario"><EtiquetaObligatoria>Carrera</EtiquetaObligatoria></label><select id="trabajo-carrera-formulario" className="select" aria-required="true" value={formulario.carrera} onChange={(evento) => actualizarFormulario('carrera', evento.target.value)}><option>Tecnologías de la Información</option><option>Software</option><option>Agropecuaria</option><option>Ingeniería Ambiental</option></select></div>
+            <div className="field"><label htmlFor="trabajo-carrera-formulario"><EtiquetaObligatoria>Carrera</EtiquetaObligatoria></label><select id="trabajo-carrera-formulario" className="select" aria-required="true" value={formulario.carrera} onChange={(evento) => actualizarFormulario('carrera', evento.target.value)}>{CARRERAS_DEMOSTRACION.map((carrera) => <option key={carrera.codigo} value={carrera.nombre}>{carrera.nombre} ({carrera.codigo})</option>)}</select></div>
             <div className={`field ${errores.idTutor ? 'has-error' : ''}`}>
               <label htmlFor="trabajo-tutor"><EtiquetaObligatoria>Tutor</EtiquetaObligatoria></label>
               <select id="trabajo-tutor" className="select" aria-required="true" value={formulario.idTutor} aria-invalid={errores.idTutor ? 'true' : undefined} aria-describedby={errores.idTutor ? 'trabajo-tutor-error trabajo-tutor-help' : 'trabajo-tutor-help'} onChange={(evento) => actualizarFormulario('idTutor', evento.target.value)}><option value="">Seleccione un docente</option>{docentes.map((docente) => <option key={docente.id} value={docente.id}>{docente.nombres} {docente.apellidos} · {docente.carrera}</option>)}</select>
@@ -186,4 +190,24 @@ export default function PaginaFormularioTrabajo() {
       </form>
     </>
   );
+}
+
+function PaginaFormularioTrabajoApi() {
+  return (
+    <>
+      <EncabezadoPagina
+        title="Registro de trabajos"
+        description="El alta del expediente y sus relaciones corresponde al sistema institucional que proporciona los datos a GENARES."
+        breadcrumbs={['Trabajos', 'Nuevo trabajo']}
+        actions={<BotonVolver respaldo="/trabajos">Volver a trabajos</BotonVolver>}
+      />
+      <AlertaInstitucional tono="info" titulo="Alta no disponible en GENARES">
+        Esta pantalla no guardará datos locales como si fueran expedientes de PostgreSQL. Cuando el sistema responsable entregue el trabajo, aparecerá en el listado conectado.
+      </AlertaInstitucional>
+    </>
+  );
+}
+
+export default function PaginaFormularioTrabajo() {
+  return FUENTE_TRABAJOS === 'api' ? <PaginaFormularioTrabajoApi /> : <PaginaFormularioTrabajoPrototipo />;
 }

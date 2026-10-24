@@ -17,6 +17,7 @@ const resumen = {
   periodo: { id: periodId, codigo: '2026-2' },
   activadaEn: '2026-09-01T12:30:00.000Z',
   creadaEn: '2026-08-20T08:00:00.000Z',
+    carreras: [{ id: 'a62fa78b-296c-4b03-b38a-03af50eb9864', codigo: 'SOF', nombre: 'Ingeniería de Software', vigente: true }],
 };
 
 const listado = {
@@ -71,6 +72,7 @@ describe('adaptador de DTO de rúbricas', () => {
       estado: 'ARCHIVADA',
       fuenteDatos: 'api',
       etapas: [{ id: stageId, maximoDecimal: '5.00', porcentajeDecimal: '50.00' }],
+      carreras: [{ id: 'a62fa78b-296c-4b03-b38a-03af50eb9864', codigo: 'SOF', nombre: 'Ingeniería de Software', vigente: true }],
       categorias: [{
         id: categoryId,
         etapa: stageId,
@@ -96,5 +98,38 @@ describe('adaptador de DTO de rúbricas', () => {
     const malEstado = { ...listado, versiones: [{ ...resumen, estado: 'PUBLICADA' }] };
     expect(() => adaptarRubricaApi(malEstado, detalle)).toThrow(/contrato/i);
     expect(etapa.tipo).toBe('ESCRITA');
+  });
+
+  it('conserva el estado CONFIGURADA válido de las rúbricas completas', () => {
+    const configurada = { ...resumen, estado: 'CONFIGURADA' };
+    const listadoConfigurado = { ...listado, versiones: [configurada] };
+    const detalleConfigurado = {
+      ...detalle,
+      versiones: [{ ...detalle.versiones[0], estado: 'CONFIGURADA' }],
+    };
+    expect(adaptarRubricaApi(listadoConfigurado, detalleConfigurado)[0].estado).toBe('CONFIGURADA');
+  });
+
+  it('acepta etapas personalizadas de versiones completas con etapas dinámicas', () => {
+    const detallePersonalizado = structuredClone(detalle);
+    detallePersonalizado.versiones[0].etapas[0].tipo = 'PERSONALIZADA';
+    expect(adaptarRubricaApi(listado, detallePersonalizado)[0].etapas[0].tipo).toBe('PERSONALIZADA');
+  });
+
+  it('requiere asociaciones reales de carrera y conserva su vigencia independiente', () => {
+    const conVigencias = structuredClone(detalle);
+    conVigencias.versiones[0].carreras = [
+      { id: 'a62fa78b-296c-4b03-b38a-03af50eb9864', codigo: 'SOF', nombre: 'Ingeniería de Software', vigente: true },
+      { id: '2f47a4f0-95e3-469d-aec9-e00f84ae8a3d', codigo: 'TI', nombre: 'Tecnologías de la Información', vigente: false },
+    ];
+    const [version] = adaptarRubricaApi(listado, conVigencias);
+    expect(version.carreras.map(({ nombre, vigente }) => ({ nombre, vigente }))).toEqual([
+      { nombre: 'Ingeniería de Software', vigente: true },
+      { nombre: 'Tecnologías de la Información', vigente: false },
+    ]);
+
+    const incompleta = structuredClone(detalle);
+    delete incompleta.versiones[0].carreras;
+    expect(() => adaptarRubricaApi(listado, incompleta)).toThrow(/contrato/i);
   });
 });

@@ -12,6 +12,8 @@ import {
   actualizarVersionRubricaApi,
   clonarVersionRubricaApi,
   crearRubricaApi,
+  crearRubricaCompletaApi,
+  crearVersionCompletaRubricaApi,
 } from './rubricasApi';
 
 const ids = {
@@ -34,6 +36,7 @@ const listado = [{
     periodo: { id: ids.periodo, codigo: '2026-2' },
     activadaEn: null,
     creadaEn: '2026-08-20T08:00:00.000Z',
+    carreras: [],
   }],
 }];
 
@@ -41,6 +44,7 @@ const detalle = {
   rubricaId: ids.rubrica,
   versiones: [{
     ...listado[0].versiones[0],
+    carreras: [],
     etapas: [
       { id: 'c8d03e56-c2a7-4f39-ae82-56cf5c9a2a50', tipo: 'ESCRITA', alcance: 'TRABAJO_COMPARTIDO', codigo: 'ESC', nombre: 'Revisión escrita', descripcion: null, calificacionMaxima: '5.00', porcentaje: null, orden: 1, categorias: [] },
       { id: 'c40a5e9b-0e9c-4a78-9747-9e4b89ad99f3', tipo: 'ORAL', alcance: 'ESTUDIANTE_INDIVIDUAL', codigo: 'ORA', nombre: 'Sustentación oral', descripcion: null, calificacionMaxima: '5.00', porcentaje: null, orden: 2, categorias: [] },
@@ -138,6 +142,59 @@ describe('contratos HTTP de preparación de escritura', () => {
       periodoId: ids.periodo,
       version: '2.0',
       copiarDesdeVersionId: ids.version,
+    });
+  });
+
+  it('guarda la estructura completa en una sola petición POST con asociaciones y ámbitos', async () => {
+    const solicitarJson = vi.fn().mockResolvedValue({ id: ids.version });
+    const etapa = (codigo, alcance) => ({
+      codigo, nombre: codigo, alcance,
+      categorias: [{ codigo: 'C1', nombre: 'Contenido', indicadores: [
+        { label: 'I1', descripcion: 'Introducción', calificacionMaxima: '10.00' },
+      ] }],
+    });
+    await crearRubricaCompletaApi({
+      modalidadId: ids.modalidad,
+      periodoId: ids.periodo,
+      nombre: 'Rúbrica académica',
+      version: '1.0',
+      etapas: [etapa('E1', 'TRABAJO_COMPARTIDO'), etapa('E2', 'ESTUDIANTE_INDIVIDUAL')],
+      carreras: [{ carreraId: ids.rubrica, revision: 4, vigente: true, vigenciaEsperada: { versionId: null } }],
+    }, { solicitarJson });
+    expect(solicitarJson).toHaveBeenCalledTimes(1);
+    expect(solicitarJson).toHaveBeenCalledWith('/rubricas/completas', expect.objectContaining({
+      modalidadId: ids.modalidad,
+      periodoId: ids.periodo,
+      nombre: 'Rúbrica académica',
+      etapas: expect.arrayContaining([
+        expect.objectContaining({ alcance: 'TRABAJO_COMPARTIDO' }),
+        expect.objectContaining({ alcance: 'ESTUDIANTE_INDIVIDUAL' }),
+      ]),
+      carreras: [{ carreraId: ids.rubrica, revision: 4, vigente: true, vigenciaEsperada: { versionId: null } }],
+    }));
+  });
+
+  it('usa el endpoint de versión completa y deja el identificador final al servidor', async () => {
+    const solicitarJson = vi.fn().mockResolvedValue({ id: ids.version, version: 'V2' });
+    const versionBase = {
+      id: ids.version, idRubrica: ids.rubrica, fuenteDatos: 'api', revision: 2,
+      modalidadId: ids.modalidad, periodoId: ids.periodo, titulo: 'Rúbrica',
+      etapas: [{ id: 'c8d03e56-c2a7-4f39-ae82-56cf5c9a2a50', codigo: 'ESC', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', orden: 1 }],
+      categorias: [{ id: '748f7401-0714-430f-a36c-b25d43c9c6df', etapa: 'c8d03e56-c2a7-4f39-ae82-56cf5c9a2a50', codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
+        { id: '5a72f971-20f8-4d7b-9f83-7c75cc68e2bc', label: 'I1', descripcion: 'Indicador', maximoDecimal: '10.00', orden: 1 },
+      ] }],
+    };
+    await crearVersionCompletaRubricaApi({
+      versionBase,
+      periodoId: ids.periodo,
+      etapas: [{ codigo: 'ESC', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', categorias: [{ codigo: 'C1', nombre: 'Contenido', indicadores: [{ label: 'I1', descripcion: 'Indicador', calificacionMaxima: '10.00' }] }] }],
+      carreras: [{ carreraId: ids.rubrica, revision: 4, vigente: false, vigenciaEsperada: { versionId: null } }],
+    }, { solicitarJson });
+    expect(solicitarJson).toHaveBeenCalledWith(`/rubricas/${ids.rubrica}/versiones/completas`, {
+      periodoId: ids.periodo,
+      copiarDesdeVersionId: ids.version,
+      revisionBase: 2,
+      carreras: [{ carreraId: ids.rubrica, revision: 4, vigente: false, vigenciaEsperada: { versionId: null } }],
     });
   });
 });

@@ -33,11 +33,12 @@ import {
   EtapaRubricaDto,
   RubricaListadoDto,
   VersionRubricaDetalleDto,
+  VersionRubricaCatalogoDto,
   VersionRubricaResumenDto,
   VersionRubricaCompletaDto,
   VersionesRubricaDto,
 } from './dto/respuesta-rubrica.dto';
-import { normalizarEstructuraRubricaCompleta } from './reglas-rubrica-completa';
+import { normalizarEstructuraRubricaCompleta, siguienteEtiquetaVersionRubrica } from './reglas-rubrica-completa';
 import { EtapaRubricaNormalizada } from './reglas-rubrica-completa';
 import { EntityManager } from 'typeorm';
 import { AsociacionCarreraRubricaDto } from './dto/estructura-rubrica-completa.dto';
@@ -175,6 +176,21 @@ export class RubricasService {
             lock: { mode: 'pessimistic_write' },
           });
           if (!rubrica) throw new NotFoundException('No existe la familia de r\u00fabricas solicitada.');
+          const versionExistente = await manager.getRepository(VersionRubrica).findOne({
+            where: { rubrica: { id: rubrica.id } },
+            select: { id: true },
+          });
+          if (!versionExistente && rubrica.nombre !== dto.nombre.trim()) {
+            rubrica.nombre = dto.nombre.trim();
+            rubrica = await repositorioRubrica.save(rubrica);
+            await this.registrarAuditoria(manager, {
+              actorId,
+              accion: 'RUBRICA_NOMBRE_ACTUALIZADO',
+              rubrica,
+              version: null,
+              correlationId,
+            });
+          }
         }
 
         const creada = await this.guardarVersionCompleta(manager, {
@@ -239,6 +255,13 @@ export class RubricasService {
         const periodo = await manager.getRepository(PeriodoAcademico).findOneBy({ id: dto.periodoId });
         if (!periodo) throw new NotFoundException('No existe el per\u00edodo acad\u00e9mico solicitado.');
 
+        const nombreVersion = dto.version?.trim() || siguienteEtiquetaVersionRubrica(
+          (await manager.getRepository(VersionRubrica).find({
+            where: { rubrica: { id: rubricaId } },
+            select: { version: true },
+          })).map(({ version }) => version),
+        );
+
         let versionBase: VersionRubrica | null = null;
         let etapaDtos = dto.etapas;
         if (dto.copiarDesdeVersionId) {
@@ -259,7 +282,7 @@ export class RubricasService {
           rubrica,
           modalidad: rubrica.modalidad,
           periodo,
-          version: dto.version,
+          version: nombreVersion,
           etapas,
           carreras: dto.carreras,
           actorId,
@@ -1044,9 +1067,41 @@ export class RubricasService {
       etapasPorVersion.set(etapa.rubricVersion.id, grupo);
     }
 
-    const detalles: VersionRubricaDetalleDto[] = versiones.map((version) => ({
+    const asociacionesCarrera = await this.dataSource.query(
+      `SELECT asociacion."id_version_rubrica" AS "versionId",
+              carrera."id", carrera."codigo", carrera."nombre",
+              EXISTS (SELECT 1 FROM "vigencias_rubrica_carrera" vigencia
+                WHERE vigencia."id_version_rubrica" = asociacion."id_version_rubrica"
+                  AND vigencia."id_carrera" = asociacion."id_carrera"
+                  AND vigencia."vigente_hasta" IS NULL) AS "vigente"
+       FROM "versiones_rubrica_carreras" asociacion
+       JOIN "carreras" carrera ON carrera."id" = asociacion."id_carrera"
+       WHERE asociacion."id_version_rubrica" = ANY($1::uuid[])
+       ORDER BY asociacion."id_version_rubrica", carrera."codigo", carrera."id"`,
+      [versionIds],
+    ) as Array<{
+      versionId: string;
+      id: string;
+      codigo: string;
+      nombre: string;
+      vigente: boolean;
+    }>;
+    const carrerasPorVersion = new Map<string, VersionRubricaCatalogoDto['carreras']>();
+    for (const carrera of asociacionesCarrera) {
+      const grupo = carrerasPorVersion.get(carrera.versionId) ?? [];
+      grupo.push({
+        id: carrera.id,
+        codigo: carrera.codigo,
+        nombre: carrera.nombre,
+        vigente: carrera.vigente,
+      });
+      carrerasPorVersion.set(carrera.versionId, grupo);
+    }
+
+    const detalles: VersionRubricaCatalogoDto[] = versiones.map((version) => ({
       ...this.aResumen(version),
       etapas: etapasPorVersion.get(version.id) ?? [],
+      carreras: carrerasPorVersion.get(version.id) ?? [],
     }));
     return { rubricaId, versiones: detalles };
   }

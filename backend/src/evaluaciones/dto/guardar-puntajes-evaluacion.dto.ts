@@ -1,10 +1,11 @@
 import { Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { UUID_POSTGRES_PATTERN } from '../../comun/uuid-postgres';
 
 const puntajeDecimal = /^(?:0|[1-9]\d{0,1})(?:\.\d{1,2})?$/;
 
 export class PuntajeIndicadorDto {
-  @IsUUID('4')
+  @Matches(UUID_POSTGRES_PATTERN)
   idIndicador!: string;
 
   @IsString()
@@ -29,4 +30,8 @@ export class GuardarPuntajesEvaluacionDto {
   @ValidateNested({ each: true })
   @Type(() => PuntajeIndicadorDto)
   puntajes!: PuntajeIndicadorDto[];
+
+  @IsOptional()
+  @Matches(UUID_POSTGRES_PATTERN)
+  idMiembroTribunal?: string;
 }

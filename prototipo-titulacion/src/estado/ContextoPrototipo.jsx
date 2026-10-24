@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useReducer } from 'react';
 import { ESTADO_EVALUACION, crearEstadoInicial } from '../datos/datosPrototipo';
+import { migrarDatosDemostracion } from '../datos/migracionesDemostracion';
 import { estanCerradasRevisionesEscritas, puedeEditarTribunal } from '../dominio/flujoTrabajo';
 
 const CLAVE_ALMACENAMIENTO = 'genares-prototipo-v3';
@@ -9,11 +10,10 @@ const ahora = () => new Date().toISOString();
 const clonar = (value) => JSON.parse(JSON.stringify(value));
 
 function notificacionParaPersona(estado, idPersona, notificacion) {
-  const actor = estado.actores.find((elemento) => elemento.idPersona === idPersona);
-  if (!actor) return null;
+  void estado;
   return {
     id: `aviso-${Date.now()}-${idPersona}-${Math.random().toString(36).slice(2, 7)}`,
-    idDestinatario: actor.id,
+    idDestinatario: null,
     creadoEn: ahora(),
     leidoEn: null,
     ...notificacion,
@@ -34,9 +34,6 @@ function crearEvaluacion(trabajo, idMiembro, rubrica) {
 
 function reductor(estado, accion) {
   switch (accion.tipo) {
-    case 'ESTABLECER_ACTOR_ACTUAL':
-      return { ...estado, idActorActual: accion.idActor };
-
     case 'REGISTRAR_TRABAJO': {
       return {
         ...estado,
@@ -122,12 +119,11 @@ function reductor(estado, accion) {
         const estadoIntermedio = { ...estado, evaluaciones };
         const trabajo = estado.trabajos.find((elemento) => elemento.id === evaluacion.idTrabajo);
         if (trabajo && estanCerradasRevisionesEscritas(estadoIntermedio, trabajo)) {
-          const actoresComision = estado.actores.filter((actor) => actor.roles.includes('COMISION'));
-          const generadas = actoresComision.map((actor) => ({
-            id: `aviso-${Date.now()}-${actor.id}`, idDestinatario: actor.id, tipo: 'REVISION_ESCRITA_COMPLETADA', idTrabajo: trabajo.id,
+          const generadas = [{
+            id: `aviso-${Date.now()}-${trabajo.id}`, idDestinatario: null, tipo: 'REVISION_ESCRITA_COMPLETADA', idTrabajo: trabajo.id,
             titulo: 'Revisión escrita completada', mensaje: `Los dos miembros completaron la revisión escrita de ${trabajo.codigo}. Ya puede programar la sustentación.`,
             ruta: `/trabajos/${trabajo.id}/sustentacion`, creadoEn: ahora(), leidoEn: null,
-          }));
+          }];
           notificaciones = [...generadas, ...notificaciones];
         }
       }
@@ -181,7 +177,7 @@ function reductor(estado, accion) {
       return { ...estado, notificaciones: estado.notificaciones.map((elemento) => elemento.id === accion.idNotificacion ? { ...elemento, leidoEn: elemento.leidoEn ?? ahora() } : elemento) };
 
     case 'MARK_ALL_NOTIFICATIONS_READ':
-      return { ...estado, notificaciones: estado.notificaciones.map((elemento) => elemento.idDestinatario === estado.idActorActual ? { ...elemento, leidoEn: elemento.leidoEn ?? ahora() } : elemento) };
+      return { ...estado, notificaciones: estado.notificaciones.map((elemento) => ({ ...elemento, leidoEn: elemento.leidoEn ?? ahora() })) };
 
     case 'REINICIAR_PROTOTIPO':
       return crearEstadoInicial();
@@ -198,25 +194,30 @@ function cargarEstado() {
     if (!almacenado) return inicial;
     const analizado = JSON.parse(almacenado);
     if (!Array.isArray(analizado.trabajos) || !Array.isArray(analizado.evaluaciones)) return inicial;
+    const { actores: perfilesAntiguos, idActorActual: perfilAntiguo, ...datosAcademicos } = analizado;
+    void perfilesAntiguos;
+    void perfilAntiguo;
 
     if (Number(analizado.schemaVersion || 0) < inicial.schemaVersion) {
       const idsIncorporados = new Set(inicial.versionesRubrica.map((rubrica) => rubrica.id));
       const versionesPersonalizadas = (analizado.versionesRubrica ?? []).filter((rubrica) => !idsIncorporados.has(rubrica.id));
-      return {
+      return migrarDatosDemostracion({
         ...inicial,
-        ...analizado,
+        ...datosAcademicos,
         schemaVersion: inicial.schemaVersion,
         modalidades: inicial.modalidades,
         periodosAcademicos: inicial.periodosAcademicos,
         versionesRubrica: [...inicial.versionesRubrica, ...versionesPersonalizadas],
-      };
+      }, inicial);
     }
 
     return {
       ...inicial,
-      ...analizado,
+      ...datosAcademicos,
       modalidades: Array.isArray(analizado.modalidades) ? analizado.modalidades : inicial.modalidades,
       periodosAcademicos: Array.isArray(analizado.periodosAcademicos) ? analizado.periodosAcademicos : inicial.periodosAcademicos,
+      notificaciones: (Array.isArray(analizado.notificaciones) ? analizado.notificaciones : inicial.notificaciones)
+        .map((notificacion) => ({ ...notificacion, idDestinatario: null })),
     };
   } catch {
     return crearEstadoInicial();
@@ -232,17 +233,14 @@ export function ProveedorPrototipo({ children }) {
 
   // Persist after React commits a new estado while keeping the reductor pure.
   useEffect(() => {
-    try { window.localStorage.setItem(CLAVE_ALMACENAMIENTO, JSON.stringify(estado)); } catch { /* Prototype remains usable without storage. */ }
+    try {
+      window.localStorage.setItem(CLAVE_ALMACENAMIENTO, JSON.stringify(estado));
+    } catch { /* Prototype remains usable without storage. */ }
   }, [estado]);
 
-  const actorActual = estado.actores.find((actor) => actor.id === estado.idActorActual) ?? estado.actores[0];
-  const personaActual = estado.personas.find((persona) => persona.id === actorActual.idPersona);
   const value = {
     estado,
-    actorActual,
-    personaActual,
     despachar,
-    establecerActorActual: (idActor) => despachar({ tipo: 'ESTABLECER_ACTOR_ACTUAL', idActor }),
     reiniciarPrototipo: () => despachar({ tipo: 'REINICIAR_PROTOTIPO' }),
   };
 

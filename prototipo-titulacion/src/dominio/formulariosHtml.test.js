@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const formularios = [
-  '../paginas/LoginPage.jsx',
   '../paginas/PaginaFormularioTrabajo.jsx',
   '../paginas/PaginaProgramacionSustentacion.jsx',
 ];

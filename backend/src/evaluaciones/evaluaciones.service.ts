@@ -17,6 +17,7 @@ import {
 import { CerrarEvaluacionDto } from './dto/cerrar-evaluacion.dto';
 import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
 import { GuardarPuntajesEvaluacionDto } from './dto/guardar-puntajes-evaluacion.dto';
+import { TrabajosService } from '../trabajos/trabajos.service';
 
 interface EtapaContexto {
   id: string;
@@ -69,13 +70,52 @@ const decimalDesdeCentavos = (valor: bigint): string => (
 
 @Injectable()
 export class EvaluacionesService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(private readonly dataSource: DataSource, private readonly trabajos: TrabajosService) {}
+
+  async listarTrabajosDesarrolloLocal(actorId: string): Promise<{ elementos: Array<Record<string, unknown>> }> {
+    return this.trabajos.listarDesarrolloLocal(actorId);
+  }
+
+  /** Una sola instantánea de lectura; conserva el control por tribunal de 10.1. */
+  async datosDocumentales(trabajoId: string, actorId: string, puedeConsultarDemostracion = false) {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      await this.exigirAccesoLecturaTrabajo(manager, trabajoId, actorId, puedeConsultarDemostracion);
+      const [trabajo] = await manager.query(`
+        SELECT t.id, t.codigo, t.titulo, t.id_version_rubrica AS "versionId",
+          c.id AS "carreraId", c.codigo AS "carreraCodigo", c.nombre AS carrera,
+          p.id AS "periodoId", p.codigo AS periodo, m.nombre AS modalidad
+        FROM trabajos_titulacion t JOIN carreras c ON c.id=t.id_carrera
+        JOIN periodos_academicos p ON p.id=t.periodo_academico_id
+        JOIN modalidades m ON m.id=t.id_modalidad WHERE t.id=$1`, [trabajoId]);
+      if (!trabajo.versionId) throw new ConflictException('El trabajo no tiene una versión de rúbrica asociada.');
+      const estudiantes = await manager.query(`
+        SELECT e.id, p.nombres, p.surnames AS apellidos, p.identificacion_nacional AS identificacion
+        FROM estudiantes_trabajo et JOIN perfiles_estudiante e ON e.id=et.id_estudiante
+        JOIN personas p ON p.id=e.id_persona WHERE et.id_trabajo=$1 ORDER BY et.orden_autoria`, [trabajoId]);
+      const evaluadores = await manager.query(`
+        SELECT m.id, p.nombres, p.surnames AS apellidos, m.position AS posicion
+        FROM miembros_tribunal m JOIN asignaciones_tribunal a ON a.id=m.id_asignacion
+        JOIN perfiles_docente d ON d.id=m.id_docente JOIN personas p ON p.id=d.id_persona
+        WHERE a.id_trabajo=$1 AND a.estado='CONFIRMADO' ORDER BY m.position`, [trabajoId]);
+      const tutores = await manager.query(`
+        SELECT p.nombres, p.surnames AS apellidos FROM asignaciones_tutor_trabajo a
+        JOIN perfiles_docente d ON d.id=a.id_docente JOIN personas p ON p.id=d.id_persona
+        WHERE a.id_trabajo=$1 AND a.finalizada_en IS NULL`, [trabajoId]);
+      const filas = await manager.query('SELECT id FROM evaluaciones WHERE id_trabajo=$1 ORDER BY creado_en,id', [trabajoId]);
+      const evaluaciones = [];
+      for (const fila of filas) evaluaciones.push(await this.detalle(manager, fila.id));
+      return { trabajo, estudiantes, evaluadores, tutor: tutores[0] ?? null,
+        rubrica: await this.crearInstantanea(manager, trabajo.versionId), evaluaciones,
+        consolidacion: await this.consolidarTrabajoEn(manager, trabajoId) };
+    });
+  }
 
   async crear(
     trabajoId: string,
     dto: CrearEvaluacionDto,
     actorId: string,
     correlationId: string | null,
+    accesoLocal = false,
   ): Promise<Record<string, unknown>> {
     try {
       return await this.dataSource.transaction(async (manager) => {
@@ -86,7 +126,9 @@ export class EvaluacionesService {
         if (!trabajo) throw new NotFoundException('No existe el trabajo solicitado.');
         if (!trabajo.idVersionRubrica) throw new ConflictException('El trabajo todav\u00eda no tiene una versi\u00f3n de r\u00fabrica fijada.');
 
-        const miembroId = await this.miembroAutorizado(manager, trabajoId, actorId);
+        const miembroId = await this.miembroAutorizado(
+          manager, trabajoId, actorId, dto.idMiembroTribunal, accesoLocal,
+        );
         const [etapa] = await manager.query(`
           SELECT "id", "id_version_rubrica" AS "idVersionRubrica", "kind", "scope", "codigo", "nombre",
                  "descripcion", "calificacion_maxima" AS "calificacionMaxima", "orden"
@@ -121,15 +163,26 @@ export class EvaluacionesService {
             "id_trabajo", "id_miembro_tribunal", "id_estudiante", "id_version_rubrica", "id_etapa_rubrica",
             "etapa", "estado", "instantanea_rubrica", "calificacion_total", "instantanea_calificacion_maxima", "revision"
           ) VALUES ($1, $2, $3, $4, $5, $6, 'BORRADOR', $7::jsonb, 0, $8, 1)
+          ON CONFLICT DO NOTHING
           RETURNING "id"
         `, [trabajoId, miembroId, estudianteId, trabajo.idVersionRubrica, etapa.id, etapa.kind,
           JSON.stringify(instantanea), etapa.calificacionMaxima]) as Array<{ id: string }>;
+        if (!creada) {
+          const [ganadora] = await manager.query(`
+            SELECT "id" FROM "evaluaciones"
+            WHERE "id_trabajo" = $1 AND "id_miembro_tribunal" = $2 AND "id_etapa_rubrica" = $3
+              AND "id_estudiante" IS NOT DISTINCT FROM $4::uuid
+          `, [trabajoId, miembroId, etapa.id, estudianteId]) as Array<{ id: string }>;
+          if (!ganadora) throw new ConflictException('No se pudo resolver la evaluaci\u00f3n creada concurrentemente.');
+          return this.detalle(manager, ganadora.id);
+        }
         await this.registrarAuditoria(manager, creada.id, actorId, 'EVALUACION_CREADA', {
           idTrabajo: trabajoId,
           idVersionRubrica: trabajo.idVersionRubrica,
           idEtapaRubrica: etapa.id,
           alcance: etapa.scope,
           idEstudiante: estudianteId,
+          idMiembroTribunal: miembroId,
         }, correlationId);
         return this.detalle(manager, creada.id);
       });
@@ -146,10 +199,13 @@ export class EvaluacionesService {
     dto: GuardarPuntajesEvaluacionDto,
     actorId: string,
     correlationId: string | null,
+    accesoLocal = false,
   ): Promise<Record<string, unknown>> {
     return this.dataSource.transaction(async (manager) => {
       const evaluacion = await this.evaluacionBloqueada(manager, evaluacionId);
-      const miembroId = await this.miembroAutorizado(manager, evaluacion.idTrabajo, actorId);
+      const miembroId = await this.miembroAutorizado(
+        manager, evaluacion.idTrabajo, actorId, dto.idMiembroTribunal, accesoLocal,
+      );
       if (miembroId !== evaluacion.idMiembroTribunal) {
         throw new ForbiddenException('Solo el miembro asignado puede modificar esta evaluaci\u00f3n.');
       }
@@ -213,6 +269,7 @@ export class EvaluacionesService {
         await this.registrarAuditoria(manager, evaluacionId, actorId, 'PUNTAJES_EVALUACION_REGISTRADOS', {
           revisionAnterior: Number(evaluacion.revision),
           revision: Number(actualizada.revision),
+          idMiembroTribunal: miembroId,
           puntajes: cambiados,
         }, correlationId);
       }
@@ -225,10 +282,13 @@ export class EvaluacionesService {
     dto: CerrarEvaluacionDto,
     actorId: string,
     correlationId: string | null,
+    accesoLocal = false,
   ): Promise<Record<string, unknown>> {
     return this.dataSource.transaction(async (manager) => {
       const evaluacion = await this.evaluacionBloqueada(manager, evaluacionId);
-      const miembroId = await this.miembroAutorizado(manager, evaluacion.idTrabajo, actorId);
+      const miembroId = await this.miembroAutorizado(
+        manager, evaluacion.idTrabajo, actorId, dto.idMiembroTribunal, accesoLocal,
+      );
       if (miembroId !== evaluacion.idMiembroTribunal) {
         throw new ForbiddenException('Solo el miembro asignado puede cerrar esta evaluaci\u00f3n.');
       }
@@ -258,6 +318,7 @@ export class EvaluacionesService {
       await this.registrarAuditoria(manager, evaluacionId, actorId, 'EVALUACION_CERRADA', {
         revisionAnterior: Number(evaluacion.revision),
         revision: Number(cerrada.revision),
+        idMiembroTribunal: miembroId,
         calificacionTotal: cerrada.calificacion_total,
         traspasosCreados: Number(traspasos[0]?.cantidad ?? 0),
       }, correlationId);
@@ -265,83 +326,72 @@ export class EvaluacionesService {
     });
   }
 
-  async listarTrabajo(trabajoId: string): Promise<Array<Record<string, unknown>>> {
-    const existe = await this.dataSource.query('SELECT 1 FROM "trabajos_titulacion" WHERE "id" = $1', [trabajoId]);
-    if (!existe.length) throw new NotFoundException('No existe el trabajo solicitado.');
-    const filas = await this.dataSource.query(`
-      SELECT "id" FROM "evaluaciones" WHERE "id_trabajo" = $1 ORDER BY "creado_en", "id"
-    `, [trabajoId]) as Array<{ id: string }>;
-    return Promise.all(filas.map(({ id }) => this.detalle(this.dataSource.manager, id)));
-  }
-
-  async listarEstudiante(estudianteId: string, actorId: string): Promise<Array<Record<string, unknown>>> {
-    const perfiles = await this.dataSource.query(`
-      SELECT perfil."id" FROM "cuentas_usuario" cuenta
-      JOIN "perfiles_estudiante" perfil ON perfil."id_persona" = cuenta."id_persona"
-      WHERE cuenta."sujeto_autenticacion" = $1 AND cuenta."esta_activo" = true
-    `, [actorId]) as Array<{ id: string }>;
-    if (!perfiles[0]) throw new ForbiddenException('La identidad no corresponde a un estudiante autenticado.');
-    if (perfiles[0].id.toLowerCase() !== estudianteId.toLowerCase()) {
-      throw new ForbiddenException('Solo puede consultar sus propias evaluaciones.');
-    }
-    const filas = await this.dataSource.query(`
-      SELECT DISTINCT evaluacion."id",
-             CASE WHEN traspaso."id" IS NOT NULL THEN 'TRASPASO_COMPARTIDO' ELSE 'INDIVIDUAL' END AS "relacion"
-      FROM "evaluaciones" evaluacion
-      LEFT JOIN "traspasos_evaluacion_estudiante" traspaso
-        ON traspaso."id_evaluacion" = evaluacion."id" AND traspaso."id_estudiante" = $1
-      WHERE evaluacion."estado" = 'CERRADA'
-        AND (evaluacion."id_estudiante" = $1 OR traspaso."id" IS NOT NULL)
-      ORDER BY evaluacion."id"
-    `, [estudianteId]) as Array<{ id: string; relacion: string }>;
-    return Promise.all(filas.map(async (fila) => ({
-      idEvaluacionOrigen: fila.id,
-      relacion: fila.relacion,
-      evaluacion: await this.detalle(this.dataSource.manager, fila.id),
-    })));
-  }
-
-  async consolidarTrabajo(trabajoId: string): Promise<Record<string, unknown>> {
-    return this.dataSource.transaction('REPEATABLE READ', async (manager) => (
-      this.consolidarTrabajoEn(manager, trabajoId)
-    ));
-  }
-
-  async consolidarEstudiante(estudianteId: string, actorId: string): Promise<Record<string, unknown>> {
+  async listarTrabajo(trabajoId: string, actorId: string, puedeConsultarDemostracion = false): Promise<Array<Record<string, unknown>>> {
     return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
-      const perfiles = await manager.query(`
-        SELECT perfil."id" FROM "cuentas_usuario" cuenta
-        JOIN "perfiles_estudiante" perfil ON perfil."id_persona" = cuenta."id_persona"
+      await this.exigirAccesoLecturaTrabajo(manager, trabajoId, actorId, puedeConsultarDemostracion);
+      const filas = await manager.query(`
+        SELECT "id" FROM "evaluaciones" WHERE "id_trabajo" = $1 ORDER BY "creado_en", "id"
+      `, [trabajoId]) as Array<{ id: string }>;
+      const evaluaciones: Array<Record<string, unknown>> = [];
+      for (const { id } of filas) evaluaciones.push(await this.detalle(manager, id));
+      return evaluaciones;
+    });
+  }
+
+  async contextoEvaluador(
+    trabajoId: string,
+    actorId: string,
+    puedeCalificar: boolean,
+    idMiembroSolicitado?: string,
+    accesoLocal = false,
+  ): Promise<{
+    idMiembroTribunal: string;
+    posicion: number;
+    puedeCalificar: boolean;
+    miembrosTribunal: Array<{ idMiembroTribunal: string; posicion: number; nombres: string; apellidos: string }>;
+  }> {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      if (accesoLocal) {
+        const miembrosTribunal = await manager.query(`
+          SELECT miembro."id" AS "idMiembroTribunal", miembro."position" AS "posicion",
+                 persona."nombres", persona."surnames" AS "apellidos"
+          FROM "miembros_tribunal" miembro
+          JOIN "asignaciones_tribunal" asignacion ON asignacion."id" = miembro."id_asignacion"
+          JOIN "perfiles_docente" docente ON docente."id" = miembro."id_docente"
+          JOIN "personas" persona ON persona."id" = docente."id_persona"
+          WHERE asignacion."id_trabajo" = $1 AND asignacion."estado" = 'CONFIRMADO'
+          ORDER BY miembro."position", miembro."id"
+        `, [trabajoId]) as Array<{ idMiembroTribunal: string; posicion: number; nombres: string; apellidos: string }>;
+        if (!miembrosTribunal.length) throw new NotFoundException('El trabajo no tiene un tribunal confirmado.');
+        const seleccionado = idMiembroSolicitado
+          ? miembrosTribunal.find(({ idMiembroTribunal }) => idMiembroTribunal.toLowerCase() === idMiembroSolicitado.toLowerCase())
+          : miembrosTribunal[0];
+        if (!seleccionado) throw new BadRequestException('El evaluador seleccionado no pertenece al tribunal confirmado de este trabajo.');
+        return { ...seleccionado, puedeCalificar, miembrosTribunal };
+      }
+      const miembros = await manager.query(`
+        SELECT miembro."id" AS "idMiembroTribunal", miembro."position" AS "posicion"
+        FROM "cuentas_usuario" cuenta
+        JOIN "perfiles_docente" docente ON docente."id_persona" = cuenta."id_persona"
+        JOIN "miembros_tribunal" miembro ON miembro."id_docente" = docente."id"
+        JOIN "asignaciones_tribunal" asignacion ON asignacion."id" = miembro."id_asignacion"
         WHERE cuenta."sujeto_autenticacion" = $1 AND cuenta."esta_activo" = true
-      `, [actorId]) as Array<{ id: string }>;
-      if (!perfiles.some(({ id }) => id.toLowerCase() === estudianteId.toLowerCase())) {
-        throw new ForbiddenException('Solo puede consultar la consolidación de su propio perfil de estudiante.');
-      }
+          AND docente."esta_activo" = true
+          AND asignacion."id_trabajo" = $2 AND asignacion."estado" = 'CONFIRMADO'
+        ORDER BY miembro."position", miembro."id"
+        LIMIT 1
+      `, [actorId, trabajoId]) as Array<{ idMiembroTribunal: string; posicion: number }>;
+      const miembro = miembros[0];
+      if (!miembro) throw new NotFoundException('No existe el trabajo solicitado.');
+      const seleccionado = { ...miembro, nombres: '', apellidos: '' };
+      return { ...seleccionado, puedeCalificar, miembrosTribunal: [seleccionado] };
+    });
+  }
 
-      const [estudiante] = await manager.query(`
-        SELECT perfil."id", persona."nombres", persona."surnames" AS "apellidos"
-        FROM "perfiles_estudiante" perfil
-        JOIN "personas" persona ON persona."id" = perfil."id_persona"
-        WHERE perfil."id" = $1
-      `, [estudianteId]) as Array<{ id: string; nombres: string; apellidos: string }>;
-      if (!estudiante) throw new NotFoundException('No existe el perfil de estudiante solicitado.');
-
-      const trabajos = await manager.query(`
-        SELECT "id_trabajo" AS "idTrabajo" FROM "estudiantes_trabajo"
-        WHERE "id_estudiante" = $1 ORDER BY "orden_autoria", "id_trabajo"
-      `, [estudianteId]) as Array<{ idTrabajo: string }>;
-      const consolidacionesEstudiante: Record<string, unknown>[] = [];
-      for (const { idTrabajo } of trabajos) {
-        const consolidacion = await this.consolidarTrabajoEn(manager, idTrabajo, estudianteId);
-        const trabajoEstudiante = (consolidacion.estudiantes as Array<Record<string, unknown>>)[0];
-        if (trabajoEstudiante) consolidacionesEstudiante.push(trabajoEstudiante);
-      }
-      return {
-        estudiante,
-        modo: 'CONSOLIDACION_DINAMICA',
-        incluyeEvaluacionesLegacy: false,
-        trabajos: consolidacionesEstudiante,
-      };
+  async consolidarTrabajo(trabajoId: string, actorId: string, puedeConsultarDemostracion = false): Promise<Record<string, unknown>> {
+    return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
+      await this.exigirAccesoLecturaTrabajo(manager, trabajoId, actorId, puedeConsultarDemostracion);
+      return this.consolidarTrabajoEn(manager, trabajoId);
     });
   }
 
@@ -351,7 +401,8 @@ export class EvaluacionesService {
     estudianteSolicitadoId?: string,
   ): Promise<Record<string, unknown>> {
     const [trabajo] = await manager.query(`
-      SELECT trabajo."id", trabajo."id_version_rubrica" AS "idVersionRubrica",
+      SELECT trabajo."id", trabajo."codigo", trabajo."titulo",
+             trabajo."id_version_rubrica" AS "idVersionRubrica",
              version."version", version."estado" AS "estadoVersion",
              modalidad."codigo" AS "codigoModalidad", periodo."codigo" AS "codigoPeriodo"
       FROM "trabajos_titulacion" trabajo
@@ -361,7 +412,8 @@ export class EvaluacionesService {
       LEFT JOIN "periodos_academicos" periodo ON periodo."id" = version."periodo_academico_id"
       WHERE trabajo."id" = $1
     `, [trabajoId]) as Array<{
-      id: string; idVersionRubrica: string | null; version: string | null; estadoVersion: string | null;
+      id: string; codigo: string; titulo: string;
+      idVersionRubrica: string | null; version: string | null; estadoVersion: string | null;
       codigoModalidad: string | null; codigoPeriodo: string | null;
     }>;
     if (!trabajo) throw new NotFoundException('No existe el trabajo solicitado.');
@@ -531,8 +583,10 @@ export class EvaluacionesService {
         })
         : [];
       const finalExacto = todasCompletas ? promedioRacional(promediosEtapa) : null;
+      const trabajoResumen = { id: trabajo.id, codigo: trabajo.codigo, titulo: trabajo.titulo };
       consolidaciones.push({
         estudiante,
+        trabajo: trabajoResumen,
         trabajoId,
         versionRubrica: {
           id: trabajo.idVersionRubrica,
@@ -562,6 +616,7 @@ export class EvaluacionesService {
       tipo: 'CONSOLIDACION_INDIVIDUAL_DINAMICA',
       incluyeEvaluacionesLegacy: false,
       trabajoId,
+      trabajo: { id: trabajo.id, codigo: trabajo.codigo, titulo: trabajo.titulo },
       versionRubrica: consolidaciones[0]?.versionRubrica ?? null,
       estudiantes: consolidaciones,
     };
@@ -611,6 +666,33 @@ export class EvaluacionesService {
       FROM "traspasos_evaluacion_estudiante" traspaso
       WHERE traspaso."id_evaluacion" = $1 ORDER BY traspaso."traspasado_en", traspaso."id_estudiante"
     `, [evaluacionId]) as Array<Record<string, unknown>>;
+    const instantaneaGuardada = evaluacion.instantaneaRubrica as Partial<InstantaneaRubrica> & Record<string, unknown>;
+    let instantaneaRubrica = evaluacion.instantaneaRubrica;
+    if (evaluacion.idEtapaRubrica && (!Array.isArray(instantaneaGuardada.stages)
+      || instantaneaGuardada.stages.length === 0
+      || !Array.isArray(instantaneaGuardada.categories)
+      || instantaneaGuardada.categories.length === 0)) {
+      const versionRubricaId = evaluacion.idVersionRubrica;
+      if (typeof versionRubricaId !== 'string') {
+        throw new ConflictException('La evaluaci\u00f3n no tiene una versi\u00f3n de r\u00fabrica v\u00e1lida para completar su lectura.');
+      }
+      const [version] = await manager.query(
+        'SELECT "estado" FROM "versiones_rubrica" WHERE "id" = $1',
+        [versionRubricaId],
+      ) as Array<{ estado: string }>;
+      if (!version || version.estado === 'BORRADOR') {
+        throw new ConflictException('La evaluaci\u00f3n no conserva una instant\u00e1nea completa y su versi\u00f3n no es inmutable.');
+      }
+
+      // Algunas filas de demostraci\u00f3n 10.9B solo guardaron el ID de versi\u00f3n.
+      // Las versiones no borrador ya tienen su estructura protegida por SQL; se completa
+      // la respuesta de lectura desde esa estructura sin persistir ni alterar la evaluaci\u00f3n.
+      instantaneaRubrica = {
+        ...instantaneaGuardada,
+        ...await this.crearInstantanea(manager, versionRubricaId),
+      } as InstantaneaRubrica;
+    }
+
     const etapaKind = (evaluacion.kindEtapa ?? evaluacion.etapa) as EtapaEvaluacion;
     const alcance = (evaluacion.alcanceEtapa ?? (
       evaluacion.etapa === EtapaEvaluacion.ESCRITA
@@ -634,7 +716,7 @@ export class EvaluacionesService {
       },
       estado: evaluacion.estado,
       revision: Number(evaluacion.revision),
-      instantaneaRubrica: evaluacion.instantaneaRubrica,
+      instantaneaRubrica,
       calificacionTotal: evaluacion.calificacionTotal,
       calificacionMaxima: evaluacion.calificacionMaxima,
       cerradaEn: evaluacion.cerradaEn,
@@ -770,7 +852,23 @@ export class EvaluacionesService {
     };
   }
 
-  private async miembroAutorizado(manager: EntityManager, trabajoId: string, actorId: string): Promise<string> {
+  private async miembroAutorizado(
+    manager: EntityManager,
+    trabajoId: string,
+    actorId: string,
+    idMiembroSolicitado?: string,
+    accesoLocal = false,
+  ): Promise<string> {
+    if (accesoLocal) {
+      if (!idMiembroSolicitado) throw new BadRequestException('Seleccione un miembro del tribunal para registrar la evaluación.');
+      const miembros = await manager.query(`
+        SELECT miembro."id" FROM "miembros_tribunal" miembro
+        JOIN "asignaciones_tribunal" asignacion ON asignacion."id" = miembro."id_asignacion"
+        WHERE miembro."id" = $1 AND asignacion."id_trabajo" = $2 AND asignacion."estado" = 'CONFIRMADO'
+      `, [idMiembroSolicitado, trabajoId]) as Array<{ id: string }>;
+      if (!miembros[0]) throw new ForbiddenException('El evaluador seleccionado no pertenece al tribunal confirmado de este trabajo.');
+      return miembros[0].id;
+    }
     const miembros = await manager.query(`
       SELECT miembro."id" FROM "cuentas_usuario" cuenta
       JOIN "perfiles_docente" docente ON docente."id_persona" = cuenta."id_persona"
@@ -781,6 +879,36 @@ export class EvaluacionesService {
     `, [actorId, trabajoId]) as Array<{ id: string }>;
     if (!miembros[0]) throw new ForbiddenException('El evaluador no pertenece al tribunal confirmado de este trabajo.');
     return miembros[0].id;
+  }
+
+  /**
+   * La capacidad permite entrar a la operación; esta relación concede acceso al
+   * recurso concreto. Un recurso inexistente y uno ajeno responden igual para
+   * no revelar su existencia a quien no integra su tribunal confirmado.
+   */
+  private async exigirAccesoLecturaTrabajo(
+    manager: EntityManager,
+    trabajoId: string,
+    actorId: string,
+    puedeConsultarDemostracion = false,
+  ): Promise<void> {
+    if (puedeConsultarDemostracion) {
+      const existe = await manager.query('SELECT 1 FROM "trabajos_titulacion" WHERE "id" = $1', [trabajoId]);
+      if (existe.length) return;
+      throw new NotFoundException('No existe el trabajo solicitado.');
+    }
+    const miembros = await manager.query(`
+      SELECT miembro."id"
+      FROM "cuentas_usuario" cuenta
+      JOIN "perfiles_docente" docente ON docente."id_persona" = cuenta."id_persona"
+      JOIN "miembros_tribunal" miembro ON miembro."id_docente" = docente."id"
+      JOIN "asignaciones_tribunal" asignacion ON asignacion."id" = miembro."id_asignacion"
+      WHERE cuenta."sujeto_autenticacion" = $1 AND cuenta."esta_activo" = true
+        AND docente."esta_activo" = true
+        AND asignacion."id_trabajo" = $2 AND asignacion."estado" = 'CONFIRMADO'
+      LIMIT 1
+    `, [actorId, trabajoId]) as Array<{ id: string }>;
+    if (!miembros[0]) throw new NotFoundException('No existe el trabajo solicitado.');
   }
 
   private async estudiantePertenece(manager: EntityManager, trabajoId: string, estudianteId: string): Promise<boolean> {

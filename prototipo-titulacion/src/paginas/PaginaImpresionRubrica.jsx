@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useLocation, useParams } from 'react-router-dom';
+import { Navigate, useLocation, useParams } from 'react-router-dom';
 import { FileText, GraduationCap, Layers3, Printer, UserRound } from 'lucide-react';
 import { ESTADO_EVALUACION, ALCANCE_ETAPA_RUBRICA } from '../datos/datosPrototipo';
 import {
@@ -13,6 +13,10 @@ import {
 } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { BotonVolver, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
+import { DOCUMENTOS_API_HABILITADA } from '../servicios/documentosApi';
+import { esUuidPostgres } from '../adaptadores/uuidPostgres';
+import { destinoDocumentosRubrica } from '../dominio/documentosRubrica';
+import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
 
 function formatearFechaHora(valor) {
   if (!valor) return 'Sin fecha registrada';
@@ -22,6 +26,29 @@ function formatearFechaHora(valor) {
 }
 
 export default function PaginaImpresionRubrica() {
+  const { idTrabajo, idEstudiante, idMiembro } = useParams();
+  const ubicacion = useLocation();
+
+  if (FUENTE_EVALUACIONES === 'api') {
+    if (!DOCUMENTOS_API_HABILITADA) return <EstadoVacio
+      title="Impresión API no disponible"
+      description="La fuente API está configurada, pero los documentos API no están habilitados en este entorno. No se usará el prototipo local como sustituto."
+    />;
+    if (![idTrabajo, idEstudiante, idMiembro].every(esUuidPostgres)) {
+      return <EstadoVacio
+        title="Rúbrica API no disponible"
+        description="La ruta contiene identificadores que no corresponden al formato UUID del servidor. No se generó un documento local como sustituto."
+        accion={<a className="button button-outline" href="/trabajos">Volver a trabajos</a>}
+      />;
+    }
+    const autoPrint = ubicacion.state?.autoPrint || new URLSearchParams(ubicacion.search).get('autoPrint') === '1';
+    return <Navigate replace to={destinoDocumentosRubrica(idTrabajo, idEstudiante, idMiembro, autoPrint)} />;
+  }
+
+  return <PaginaImpresionRubricaPrototipo />;
+}
+
+function PaginaImpresionRubricaPrototipo() {
   const { idTrabajo, idEstudiante, idMiembro } = useParams();
   const { estado } = usarPrototipo();
   const ubicacion = useLocation();

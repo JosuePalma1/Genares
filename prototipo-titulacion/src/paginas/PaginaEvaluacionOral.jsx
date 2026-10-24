@@ -28,6 +28,8 @@ import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { FormularioRubrica } from '../componentes/FormularioRubrica';
 import { FormularioRubricaComparativa } from '../componentes/FormularioRubricaComparativa';
+import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
+import { PaginaEvaluacionTrabajoApi } from './PaginaEvaluacionesApi';
 
 const textoEstadoOral = (oral) => (
   oral?.estado === ESTADO_EVALUACION.CERRADA
@@ -36,11 +38,18 @@ const textoEstadoOral = (oral) => (
 );
 
 export default function PaginaEvaluacionOral() {
+  if (FUENTE_EVALUACIONES === 'api') return <PaginaEvaluacionTrabajoApi />;
+  return <PaginaEvaluacionOralPrototipo />;
+}
+
+function PaginaEvaluacionOralPrototipo() {
   const { idTrabajo, idEstudiante } = useParams();
-  const { estado, personaActual, despachar } = usarPrototipo();
+  const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);
-  const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === idTrabajo && elemento.idMiembro === personaActual?.id);
+  const [idMiembroSeleccionado, establecerIdMiembroSeleccionado] = useState(trabajo?.idsTribunal[0] ?? '');
+  const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === idTrabajo && elemento.idMiembro === idMiembroSeleccionado);
+  const miembroSeleccionado = estado.personas.find((persona) => persona.id === idMiembroSeleccionado);
   const estudiantes = trabajo?.idsEstudiantes.map((id) => estado.personas.find((persona) => persona.id === id)).filter(Boolean) ?? [];
   const estudiante = estudiantes.find((elemento) => elemento.id === idEstudiante);
   const oral = evaluacion?.oralPorEstudiante?.[estudiante?.id];
@@ -69,7 +78,7 @@ export default function PaginaEvaluacionOral() {
     establecerFormulariosComparativos(crearFormulariosOrales(estudiantes, evaluacion));
   }, [evaluacion?.id, firmaEstudiantes]);
 
-  if (!trabajo || !evaluacion || !estudiante) return <EstadoVacio title="Evaluación oral no disponible" description="Compruebe el trabajo, los estudiantes y la identidad activa." />;
+  if (!trabajo || !evaluacion || !estudiante) return <EstadoVacio title="Evaluación oral no disponible" description="Compruebe el trabajo, el estudiante y el miembro seleccionado del tribunal." />;
   const estaLista = estanCerradasRevisionesEscritas(estado, trabajo) && trabajo.programacion;
   const hoy = fechaLocalISO();
   const disponibleParaEvaluar = estaLista && puedeEvaluarSustentacion(trabajo.programacion?.fecha, hoy);
@@ -152,7 +161,7 @@ export default function PaginaEvaluacionOral() {
     if (!respuesta.isConfirmed) return;
     establecerTieneCambios(false);
     despachar({ tipo: 'FINALIZAR_ORAL', idEvaluacion: evaluacion.id, idEstudiante: estudiante.id, calificaciones, observaciones });
-    navegar(`/rubrica/${trabajo.id}/${estudiante.id}/${personaActual.id}`, { state: { autoPrint: true } });
+    navegar(`/rubrica/${trabajo.id}/${estudiante.id}/${idMiembroSeleccionado}`, { state: { autoPrint: true } });
   };
 
   const finalizarComparativa = async (persona) => {
@@ -186,7 +195,7 @@ export default function PaginaEvaluacionOral() {
     const accionFinalizacion = crearAccionFinalizacionOral(evaluacion.id, formulariosComparativos, evaluacion, persona.id);
     if (!accionFinalizacion) return;
     despachar(accionFinalizacion);
-    navegar(`/rubrica/${trabajo.id}/${persona.id}/${personaActual.id}`, { state: { autoPrint: true } });
+    navegar(`/rubrica/${trabajo.id}/${persona.id}/${idMiembroSeleccionado}`, { state: { autoPrint: true } });
   };
 
   const metaComparativa = todasComparativasCerradas
@@ -205,6 +214,15 @@ export default function PaginaEvaluacionOral() {
       />
 
       <section className="evaluacion-escrita-context evaluacion-oral-context" aria-labelledby="evaluacion-oral-trabajo-title">
+        <div className="field">
+          <label htmlFor="evaluacion-oral-miembro">Miembro del tribunal</label>
+          <select id="evaluacion-oral-miembro" value={idMiembroSeleccionado} onChange={(evento) => establecerIdMiembroSeleccionado(evento.target.value)}>
+            {trabajo.idsTribunal.map((id, indice) => {
+              const miembro = estado.personas.find((persona) => persona.id === id);
+              return <option key={id} value={id}>{indice + 1}. {nombreCompleto(miembro)}</option>;
+            })}
+          </select>
+        </div>
         <div className="evaluacion-context-heading">
           <div>
             <span className="section-kicker">{trabajo.modalidad}</span>
@@ -219,7 +237,7 @@ export default function PaginaEvaluacionOral() {
           <div><dt><UsersRound size={16} /> Estudiante{estudiantes.length === 1 ? '' : 's'} participante{estudiantes.length === 1 ? '' : 's'}</dt><dd>{estudiantes.map(nombreCompleto).join(' / ')}</dd></div>
           <div><dt><GraduationCap size={16} /> Modalidad</dt><dd>{trabajo.modalidad}</dd></div>
           <div><dt><UsersRound size={16} /> Tribunal evaluador</dt><dd>{tribunal.map(nombreCompleto).join(' / ')}</dd></div>
-          <div><dt><UserRound size={16} /> Evaluador activo</dt><dd>{nombreCompleto(personaActual)}</dd></div>
+          <div><dt><UserRound size={16} /> Evaluador seleccionado</dt><dd>{nombreCompleto(miembroSeleccionado)}</dd></div>
           <div><dt><CalendarClock size={16} /> Fecha y hora</dt><dd>{formatearFecha(trabajo.programacion.fecha)} · {trabajo.programacion.hora}</dd></div>
           <div><dt><MapPin size={16} /> Lugar</dt><dd>{trabajo.programacion.sala}</dd></div>
         </dl>
@@ -258,7 +276,7 @@ export default function PaginaEvaluacionOral() {
                   </div>
                   <div className="evaluacion-comparativa-card-actions">
                     {datos.cerrado ? (
-                      <Link className="button button-outline" to={`/rubrica/${trabajo.id}/${persona.id}/${personaActual.id}`}><FileCheck2 size={17} /> Ver rúbrica</Link>
+                      <Link className="button button-outline" to={`/rubrica/${trabajo.id}/${persona.id}/${idMiembroSeleccionado}`}><FileCheck2 size={17} /> Ver rúbrica</Link>
                     ) : (
                       <>
                         <button className="button button-outline" type="button" disabled={!datos.formulario.tieneCambios} onClick={() => guardarComparativos([persona.id])}><Save size={17} /> Guardar {persona.nombres}</button>
@@ -308,7 +326,7 @@ export default function PaginaEvaluacionOral() {
           ) : !cerrado ? (
             <><button className="button button-secondary button-lg" type="button" onClick={guardar}><Save size={18} /> Guardar borrador</button><button className="button button-primary button-lg" type="button" onClick={finalizar}><FileCheck2 size={18} /> Finalizar evaluación oral</button></>
           ) : (
-            <Link className="button button-primary button-lg" to={`/rubrica/${trabajo.id}/${estudiante.id}/${personaActual.id}`}><FileCheck2 size={18} /> Ver e imprimir rúbrica</Link>
+            <Link className="button button-primary button-lg" to={`/rubrica/${trabajo.id}/${estudiante.id}/${idMiembroSeleccionado}`}><FileCheck2 size={18} /> Ver e imprimir rúbrica</Link>
           )}
         </div>
       </div>

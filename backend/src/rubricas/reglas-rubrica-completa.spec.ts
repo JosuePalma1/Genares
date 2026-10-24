@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { AlcanceEtapaRubrica } from '../comun/enums-dominio';
 import { EtapaRubricaCompletaDto } from './dto/estructura-rubrica-completa.dto';
-import { normalizarEstructuraRubricaCompleta } from './reglas-rubrica-completa';
+import { normalizarEstructuraRubricaCompleta, siguienteEtiquetaVersionRubrica } from './reglas-rubrica-completa';
 
 const indicador = (orden: number, calificacionMaxima: string) => ({
   label: `Indicador ${orden}`,
@@ -22,6 +22,12 @@ const etapa = (codigo: string, orden = 1, valores = ['1.25', '0.75', '3.00', '2.
 });
 
 describe('normalizarEstructuraRubricaCompleta', () => {
+  it('elige la siguiente etiqueta Vn de acuerdo con el historial de la familia', () => {
+    expect(siguienteEtiquetaVersionRubrica(['V1', 'v3', 'versión antigua'])).toBe('V4');
+    expect(siguienteEtiquetaVersionRubrica(['9H.7B'])).toBe('V2');
+    expect(siguienteEtiquetaVersionRubrica(['V2'])).toBe('V3');
+  });
+
   it.each([AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL])(
     'acepta una etapa %s con categor\u00edas e indicadores variables y suma exacta', (alcance) => {
       const estructura = [{ ...etapa('ETAPA'), alcance }] as EtapaRubricaCompletaDto[];

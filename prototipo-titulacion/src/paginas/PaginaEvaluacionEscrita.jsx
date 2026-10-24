@@ -16,13 +16,22 @@ import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { FormularioRubrica } from '../componentes/FormularioRubrica';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
+import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
+import { PaginaEvaluacionTrabajoApi } from './PaginaEvaluacionesApi';
 
 export default function PaginaEvaluacionEscrita() {
+  if (FUENTE_EVALUACIONES === 'api') return <PaginaEvaluacionTrabajoApi />;
+  return <PaginaEvaluacionEscritaPrototipo />;
+}
+
+function PaginaEvaluacionEscritaPrototipo() {
   const { idTrabajo } = useParams();
-  const { estado, personaActual, despachar } = usarPrototipo();
+  const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);
-  const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === idTrabajo && elemento.idMiembro === personaActual?.id);
+  const [idMiembroSeleccionado, establecerIdMiembroSeleccionado] = useState(trabajo?.idsTribunal[0] ?? '');
+  const evaluacion = estado.evaluaciones.find((elemento) => elemento.idTrabajo === idTrabajo && elemento.idMiembro === idMiembroSeleccionado);
+  const miembroSeleccionado = estado.personas.find((persona) => persona.id === idMiembroSeleccionado);
   const [calificaciones, establecerCalificaciones] = useState(evaluacion?.escrita?.calificaciones ?? {});
   const [observaciones, establecerObservaciones] = useState(evaluacion?.escrita?.observaciones ?? {});
   const [tieneCambios, establecerTieneCambios] = useState(false);
@@ -36,7 +45,7 @@ export default function PaginaEvaluacionEscrita() {
     establecerMostrarErrores(false);
   }, [evaluacion?.id]);
 
-  if (!trabajo || !evaluacion) return <EstadoVacio title="Evaluación no disponible" description="La identidad activa no forma parte del tribunal de este trabajo." />;
+  if (!trabajo || !evaluacion) return <EstadoVacio title="Evaluación no disponible" description="El trabajo no tiene una evaluación registrada para el miembro seleccionado del tribunal." />;
 
   const rubrica = evaluacion.instantaneaRubrica;
   const etapa = obtenerDefinicionEtapa(rubrica, 'ESCRITA');
@@ -83,6 +92,15 @@ export default function PaginaEvaluacionEscrita() {
       />
 
       <section className="evaluacion-escrita-context" aria-labelledby="evaluacion-trabajo-title">
+        <div className="field">
+          <label htmlFor="evaluacion-escrita-miembro">Miembro del tribunal</label>
+          <select id="evaluacion-escrita-miembro" value={idMiembroSeleccionado} onChange={(evento) => establecerIdMiembroSeleccionado(evento.target.value)}>
+            {trabajo.idsTribunal.map((id, indice) => {
+              const miembro = estado.personas.find((persona) => persona.id === id);
+              return <option key={id} value={id}>{indice + 1}. {nombreCompleto(miembro)}</option>;
+            })}
+          </select>
+        </div>
         <div className="evaluacion-context-heading">
           <div>
             <span className="section-kicker">{trabajo.modalidad}</span>
@@ -101,7 +119,7 @@ export default function PaginaEvaluacionEscrita() {
           </div>
           <div>
             <dt><UserRound size={16} /> Evaluador</dt>
-            <dd>{nombreCompleto(personaActual)}</dd>
+            <dd>{nombreCompleto(miembroSeleccionado)}</dd>
           </div>
           <div>
             <dt><GraduationCap size={16} /> Modalidad</dt>

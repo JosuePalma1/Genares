@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import {
+  ArrowLeft,
   BookOpenCheck,
   CalendarRange,
   CheckCircle2,
   FileClock,
+  GitBranch,
   Layers3,
   LockKeyhole,
   Save,
@@ -14,7 +16,6 @@ import {
 } from 'lucide-react';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { ROL } from '../datos/datosPrototipo';
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../dominio/flujoTrabajo';
 import { usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
@@ -37,16 +38,19 @@ function categoryMaximum(categoria) {
 
 const puntos = (valor) => Number.isFinite(valor) ? valor.toFixed(2) : '—';
 
-function formatearFechaActivacion(valor) {
-  if (!valor) return 'Fecha de activación no registrada';
-  const fecha = new Date(valor);
-  if (Number.isNaN(fecha.getTime())) return 'Fecha de activación no válida';
-  return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium', timeStyle: 'short' }).format(fecha);
+function describirVigenciaPorCarrera(carreras) {
+  if (!Array.isArray(carreras) || carreras.length === 0) return 'Sin carreras asociadas';
+  return carreras.map(({ nombre, vigente }) => `${nombre}: ${vigente ? 'Vigente' : 'No vigente'}`).join(' · ');
+}
+
+function VolverAlCatalogo({ esApi, children }) {
+  if (!esApi) return <BotonVolver respaldo="/rubricas">{children}</BotonVolver>;
+  return <Link className="button button-outline back-button" to="/rubricas"><ArrowLeft size={18} aria-hidden="true" /> {children}</Link>;
 }
 
 export default function PaginaDetalleRubrica() {
   const { idRubrica } = useParams();
-  const { estado, actorActual, despachar } = usarPrototipo();
+  const { estado, despachar } = usarPrototipo();
   const lectura = usarRubricasLectura(estado.versionesRubrica);
   const esApi = lectura.fuente === 'api';
   const rubrica = lectura.versiones.find((elemento) => elemento.id === idRubrica);
@@ -66,8 +70,7 @@ export default function PaginaDetalleRubrica() {
     setRevisionEditada(null);
   }, [rubrica?.id, rubrica?.revision, rubrica?.estado]);
 
-  const puedeGestionar = actorActual?.roles.some((role) => role === ROL.COMISION || role === ROL.ADMIN);
-  const canEdit = Boolean(rubrica && rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : puedeGestionar));
+  const canEdit = Boolean(rubrica && rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : true));
   const canActivate = canEdit && !esApi;
   const visibleCategories = canEdit ? draftCategories : (rubrica?.categorias ?? []);
   const visibleStages = canEdit ? draftStages : (rubrica ? obtenerEtapasRubrica(rubrica) : []);
@@ -187,7 +190,7 @@ export default function PaginaDetalleRubrica() {
   }
 
   if (!rubrica && esApi && lectura.error) {
-    return <><EncabezadoPagina title="No fue posible cargar la rúbrica" description="La API no respondió con datos disponibles." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Error' }]} /><AlertaInstitucional tono="danger" titulo="Error de consulta"><p>{lectura.error.message}</p><button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button></AlertaInstitucional><BotonVolver respaldo="/rubricas">Volver al listado</BotonVolver></>;
+    return <><EncabezadoPagina title="No fue posible cargar la rúbrica" description="La API no respondió con datos disponibles." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Error' }]} /><AlertaInstitucional tono="danger" titulo="Error de consulta"><p>{lectura.error.message}</p><button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button></AlertaInstitucional><VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo></>;
   }
 
   if (!rubrica) {
@@ -201,7 +204,7 @@ export default function PaginaDetalleRubrica() {
       <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
         <p>{esApi ? canEdit ? 'Este borrador se edita en PostgreSQL. Active e históricas permanecen en consulta.' : 'Esta versión del backend es de solo lectura con la autorización actual.' : 'Esta versión pertenece a los datos simulados locales del prototipo.'}</p>
       </AlertaInstitucional>
-        <section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<BotonVolver respaldo="/rubricas">Volver a rúbricas</BotonVolver>} /></div></section>
+        <section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<VolverAlCatalogo esApi={esApi}>Volver a rúbricas</VolverAlCatalogo>} /></div></section>
       </>
     );
   }
@@ -218,7 +221,10 @@ export default function PaginaDetalleRubrica() {
         title={rubrica.titulo}
         description={`Versión ${rubrica.version} · ${canEdit ? 'Edición de estructura y valoraciones' : 'Consulta de estructura protegida'}`}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: rubrica.version }]}
-        actions={<BotonVolver respaldo="/rubricas">Volver al listado</BotonVolver>}
+        actions={<>
+          {esApi && lectura.puedeAdministrar && rubrica?.idRubrica && <Link className="button button-primary" to={`/rubricas/${encodeURIComponent(rubrica.idRubrica)}/nueva-version/${encodeURIComponent(rubrica.id)}`}><GitBranch size={17} aria-hidden="true" /> Nueva versión</Link>}
+          <VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo>
+        </>}
       />
 
       <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
@@ -237,9 +243,9 @@ export default function PaginaDetalleRubrica() {
         </div>
         <dl className="rubrica-version-summary">
           <div><dt><CalendarRange size={16} /> Período</dt><dd>{rubrica.periodo}</dd></div>
-          <div><dt><Scale size={16} /> Puntaje total</dt><dd>{puntos(maximumTotal)} puntos</dd></div>
+          <div><dt><Scale size={16} /> Máximos por etapa</dt><dd>{puntos(maximumTotal)} puntos</dd></div>
           <div><dt><Layers3 size={16} /> Estructura</dt><dd>{visibleCategories.length} categorías · {indicatorCount} indicadores</dd></div>
-          <div><dt><BookOpenCheck size={16} /> Vigencia</dt><dd>{esApi ? (rubrica.activadaEn ? `Activada ${formatearFechaActivacion(rubrica.activadaEn)}` : "Fecha de activación no registrada") : (rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : "Aún no activada")}{!esApi && rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ""}</dd></div>
+          <div><dt><BookOpenCheck size={16} /> {esApi ? 'Vigencia por carrera' : 'Vigencia'}</dt><dd>{esApi ? describirVigenciaPorCarrera(rubrica.carreras) : (rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : 'Aún no activada')}{!esApi && rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ''}</dd></div>
         </dl>
       </section>
 
@@ -297,8 +303,8 @@ export default function PaginaDetalleRubrica() {
 
       <section className="rubrica-values-summary" aria-labelledby="rubrica-summary-title">
         <header>
-          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Totales calculados a partir de los indicadores de esta versión.</p></div>
-          <div className="rubrica-summary-total"><span>Total de la rúbrica</span><strong>{puntos(maximumTotal)}</strong><small>puntos</small></div>
+          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Esta suma describe la estructura y no es la calificación final de un estudiante.</p></div>
+          <div className="rubrica-summary-total"><span>Suma de máximos por etapa</span><strong>{puntos(maximumTotal)}</strong><small>puntos</small></div>
         </header>
         <div className="rubrica-summary-grid">
           {visibleCategories.map((categoria) => <div key={`summary-${claveElemento(categoria)}`}><span>{categoria.codigo}. {categoria.nombre}</span><strong>{puntos(categoryMaximum(categoria))} pts</strong></div>)}

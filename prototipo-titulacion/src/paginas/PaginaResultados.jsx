@@ -26,8 +26,15 @@ import {
 } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
+import { PaginaResultadoApi } from './PaginaEvaluacionesApi';
 
 export default function PaginaResultados() {
+  if (FUENTE_EVALUACIONES === 'api') return <PaginaResultadoApi />;
+  return <PaginaResultadosPrototipo />;
+}
+
+function PaginaResultadosPrototipo() {
   const { idTrabajo, idEstudiante } = useParams();
   const { estado } = usarPrototipo();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);

@@ -30,6 +30,9 @@ export class ProgramacionSustentacion {
   @Column({ type: 'varchar', length: 160 })
   sala!: string;
 
+  @Column({ name: 'duracion_estimada_minutos', type: 'smallint', default: 60 })
+  duracionEstimadaMinutos!: number;
+
   @Column({
     type: 'enum',
     enum: EstadoSustentacion,
@@ -38,9 +41,18 @@ export class ProgramacionSustentacion {
   })
   estado!: EstadoSustentacion;
 
-  @ManyToOne(() => CuentaUsuario, { nullable: false, onDelete: 'RESTRICT' })
+  @Column({ name: 'inicio_real_en', type: 'timestamptz', nullable: true })
+  inicioRealEn!: Date | null;
+
+  @Column({ name: 'finalizacion_real_en', type: 'timestamptz', nullable: true })
+  finalizacionRealEn!: Date | null;
+
+  @ManyToOne(() => CuentaUsuario, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'scheduled_by_id_cuenta' })
-  scheduledBy!: CuentaUsuario;
+  scheduledBy!: CuentaUsuario | null;
+
+  @Column({ name: 'scheduled_by_actor_id', type: 'varchar', length: 255, nullable: true })
+  scheduledByActorId!: string | null;
 
   @CreateDateColumn({ name: 'creado_en', type: 'timestamptz' })
   creadoEn!: Date;

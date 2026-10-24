@@ -1,324 +1,258 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { DialogoGenares as Swal } from '../componentes/dialogos';
-import {
-  BookOpenCheck,
-  CopyPlus,
-  Eye,
-  FileClock,
-  Layers3,
-  PencilLine,
-  Scale,
-  ShieldCheck,
-} from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowDown, ArrowDownUp, ArrowUp, Eye, History, Plus } from 'lucide-react';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../componentes/interfaz';
+import { ModalVersionesRubrica } from '../componentes/ModalVersionesRubrica';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
-import { ROL } from '../datos/datosPrototipo';
-import { maximoEtapa, maximoRubrica, obtenerEtapasRubrica } from '../dominio/flujoTrabajo';
+import { crearFilasCatalogoRubricas, filtrarRubricasCatalogo, FILTRO_NO_INFORMADA, FILTRO_SIN_ASOCIACION, ordenarRubricasCatalogo } from '../dominio/catalogoRubricas';
 import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
-import { cargarCatalogosRubricasApi, cargarDefinicionesRubricasApi, clonarVersionRubricaApi, crearRubricaApi, crearVersionRubricaApi } from '../servicios/rubricasApi';
-import { cargarModalidadesApi } from '../servicios/modalidadesApi';
-import { mensajeErrorEscrituraRubrica } from '../dominio/rubricasApiEdicion';
+import './rubricasCatalogo.css';
 
-const estadoRubrica = {
-  ACTIVA: { etiqueta: 'Activa', tono: 'success', ayuda: 'Disponible para trabajos nuevos.' },
-  BORRADOR: { etiqueta: 'Borrador', tono: 'progress', ayuda: 'Editable hasta que sea activada.' },
-  ARCHIVADA: { etiqueta: 'Histórica', tono: 'neutral', ayuda: 'Conservada en modo de consulta.' },
-};
+const COLUMNAS_ORDENABLES = [
+  { clave: 'modalidad', etiqueta: 'Modalidad' },
+  { clave: 'carrera', etiqueta: 'Carrera' },
+  { clave: 'periodo', etiqueta: 'Período' },
+  { clave: 'version', etiqueta: 'Versión' },
+  { clave: 'etiquetaVigencia', etiqueta: 'Vigencia' },
+];
 
-const clonar = (value) => JSON.parse(JSON.stringify(value));
-
-function versionSugerida(version) {
-  const match = String(version ?? '').match(/^(?:v)?(\d+)(?:\.(\d+))?/i);
-  if (!match) return 'v1.0';
-  return `v${Number(match[1]) + 1}.0`;
-}
-
-function contarIndicadores(rubrica) {
-  return rubrica.categorias.reduce((total, categoria) => total + (categoria.indicadores?.length ?? 0), 0);
+function presentarVigencia(fila) {
+  const clase = fila.vigente === true ? 'is-vigente'
+    : fila.vigente === false ? 'is-no-vigente'
+      : 'is-desconocida';
+  return <span className={`rubricas-vigencia ${clase}`}>{fila.etiquetaVigencia}</span>;
 }
 
 export default function PaginaRubricas() {
-  const { estado, actorActual, despachar } = usarPrototipo();
+  const { estado } = usarPrototipo();
   const lectura = usarRubricasLectura(estado.versionesRubrica);
   const esApi = lectura.fuente === 'api';
   const versiones = lectura.versiones;
-  const navegar = useNavigate();
-  const [creandoVacio, setCreandoVacio] = useState(false);
-  const [creandoFamilia, setCreandoFamilia] = useState(false);
-  const puedeGestionar = actorActual?.roles.some(
-    (role) => role === ROL.COMISION || role === ROL.ADMIN,
+  const filas = useMemo(() => crearFilasCatalogoRubricas(versiones, lectura.fuente), [versiones, lectura.fuente]);
+  const [filtros, setFiltros] = useState({
+    busqueda: '', carreraId: 'TODAS', modalidadId: 'TODAS', periodoId: 'TODOS', vigencia: 'TODAS',
+  });
+  const [orden, setOrden] = useState({ campo: 'modalidad', direccion: 'asc' });
+  const [referenciaHistorial, setReferenciaHistorial] = useState(null);
+
+  const puedeAdministrar = esApi
+    ? lectura.puedeAdministrarServidor
+    : true;
+  const puedeCrearEnApi = esApi && lectura.puedeAdministrar && !lectura.cargando && !lectura.error;
+  const filtradas = useMemo(
+    () => filtrarRubricasCatalogo(filas, filtros),
+    [filas, filtros],
+  );
+  const ordenadas = useMemo(
+    () => ordenarRubricasCatalogo(filtradas, orden.campo, orden.direccion),
+    [filtradas, orden],
+  );
+  const filasCombinacion = useMemo(
+    () => filtrarRubricasCatalogo(filas, { ...filtros, vigencia: 'TODAS' }),
+    [filas, filtros],
   );
 
-  const crearVersion = async (origen, vacia = false) => {
-    const base = origen ?? (esApi
-      ? versiones.find((rubrica) => rubrica.estado === 'ACTIVA') ?? versiones[0]
-      : estado.versionesRubrica.find((rubrica) => rubrica.estado === 'ACTIVA'));
-    if (!base) {
-      await Swal.fire({ icon: 'warning', title: 'No existe una versión base', text: 'Debe existir una rúbrica para poder crear una nueva versión.' });
-      return;
-    }
+  const modalidades = [...new Map(filas.map((fila) => [fila.modalidadId, { id: fila.modalidadId, nombre: fila.modalidad }])).values()]
+    .filter(({ id }) => id)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const periodos = [...new Map(filas.map((fila) => [fila.periodoId, { id: fila.periodoId, codigo: fila.periodo }])).values()]
+    .filter(({ id }) => id)
+    .sort((a, b) => b.codigo.localeCompare(a.codigo, 'es', { numeric: true }));
+  const carreras = [...new Map(filas.filter((fila) => fila.tieneAsociacion)
+    .map((fila) => [fila.carreraId, { id: fila.carreraId, nombre: fila.carrera }])).values()]
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
-    const respuesta = await Swal.fire({
-      title: 'Crear nueva versión',
-      text: vacia ? `Se creará un borrador sin categorías ni indicadores para ${base.modalidad}.` : `Se copiará ${base.version} de ${base.modalidad} para el período ${base.periodo}.`,
-      input: 'text',
-      inputLabel: 'Nombre de la nueva versión',
-      inputValue: versionSugerida(base.version),
-      showCancelButton: true,
-      confirmButtonText: 'Crear borrador',
-      cancelButtonText: 'Cancelar',
-      inputValidator: (value) => (!value?.trim() ? 'Ingrese un nombre de versión.' : undefined),
-    });
-    if (!respuesta.isConfirmed) return;
+  const versionesHistorial = referenciaHistorial
+    ? versiones.filter((version) => (
+      version.idRubrica === referenciaHistorial.rubricaId
+      && String(version.periodoId ?? version.periodo) === String(referenciaHistorial.periodoId)
+    )).sort((a, b) => Date.parse(b.creadaEn ?? '') - Date.parse(a.creadaEn ?? ''))
+    : [];
 
-    const version = respuesta.value.trim();
-    const duplicada = !esApi && estado.versionesRubrica.some((rubrica) => (
-      rubrica.idRubrica === base.idRubrica && rubrica.periodo === base.periodo && rubrica.version.toLowerCase() === version.toLowerCase()
-    ));
-    if (duplicada) {
-      await Swal.fire({ icon: 'warning', title: 'La versión ya existe', text: 'Utilice un nombre de versión diferente.' });
-      return;
-    }
+  function actualizarFiltro(campo, valor) {
+    setFiltros((actuales) => ({ ...actuales, [campo]: valor }));
+  }
 
-    if (esApi) {
-      try {
-        const creada = await clonarVersionRubricaApi({ versionBase: base, version });
-        if (!creada || typeof creada.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id) || !Number.isInteger(creada.revision) || creada.estado !== 'BORRADOR') {
-          throw new Error('La API devolvió una respuesta de clonación inválida.');
-        }
-        try {
-          await lectura.reintentar();
-        } catch {
-          await Swal.fire({ icon: 'warning', title: 'Borrador creado', text: 'La API creó la versión, pero no fue posible recargar el catálogo. El detalle consultará el registro directamente.' });
-        }
-        navegar(`/rubricas/${encodeURIComponent(creada.id)}`);
-      } catch (error) {
-        await Swal.fire({ icon: 'error', title: 'No se creó el borrador', text: mensajeErrorEscrituraRubrica(error) });
-      }
-      return;
-    }
+  function cambiarOrden(campo) {
+    setOrden((actual) => ({
+      campo,
+      direccion: actual.campo === campo && actual.direccion === 'asc' ? 'desc' : 'asc',
+    }));
+  }
 
-    const id = `${base.idRubrica}-${base.periodo}-${version}-${Date.now().toString(36)}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-');
-    despachar({
-      tipo: 'CREAR_VERSION_RUBRICA',
-      rubrica: {
-        ...clonar(base),
-        ...(vacia ? { etapas: [], categorias: [] } : {}),
-        id,
-        version,
-        estado: 'BORRADOR',
-        activadoEn: null,
-        vigenteDesde: null,
-        vigenteHasta: null,
-      },
-    });
-    navegar(`/rubricas/${id}`);
-  };
+  function abrirHistorial(fila) {
+    setReferenciaHistorial(fila);
+  }
 
-  const crearBorradorVacio = async () => {
-    if (!esApi) return crearVersion(undefined, true);
-    if (!lectura.puedeAdministrar || creandoVacio) return;
-    setCreandoVacio(true);
-    try {
-      const [definiciones, catalogos] = await Promise.all([cargarDefinicionesRubricasApi(), cargarCatalogosRubricasApi()]);
-      if (!definiciones.length || !catalogos.periodos.length) throw new Error('Debe existir una rúbrica y un período en el backend para crear el borrador.');
-      const rubrica = await Swal.fire({ title: 'Rúbrica del borrador vacío', input: 'select', inputLabel: 'Rúbrica', inputOptions: Object.fromEntries(definiciones.map((r) => [r.id, `${r.nombre} · ${r.modalidad.nombre}`])), showCancelButton: true, confirmButtonText: 'Continuar', cancelButtonText: 'Cancelar' });
-      if (!rubrica.isConfirmed) return;
-      const periodo = await Swal.fire({ title: 'Período del borrador', input: 'select', inputLabel: 'Período', inputOptions: Object.fromEntries(catalogos.periodos.map((p) => [p.id, p.codigo])), showCancelButton: true, confirmButtonText: 'Continuar', cancelButtonText: 'Cancelar' });
-      if (!periodo.isConfirmed) return;
-      const nombre = await Swal.fire({ title: 'Crear borrador vacío', input: 'text', inputLabel: 'Nombre de la versión', inputAttributes: { maxlength: '30' }, inputValidator: (valor) => !valor?.trim() ? 'Ingrese un nombre de versión.' : undefined, showCancelButton: true, confirmButtonText: 'Crear borrador', cancelButtonText: 'Cancelar' });
-      if (!nombre.isConfirmed) return;
-      const creada = await crearVersionRubricaApi(rubrica.value, { periodoId: periodo.value, version: nombre.value });
-      if (!creada || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id) || !Number.isInteger(creada.revision) || creada.estado !== 'BORRADOR') throw new Error('La API devolvió una respuesta de creación inválida.');
-      try {
-        await lectura.reintentar();
-      } catch {
-        await Swal.fire({ icon: 'warning', title: 'Borrador creado', text: 'La API creó la versión, pero no fue posible recargar el catálogo. El detalle consultará el registro directamente.' });
-      }
-      navegar(`/rubricas/${encodeURIComponent(creada.id)}`);
-    } catch (error) {
-      await Swal.fire({ icon: 'error', title: 'No se creó el borrador', text: mensajeErrorEscrituraRubrica(error) });
-    } finally { setCreandoVacio(false); }
-  };
-
-  const crearFamilia = async () => {
-    if (!esApi || !lectura.puedeAdministrar || creandoFamilia) return;
-    setCreandoFamilia(true);
-    try {
-      const disponibles = await cargarModalidadesApi({ disponiblesParaFamilia: true });
-      if (!disponibles.length) {
-        await Swal.fire({ icon: 'info', title: 'No hay modalidades disponibles', text: 'Todas las modalidades activas ya tienen una familia o no hay modalidades activas.' });
-        return;
-      }
-      const seleccion = await Swal.fire({
-        title: 'Nueva familia de rúbricas',
-        input: 'select',
-        inputLabel: 'Modalidad activa sin familia',
-        inputOptions: Object.fromEntries(disponibles.map((modalidad) => [modalidad.id, `${modalidad.codigo} · ${modalidad.nombre}`])),
-        showCancelButton: true,
-        confirmButtonText: 'Continuar',
-        cancelButtonText: 'Cancelar',
-      });
-      if (!seleccion.isConfirmed) return;
-      const modalidad = disponibles.find((item) => item.id === seleccion.value);
-      if (!modalidad) throw new Error('La modalidad elegida dejó de estar disponible; recargue el catálogo.');
-      const nombre = await Swal.fire({
-        title: 'Nombre de la familia',
-        input: 'text',
-        inputValue: `Rúbrica de ${modalidad.nombre}`,
-        inputLabel: 'Nombre',
-        inputAttributes: { maxlength: '220' },
-        inputValidator: (valor) => !valor?.trim() ? 'Ingrese un nombre.' : undefined,
-        showCancelButton: true,
-        confirmButtonText: 'Crear familia',
-        cancelButtonText: 'Cancelar',
-      });
-      if (!nombre.isConfirmed) return;
-      const creada = await crearRubricaApi({ modalidadId: modalidad.id, nombre: nombre.value.trim(), descripcion: null });
-      if (!creada || typeof creada.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(creada.id)) {
-        throw new Error('La API devolvió una respuesta de creación inválida.');
-      }
-      navegar(`/maestros/modalidades/${encodeURIComponent(modalidad.id)}`);
-      lectura.reintentar().catch(() => {});
-    } catch (error) {
-      await Swal.fire({ icon: 'error', title: 'No se creó la familia', text: mensajeErrorEscrituraRubrica(error) });
-    } finally {
-      setCreandoFamilia(false);
-    }
-  };
-
-  const resumen = {
-    activas: versiones.filter((rubrica) => rubrica.estado === 'ACTIVA').length,
-    borradores: versiones.filter((rubrica) => rubrica.estado === 'BORRADOR').length,
-    historicas: versiones.filter((rubrica) => rubrica.estado === 'ARCHIVADA').length,
-  };
+  const avisoSinVigencia = filasCombinacion.length > 0
+    && !filasCombinacion.some((fila) => fila.vigente === true)
+    && filasCombinacion.some((fila) => fila.tieneAsociacion);
 
   return (
-    <div className="rubricas-page">
+    <div className="rubricas-catalogo-page">
       <EncabezadoPagina
         eyebrow="Configuración académica"
-        title="Gestión de rúbricas"
-        description="Administre versiones y consulte la estructura de evaluación definida para cada modalidad y período."
+        title="Rúbricas"
+        description="Consulte versiones por carrera, modalidad y período académico."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas' }]}
-        actions={<>{esApi && lectura.puedeAdministrar && <button className="button button-outline" type="button" disabled={creandoFamilia} onClick={crearFamilia}>Crear familia</button>}{(esApi ? lectura.puedeAdministrar : puedeGestionar) && <button className="button button-outline" type="button" disabled={creandoVacio} onClick={crearBorradorVacio}>Crear borrador vacío</button>}{esApi ? lectura.puedeAdministrar && versiones.length ? (
-          <button className="button button-primary" type="button" onClick={() => crearVersion()}>
-            <CopyPlus size={18} /> Clonar versión
-          </button>
-        ) : null : puedeGestionar ? (
-          <button className="button button-primary" type="button" onClick={() => crearVersion()}>
-            <CopyPlus size={18} /> Crear nueva versión
-          </button>
-        ) : null}</>}
+        actions={puedeCrearEnApi && <Link className="button button-primary" to="/rubricas/nueva"><Plus size={18} aria-hidden="true" /> Nueva rúbrica</Link>}
       />
 
-      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${lectura.puedeAdministrar ? 'administracion local' : 'solo lectura'}` : 'Origen: prototipo local'}>
-        <p>{esApi ? 'Los datos provienen del backend local y no se mezclan con el prototipo. Las escrituras requieren autorizacion administrativa del servidor.' : 'Se muestran datos simulados conservados localmente. La lectura del backend se habilita solo mediante configuracion explicita de desarrollo.'}</p>
+      {esApi && !lectura.cargando && !lectura.error && !puedeCrearEnApi && <p className="rubricas-creacion-pendiente">
+        {lectura.puedeAdministrarServidor
+          ? 'La creación requiere habilitar la escritura local de la API en este entorno.'
+          : 'El servidor dejó el catálogo en modo de consulta, sin habilitar la creación de rúbricas.'}
+      </p>}
+      {!esApi && <p className="rubricas-creacion-pendiente">La creación institucional requiere la fuente API y autorización administrativa; el prototipo no guarda rúbricas en PostgreSQL.</p>}
+
+      <AlertaInstitucional
+        tono="info"
+        titulo={esApi ? (lectura.puedeAdministrar ? 'Origen: API PostgreSQL · escritura autorizada' : 'Origen: API PostgreSQL · solo lectura') : 'Origen: prototipo local'}
+      >
+        <p>{esApi
+          ? 'Las asociaciones y vigencias mostradas provienen del servidor. El estado de una versión no determina su vigencia.'
+          : 'Los datos simulados se mantienen separados de PostgreSQL. El prototipo no contiene asociaciones institucionales de carrera.'}</p>
       </AlertaInstitucional>
 
-      <section className="rubricas-overview" aria-label="Resumen de versiones">
-        <article><BookOpenCheck size={20} /><div><strong>{versiones.length}</strong><span>Versiones registradas</span></div></article>
-        <article><ShieldCheck size={20} /><div><strong>{resumen.activas}</strong><span>Versiones activas</span></div></article>
-        <article><PencilLine size={20} /><div><strong>{resumen.borradores}</strong><span>{esApi ? 'Borradores consultables' : 'Borradores editables'}</span></div></article>
-        <article><FileClock size={20} /><div><strong>{resumen.historicas}</strong><span>Versiones históricas</span></div></article>
-      </section>
-
-      <div className="rubricas-integrity-note" role="note">
-        <ShieldCheck size={21} aria-hidden="true" />
-        <div>
-          <strong>Integridad de las evaluaciones históricas</strong>
-          <p>Cada evaluación conserva una copia de la rúbrica que recibió. Editar un borrador o crear una versión nueva no modifica trabajos anteriores.</p>
-        </div>
-      </div>
-
-      <section className="rubricas-catalog" aria-labelledby="rubricas-catalog-title">
-        <header className="rubricas-catalog-heading">
+      <section className="rubricas-catalogo" aria-labelledby="rubricas-catalogo-titulo">
+        <header className="rubricas-catalogo-heading">
           <div>
             <span className="section-kicker">Catálogo institucional</span>
-            <h2 id="rubricas-catalog-title">Versiones disponibles</h2>
-            <p>{esApi ? lectura.puedeAdministrar ? 'Los borradores pueden clonarse y editarse con la autorizacion local del servidor.' : 'Las versiones de PostgreSQL se consultan en modo solo lectura.' : 'La version y el estado determinan si la estructura puede editarse o solo consultarse.'}</p>
+            <h2 id="rubricas-catalogo-titulo">Versiones y vigencias</h2>
+            <p>La vigencia se consulta para cada carrera, modalidad y período.</p>
           </div>
-          <InsigniaEstado estado={`${versiones.length} versiones`} tono="info" />
+          <span className="rubricas-catalogo-conteo" aria-live="polite">
+            {lectura.error ? 'No disponible' : lectura.cargando ? 'Cargando…' : `${filtradas.length} ${filtradas.length === 1 ? 'resultado' : 'resultados'}`}
+          </span>
         </header>
 
+        <div className="rubricas-filtros" aria-label="Filtros de rúbricas">
+          <label className="rubricas-busqueda" htmlFor="rubricas-buscar">
+            Buscar rúbricas
+            <input
+              id="rubricas-buscar"
+              type="search"
+              value={filtros.busqueda}
+              onChange={(evento) => actualizarFiltro('busqueda', evento.target.value)}
+              placeholder="Modalidad, carrera o versión"
+              autoComplete="off"
+              disabled={lectura.cargando || Boolean(lectura.error)}
+            />
+          </label>
+          <label htmlFor="rubricas-carrera">
+            Carrera
+            <select id="rubricas-carrera" value={filtros.carreraId} onChange={(evento) => actualizarFiltro('carreraId', evento.target.value)} disabled={lectura.cargando || Boolean(lectura.error)}>
+              <option value="TODAS">Todas las carreras</option>
+              {carreras.map((carrera) => <option key={carrera.id} value={carrera.id}>{carrera.nombre}</option>)}
+              {filas.some((fila) => fila.carreraId === FILTRO_SIN_ASOCIACION)
+                && <option value={FILTRO_SIN_ASOCIACION}>Sin carrera asociada</option>}
+            </select>
+          </label>
+          <label htmlFor="rubricas-modalidad">
+            Modalidad
+            <select id="rubricas-modalidad" value={filtros.modalidadId} onChange={(evento) => actualizarFiltro('modalidadId', evento.target.value)} disabled={lectura.cargando || Boolean(lectura.error)}>
+              <option value="TODAS">Todas las modalidades</option>
+              {modalidades.map((modalidad) => <option key={modalidad.id} value={modalidad.id}>{modalidad.nombre}</option>)}
+            </select>
+          </label>
+          <label htmlFor="rubricas-periodo">
+            Período académico
+            <select id="rubricas-periodo" value={filtros.periodoId} onChange={(evento) => actualizarFiltro('periodoId', evento.target.value)} disabled={lectura.cargando || Boolean(lectura.error)}>
+              <option value="TODOS">Todos los períodos</option>
+              {periodos.map((periodo) => <option key={periodo.id} value={periodo.id}>{periodo.codigo}</option>)}
+            </select>
+          </label>
+          <label htmlFor="rubricas-vigencia">
+            Estado de vigencia
+            <select id="rubricas-vigencia" value={filtros.vigencia} onChange={(evento) => actualizarFiltro('vigencia', evento.target.value)} disabled={lectura.cargando || Boolean(lectura.error)}>
+              <option value="TODAS">Todas</option>
+              <option value="VIGENTE">Vigentes</option>
+              <option value="NO_VIGENTE">No vigentes</option>
+              {esApi && <option value={FILTRO_SIN_ASOCIACION}>Sin carrera asociada</option>}
+              {!esApi && <option value={FILTRO_NO_INFORMADA}>No informada en prototipo</option>}
+            </select>
+          </label>
+        </div>
+
         {lectura.cargando ? (
-          <p className="rubricas-empty" role="status">Consultando rúbricas del backend…</p>
+          <p className="rubricas-catalogo-estado" role="status">Cargando rúbricas…</p>
         ) : lectura.error ? (
-          <AlertaInstitucional tono="danger" titulo="No fue posible cargar las rúbricas">
+          <div className="rubricas-catalogo-error" role="alert">
+            <strong>No fue posible cargar las rúbricas</strong>
             <p>{lectura.error.message}</p>
             <button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button>
-          </AlertaInstitucional>
+          </div>
         ) : versiones.length === 0 ? (
-          <div className="rubricas-empty">
+          <div className="rubricas-catalogo-vacio">
+            <EstadoVacio title="No hay rúbricas registradas" description="El servicio no devolvió versiones para esta consulta." />
+          </div>
+        ) : ordenadas.length === 0 ? (
+          <div className="rubricas-catalogo-vacio">
             <EstadoVacio
-              title="No hay rúbricas configuradas"
-              description={esApi ? 'El servicio no devolvió rúbricas para esta consulta.' : 'Cree un borrador para definir la primera versión.'}
+              title="No se encontraron resultados"
+              description={filtros.vigencia === 'VIGENTE'
+                ? filasCombinacion.some((fila) => fila.tieneAsociacion)
+                  ? 'Hay versiones asociadas a esta combinación, pero ninguna tiene vigencia actual.'
+                  : 'No hay una versión asociada a esta carrera, modalidad y período.'
+                : 'Ajuste la búsqueda o los filtros para consultar otras versiones.'}
             />
           </div>
         ) : (
-          <div className="rubricas-version-grid">
-            {versiones.map((rubrica) => {
-              const presentacion = esApi && rubrica.estado === 'BORRADOR'
-                ? { etiqueta: 'Borrador', tono: 'progress', ayuda: lectura.puedeAdministrar ? 'Editable por la identidad administrativa local.' : 'Consulta de solo lectura desde PostgreSQL.' }
-                : estadoRubrica[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', ayuda: 'Estado de la version.' };
-
-              const etapas = obtenerEtapasRubrica(rubrica);
-              const indicadores = contarIndicadores(rubrica);
-              const esEditable = rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : puedeGestionar);
-              return (
-                <article className={`rubrica-version-card is-${rubrica.estado.toLowerCase()}`} key={rubrica.id}>
-                  <header className="rubrica-version-heading">
-                    <div className="rubrica-version-icon" aria-hidden="true"><BookOpenCheck size={22} /></div>
-                    <div>
-                      <span className="rubrica-version-modality">{rubrica.modalidad}</span>
-                      <h3>{rubrica.titulo}</h3>
-                    </div>
-                    <InsigniaEstado estado={presentacion.etiqueta} tono={presentacion.tono} />
-                  </header>
-
-                  <div className="rubrica-version-identity">
-                    <div><span>Versión</span><strong>{rubrica.version}</strong></div>
-                    <div><span>Período</span><strong>{rubrica.periodo}</strong></div>
-                    <div><span>Puntaje máximo</span><strong>{maximoRubrica(rubrica).toFixed(2)} pts</strong></div>
-                  </div>
-
-                  <div className="rubrica-version-counts" aria-label="Estructura de la versión">
-                    <span><Layers3 size={16} /> {rubrica.categorias.length} categorías</span>
-                    <span><Scale size={16} /> {indicadores} indicadores</span>
-                  </div>
-
-                  <div className="rubrica-version-stages">
-                    {etapas.map((etapa) => (
-                      <div key={etapa.id}>
-                        <span>{etapa.nombreCorto ?? etapa.nombre}</span>
-                        <strong>{maximoEtapa(rubrica, etapa.id).toFixed(2)} pts</strong>
+          <>
+            {avisoSinVigencia && <p className="rubricas-aviso-vigencia" role="status">
+              No hay una versión vigente para la combinación consultada; las versiones anteriores siguen disponibles.
+            </p>}
+            <div className="rubricas-tabla-scroll" tabIndex={0} aria-label="Tabla de rúbricas; desplazamiento horizontal disponible">
+              <table className="rubricas-tabla">
+                <caption className="visually-hidden">Rúbricas, versiones y vigencias por carrera</caption>
+                <thead>
+                  <tr>
+                    {COLUMNAS_ORDENABLES.map(({ clave, etiqueta }) => {
+                      const activa = orden.campo === clave;
+                      return <th key={clave} scope="col" aria-sort={activa ? orden.direccion === 'asc' ? 'ascending' : 'descending' : 'none'}>
+                        <button className="rubricas-orden" type="button" onClick={() => cambiarOrden(clave)}>
+                          {etiqueta}
+                          {activa && orden.direccion === 'asc' ? <ArrowUp size={14} aria-hidden="true" />
+                            : activa ? <ArrowDown size={14} aria-hidden="true" />
+                              : <ArrowDownUp size={14} aria-hidden="true" />}
+                        </button>
+                      </th>;
+                    })}
+                    <th scope="col">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordenadas.map((fila) => <tr key={fila.id}>
+                    <td><strong>{fila.modalidad}</strong><small>{fila.nombreRubrica}</small></td>
+                    <td>{fila.carrera}<small>{fila.carreraCodigo}</small></td>
+                    <td>{fila.periodo}</td>
+                    <td>{fila.version}</td>
+                    <td>{presentarVigencia(fila)}</td>
+                    <td>
+                      <div className="rubricas-tabla-acciones">
+                        <Link className="button button-outline" to={`/rubricas/${encodeURIComponent(fila.versionId)}`}>
+                          <Eye size={16} aria-hidden="true" /> Ver rúbrica
+                        </Link>
+                        <button className="button button-outline" type="button" onClick={() => abrirHistorial(fila)}>
+                          <History size={16} aria-hidden="true" /> Ver versiones
+                        </button>
                       </div>
-                    ))}
-                  </div>
-
-                  <p className="rubrica-version-help">{presentacion.ayuda}</p>
-
-                  <footer className="rubrica-version-actions">
-                    <Link className="button button-outline" to={`/rubricas/${rubrica.id}`}>
-                      {esEditable ? <PencilLine size={17} /> : <Eye size={17} />}
-                      {esEditable ? 'Editar borrador' : 'Ver estructura'}
-                    </Link>
-                    {esApi && lectura.puedeAdministrar ? (
-                      <button className="button button-primary" type="button" onClick={() => crearVersion(rubrica)}>
-                        <CopyPlus size={17} /> Clonar versión
-                      </button>
-                    ) : rubrica.estado === 'ACTIVA' && puedeGestionar && !esApi ? (
-                      <button className="button button-primary" type="button" onClick={() => crearVersion(rubrica)}>
-                        <CopyPlus size={17} /> Nueva versión
-                      </button>
-                    ) : null}
-                  </footer>
-                </article>
-              );
-            })}
-          </div>
+                    </td>
+                  </tr>)}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
+
+      <ModalVersionesRubrica
+        referencia={referenciaHistorial}
+        versiones={versionesHistorial}
+        fuente={lectura.fuente}
+        puedeCrearEnApi={puedeCrearEnApi}
+        onCerrar={() => setReferenciaHistorial(null)}
+      />
     </div>
   );
 }

@@ -75,7 +75,6 @@ export function InsigniaEstado({ estado, tono, tone, children, className = '', .
 
 export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', className = '', ...props }) {
   const navegar = useNavigate();
-  const { actorActual } = usarPrototipo();
 
   const volver = () => {
     const indice = window.history.state?.idx;
@@ -83,7 +82,6 @@ export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', clas
     const decision = resolverNavegacionRetorno({
       rutaAnterior,
       rutaRespaldo: respaldo,
-      roles: actorActual?.roles ?? [],
     });
     if (!confirmarDescarteCambios()) return;
     navegar(decision.usarHistorial ? -1 : decision.destino);

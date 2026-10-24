@@ -1,0 +1,10 @@
+{
+  "name": "genares",
+  "private": true,
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "node scripts/dev.mjs --frontend-only",
+    "dev:api": "node scripts/dev.mjs --backend-only",
+    "db:prepare": "node scripts/db-dev.mjs"
+  }
+}

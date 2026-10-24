@@ -1,0 +1,134 @@
+erDiagram
+    ACT_PERIODOS_ACADEMICOS {
+        uuid id PK "existente"
+    }
+    ACT_CARRERAS {
+        uuid id PK "existente"
+    }
+    ACT_TRABAJOS_TITULACION {
+        uuid id PK "existente"
+        uuid id_carrera FK "existente"
+        uuid periodo_academico_id FK "existente"
+    }
+    ACT_CUENTAS_USUARIO {
+        uuid id PK "existente"
+        uuid id_persona FK "existente"
+    }
+    ACT_PERSONAS {
+        uuid id PK "existente"
+    }
+    ACT_PERFILES_DOCENTE {
+        uuid id PK "existente"
+        uuid id_persona FK "existente"
+    }
+    ACT_PERFILES_ESTUDIANTE {
+        uuid id PK "existente"
+        uuid id_persona FK "existente"
+    }
+    ACT_ASIGNACIONES_TRIBUNAL {
+        uuid id PK "existente"
+        uuid id_trabajo FK "existente"
+    }
+    ACT_MIEMBROS_TRIBUNAL {
+        uuid id PK "existente"
+        uuid id_asignacion FK "existente"
+        uuid id_docente FK "existente"
+    }
+    ACT_ESTUDIANTES_TRABAJO {
+        uuid id PK "existente"
+        uuid id_trabajo FK "existente"
+        uuid id_estudiante FK "perfil estudiante existente"
+    }
+
+    EVOL_PROGRAMACIONES_SUSTENTACION {
+        uuid id PK "existente; conservar"
+        uuid id_trabajo FK "existente; cardinalidad cambia si se aprueba"
+        date fecha_programada "existente"
+        time hora_programada "existente, sin zona"
+        varchar sala "existente, texto libre"
+        enum estado "existente"
+        uuid scheduled_by_id_cuenta FK "existente"
+        uuid id_version_cronograma FK "propuesto"
+        uuid id_sesion_previa FK "propuesto nullable"
+        timestamptz inicio_en "propuesto; definición pendiente"
+        timestamptz fin_en "propuesto; duración pendiente"
+        uuid id_sala FK "propuesto nullable"
+    }
+    PROP_CRONOGRAMAS_SUSTENTACION {
+        uuid id PK "propuesto"
+        uuid id_periodo FK "propuesto"
+        varchar codigo "propuesto"
+        varchar titulo "propuesto"
+        uuid creado_por FK "propuesto"
+        timestamptz creado_en "propuesto"
+    }
+    PROP_VERSIONES_CRONOGRAMA {
+        uuid id PK "propuesto"
+        uuid id_cronograma FK "propuesto"
+        int numero "propuesto"
+        uuid id_version_previa FK "propuesto nullable"
+        varchar estado "propuesto"
+        varchar referencia_aprobacion "propuesto"
+        date aprobada_en "propuesto"
+        uuid registrada_por FK "propuesto"
+        timestamptz publicada_en "propuesto nullable"
+    }
+    PROP_SALAS_SUSTENTACION {
+        uuid id PK "propuesto"
+        varchar codigo "propuesto"
+        varchar nombre "propuesto"
+        varchar referencia_externa "propuesto nullable"
+        boolean activa "propuesto"
+    }
+    PROP_PARTICIPANTES_SESION {
+        uuid id PK "propuesto"
+        uuid id_programacion FK "propuesto"
+        uuid id_miembro_tribunal FK "propuesto nullable XOR"
+        uuid id_persona FK "propuesto nullable XOR"
+        varchar rol "propuesto; catálogo por definir"
+    }
+    PROP_RESERVAS_RECURSO_SESION {
+        uuid id PK "propuesto"
+        uuid id_programacion FK "propuesto"
+        uuid id_sala FK "propuesto nullable"
+        uuid id_persona FK "propuesto nullable"
+        uuid id_miembro_tribunal FK "propuesto nullable"
+        tstzrange intervalo "propuesto"
+        varchar estado "propuesto"
+    }
+    PROP_EVENTOS_CRONOGRAMA {
+        uuid id PK "propuesto"
+        uuid id_cronograma FK "propuesto"
+        uuid id_version FK "propuesto nullable"
+        uuid id_programacion FK "propuesto nullable"
+        uuid actor_id_cuenta FK "propuesto"
+        varchar tipo_evento "propuesto"
+        text motivo "propuesto"
+        timestamptz ocurrido_en "propuesto"
+    }
+
+    ACT_PERIODOS_ACADEMICOS ||--o{ ACT_TRABAJOS_TITULACION : periodo_actual
+    ACT_CARRERAS ||--o{ ACT_TRABAJOS_TITULACION : carrera_actual
+    ACT_PERSONAS ||--o| ACT_PERFILES_DOCENTE : persona_docente_actual
+    ACT_PERSONAS ||--o| ACT_PERFILES_ESTUDIANTE : persona_estudiante_actual
+    ACT_PERFILES_DOCENTE ||--o{ ACT_MIEMBROS_TRIBUNAL : docente_en_panel
+    ACT_PERFILES_ESTUDIANTE ||--o{ ACT_ESTUDIANTES_TRABAJO : estudiante_integrante
+    ACT_TRABAJOS_TITULACION ||--o{ ACT_ASIGNACIONES_TRIBUNAL : tribunal_actual
+    ACT_ASIGNACIONES_TRIBUNAL ||--o{ ACT_MIEMBROS_TRIBUNAL : miembros_actuales
+    ACT_TRABAJOS_TITULACION ||--o{ ACT_ESTUDIANTES_TRABAJO : integrantes_actuales
+    ACT_TRABAJOS_TITULACION ||--o{ EVOL_PROGRAMACIONES_SUSTENTACION : sesion_por_version_propuesta
+    ACT_CUENTAS_USUARIO ||--o{ EVOL_PROGRAMACIONES_SUSTENTACION : programo_legacy
+
+    ACT_PERIODOS_ACADEMICOS ||--o{ PROP_CRONOGRAMAS_SUSTENTACION : periodo_propuesto
+    ACT_CUENTAS_USUARIO ||--o{ PROP_CRONOGRAMAS_SUSTENTACION : creo_propuesto
+    PROP_CRONOGRAMAS_SUSTENTACION ||--|{ PROP_VERSIONES_CRONOGRAMA : versiones
+    PROP_VERSIONES_CRONOGRAMA o|--o{ PROP_VERSIONES_CRONOGRAMA : version_previa
+    PROP_VERSIONES_CRONOGRAMA ||--o{ EVOL_PROGRAMACIONES_SUSTENTACION : sesiones_versionadas
+    PROP_SALAS_SUSTENTACION o|--o{ PROP_RESERVAS_RECURSO_SESION : recurso_sala
+    EVOL_PROGRAMACIONES_SUSTENTACION ||--o{ PROP_RESERVAS_RECURSO_SESION : reservas
+    EVOL_PROGRAMACIONES_SUSTENTACION ||--o{ PROP_PARTICIPANTES_SESION : participantes
+    ACT_MIEMBROS_TRIBUNAL o|--o{ PROP_PARTICIPANTES_SESION : identidad_miembro
+    EVOL_PROGRAMACIONES_SUSTENTACION o|--o{ EVOL_PROGRAMACIONES_SUSTENTACION : sesion_previa
+    EVOL_PROGRAMACIONES_SUSTENTACION o|--o{ PROP_EVENTOS_CRONOGRAMA : eventos_sesion
+    PROP_VERSIONES_CRONOGRAMA o|--o{ PROP_EVENTOS_CRONOGRAMA : eventos_version
+    PROP_CRONOGRAMAS_SUSTENTACION ||--o{ PROP_EVENTOS_CRONOGRAMA : eventos_agenda

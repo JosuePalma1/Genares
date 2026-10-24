@@ -12,10 +12,11 @@ import {
   UsersRound,
   X,
 } from 'lucide-react';
-import { ROL } from '../datos/datosPrototipo';
 import { derivarEstadoTrabajo, nombreCompleto, tonoEstado } from '../dominio/flujoTrabajo';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../componentes/interfaz';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
+import { PaginaTrabajosApi } from './PaginaTrabajosApi';
 
 const ETAPAS_PROCESO = [
   'Registrado',
@@ -28,12 +29,11 @@ const ETAPAS_PROCESO = [
   'Finalizado',
 ];
 
-export default function PaginaTrabajos() {
-  const { estado, actorActual } = usarPrototipo();
+function PaginaTrabajosPrototipo() {
+  const { estado } = usarPrototipo();
   const [consulta, establecerConsulta] = useState('');
   const [filtroEstado, establecerFiltroEstado] = useState('Todos');
   const [periodo, establecerPeriodo] = useState('Todos');
-  const puedeGestionar = actorActual.roles.some((role) => [ROL.COMISION, ROL.ADMIN].includes(role));
   const filtrosActivos = Boolean(consulta || filtroEstado !== 'Todos' || periodo !== 'Todos');
 
   const filas = useMemo(() => estado.trabajos.map((trabajo) => ({
@@ -66,7 +66,7 @@ export default function PaginaTrabajos() {
         description="Consulte el avance del tribunal, las evaluaciones y la sustentación de cada trabajo."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Trabajos' }]}
         meta={<InsigniaEstado tono="neutral">{estado.trabajos.length} trabajos registrados</InsigniaEstado>}
-        actions={puedeGestionar && <Link className="button button-primary" to="/trabajos/nuevo"><Plus size={18} /> Registrar trabajo</Link>}
+        actions={<Link className="button button-primary" to="/trabajos/nuevo"><Plus size={18} /> Registrar trabajo</Link>}
       />
 
       <section className="trabajos-filters" aria-labelledby="trabajos-filters-title">
@@ -164,4 +164,8 @@ export default function PaginaTrabajos() {
       )}
     </div>
   );
+}
+
+export default function PaginaTrabajos() {
+  return FUENTE_TRABAJOS === 'api' ? <PaginaTrabajosApi /> : <PaginaTrabajosPrototipo />;
 }

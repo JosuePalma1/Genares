@@ -65,7 +65,7 @@ describe('infraestructura API', () => {
       const identidades: Record<string, IdentidadApi> = {
         verificada: { sujeto: 'prueba-verificada', tipo: 'VERIFICADA', capacidades: ['pruebas:escribir'] },
         'sin-capacidad': { sujeto: 'prueba-sin-capacidad', tipo: 'VERIFICADA', capacidades: [] },
-        simulada: { sujeto: 'prueba-simulada', tipo: 'SIMULADA', capacidades: ['pruebas:escribir'] },
+        'desarrollo-local': { sujeto: 'GENARES:LOCAL_DEVELOPMENT', tipo: 'DESARROLLO_LOCAL', capacidades: ['pruebas:escribir'] },
       };
       (request as SolicitudConIdentidad).identidadApi = tipo ? identidades[tipo] : undefined;
       next();
@@ -139,14 +139,14 @@ describe('infraestructura API', () => {
     expect(escrituraPublica.status).toBe(403);
   });
 
-  it('rechaza identidad simulada en producción y si el entorno no está explícitamente habilitado', async () => {
+  it('rechaza la identidad t?cnica local fuera del entorno de desarrollo', async () => {
     for (const entorno of ['production', '']) {
       process.env.NODE_ENV = entorno;
       const respuesta = await request('/api/v1/pruebas-api', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ nombre: 'Rúbrica', orden: 1 }),
-      }, 'simulada');
+      }, 'desarrollo-local');
       expect(respuesta.status).toBe(401);
       expect(await respuesta.json()).toMatchObject({ code: 'UNAUTHENTICATED' });
     }

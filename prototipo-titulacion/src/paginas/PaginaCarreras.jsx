@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pencil, Plus, RefreshCw } from 'lucide-react';
+import { Pencil, Plus, RefreshCw, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado } from '../componentes/interfaz';
 import { ModalFormularioCatalogo } from '../componentes/ModalFormularioCatalogo';
 import { TablaCatalogo } from '../componentes/TablaCatalogo';
 import { FUENTE_RUBRICAS, ESCRITURA_CARRERAS_API_HABILITADA } from '../configuracion/rubricas';
-import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
+import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { ErrorApiHttp } from '../servicios/clienteHttp';
 import {
   actualizarCarreraApi, cambiarEstadoCarreraApi, cargarCapacidadesCarrerasApi,
@@ -17,13 +17,13 @@ import './carreras.css';
 const FORMULARIO_VACIO = { codigo: '', nombre: '', estaActivo: true };
 
 function mensajeError(error, modo) {
-  if (error instanceof ErrorApiHttp && error.status === 401) return 'La API requiere una identidad validada.';
-  if (error instanceof ErrorApiHttp && error.status === 403) return 'La identidad no tiene permiso para esta operación.';
+  if (error instanceof ErrorApiHttp && error.status === 401) return 'El servidor no habilitó esta operación en el entorno actual.';
+  if (error instanceof ErrorApiHttp && error.status === 403) return 'La operación no está disponible en el entorno actual.';
   if (error instanceof ErrorApiHttp && error.status === 404) return 'La carrera ya no existe. Recargue el catálogo.';
   if (error instanceof ErrorApiHttp && error.status === 409) {
-    return modo === 'editar'
-      ? 'Otra sesión modificó esta carrera. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.'
-      : 'Ya existe una carrera con ese código. Revise el código institucional e inténtelo de nuevo.';
+    if (modo === 'editar') return 'Otra sesión modificó esta carrera. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.';
+    if (modo === 'estado') return 'Otra sesión modificó el estado de esta carrera. Se recargaron los datos actuales.';
+    return 'Ya existe una carrera con ese código. Revise el código institucional e inténtelo de nuevo.';
   }
   return error?.message || 'No fue posible completar la operación.';
 }
@@ -34,9 +34,8 @@ export default function PaginaCarreras() {
   const [carreras, setCarreras] = useState([]);
   const [puedeAdministrar, setPuedeAdministrar] = useState(false);
   const [cargando, setCargando] = useState(esApi);
+  const [mostrarAvisoOrigen, setMostrarAvisoOrigen] = useState(true);
   const [errorLectura, setErrorLectura] = useState('');
-  const [aviso, setAviso] = useState('');
-  const [conflictoLista, setConflictoLista] = useState(false);
   const [modo, setModo] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
   const [original, setOriginal] = useState(FORMULARIO_VACIO);
@@ -50,20 +49,22 @@ export default function PaginaCarreras() {
   usarAdvertenciaCambiosSinGuardar(sucio);
 
   const recargar = useCallback(async (signal) => {
-    if (!esApi) return;
+    if (!esApi) return false;
     setCargando(true);
     setErrorLectura('');
     try {
       const [registros, capacidades] = await Promise.all([
         cargarCarrerasApi({ signal }), cargarCapacidadesCarrerasApi({ signal }),
       ]);
-      if (signal?.aborted) return;
+      if (signal?.aborted) return false;
       setCarreras(registros);
       setPuedeAdministrar(capacidades.puedeAdministrar && puedeEscribir);
+      return true;
     } catch (causa) {
-      if (signal?.aborted || causa?.name === 'AbortError') return;
+      if (signal?.aborted || causa?.name === 'AbortError') return false;
       setPuedeAdministrar(false);
       setErrorLectura(mensajeError(causa));
+      return false;
     } finally {
       if (!signal?.aborted) setCargando(false);
     }
@@ -99,8 +100,8 @@ export default function PaginaCarreras() {
     },
   ], [puedeAdministrar, cambiandoId]);
 
-  function cerrarFormulario() {
-    if (guardando || !confirmarDescarteCambios()) return;
+  async function cerrarFormulario() {
+    if (guardando || !(await confirmarDescarteCambiosConDialogo())) return;
     setModo(null);
     setRegistroEditado(null);
     setFormulario(FORMULARIO_VACIO);
@@ -109,25 +110,23 @@ export default function PaginaCarreras() {
     setConflictoFormulario(false);
   }
 
-  function abrirNuevo() {
-    if (!puedeAdministrar || !confirmarDescarteCambios()) return;
+  async function abrirNuevo() {
+    if (!puedeAdministrar || !(await confirmarDescarteCambiosConDialogo())) return;
     setModo('crear');
     setRegistroEditado(null);
     setFormulario(FORMULARIO_VACIO);
     setOriginal(FORMULARIO_VACIO);
-    setAviso('');
     setErrorFormulario('');
     setConflictoFormulario(false);
   }
 
-  function abrirEdicion(carrera) {
-    if (!puedeAdministrar || !confirmarDescarteCambios()) return;
+  async function abrirEdicion(carrera) {
+    if (!puedeAdministrar || !(await confirmarDescarteCambiosConDialogo())) return;
     const datos = { codigo: carrera.codigo, nombre: carrera.nombre, estaActivo: carrera.estaActivo };
     setModo('editar');
     setRegistroEditado(carrera);
     setFormulario(datos);
     setOriginal(datos);
-    setAviso('');
     setErrorFormulario('');
     setConflictoFormulario(false);
   }
@@ -139,17 +138,36 @@ export default function PaginaCarreras() {
     setGuardando(true);
     setErrorFormulario('');
     setConflictoFormulario(false);
+    const operacion = modo;
+    const codigo = operacion === 'crear' ? formulario.codigo.trim() : registroEditado.codigo;
     try {
-      if (modo === 'crear') await crearCarreraApi(formulario);
+      if (operacion === 'crear') await crearCarreraApi(formulario);
       else await actualizarCarreraApi({ id: registroEditado.id, revision: registroEditado.revision, nombre: formulario.nombre });
       setModo(null);
       setRegistroEditado(null);
       setFormulario(FORMULARIO_VACIO);
       setOriginal(FORMULARIO_VACIO);
-      await recargar();
+      const listaActualizada = await recargar();
+      const titulo = operacion === 'crear' ? 'Carrera creada' : 'Carrera actualizada';
+      await Swal.fire({
+        icon: listaActualizada ? 'success' : 'warning',
+        title: listaActualizada ? titulo : `${titulo}; listado pendiente`,
+        text: listaActualizada
+          ? `${codigo} se guardó correctamente.`
+          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+        confirmButtonText: 'Continuar',
+      });
     } catch (causa) {
-      setErrorFormulario(mensajeError(causa, modo));
-      setConflictoFormulario(causa instanceof ErrorApiHttp && causa.status === 409 && modo === 'editar');
+      const texto = mensajeError(causa, operacion);
+      const conflicto = causa instanceof ErrorApiHttp && causa.status === 409 && operacion === 'editar';
+      setErrorFormulario(texto);
+      setConflictoFormulario(conflicto);
+      await Swal.fire({
+        icon: causa instanceof ErrorApiHttp && causa.status === 409 ? 'warning' : 'error',
+        title: conflicto ? 'La carrera cambió en otra sesión' : operacion === 'crear' ? 'No se creó la carrera' : 'No se guardaron los cambios',
+        text: texto,
+        confirmButtonText: 'Entendido',
+      });
     } finally {
       guardandoRef.current = false;
       setGuardando(false);
@@ -157,7 +175,7 @@ export default function PaginaCarreras() {
   }
 
   async function recargarEdicion() {
-    if (!registroEditado || !confirmarDescarteCambios()) return;
+    if (!registroEditado || !(await confirmarDescarteCambiosConDialogo())) return;
     try {
       const actual = await cargarCarreraApi(registroEditado.id);
       const datos = { codigo: actual.codigo, nombre: actual.nombre, estaActivo: actual.estaActivo };
@@ -168,7 +186,14 @@ export default function PaginaCarreras() {
       setConflictoFormulario(false);
       await recargar();
     } catch (causa) {
-      setErrorFormulario(mensajeError(causa, 'editar'));
+      const texto = mensajeError(causa, 'editar');
+      setErrorFormulario(texto);
+      await Swal.fire({
+        icon: causa instanceof ErrorApiHttp && causa.status === 409 ? 'warning' : 'error',
+        title: 'No se pudieron recargar los datos',
+        text: texto,
+        confirmButtonText: 'Entendido',
+      });
     }
   }
 
@@ -182,14 +207,28 @@ export default function PaginaCarreras() {
     });
     if (!respuesta.isConfirmed) return;
     setCambiandoId(carrera.id);
-    setAviso('');
-    setConflictoLista(false);
     try {
       await cambiarEstadoCarreraApi({ id: carrera.id, revision: carrera.revision, estaActivo: activar });
-      await recargar();
+      const listaActualizada = await recargar();
+      await Swal.fire({
+        icon: listaActualizada ? 'success' : 'warning',
+        title: listaActualizada
+          ? activar ? 'Carrera activada' : 'Carrera desactivada'
+          : activar ? 'Activación confirmada; listado pendiente' : 'Desactivación confirmada; listado pendiente',
+        text: listaActualizada
+          ? `${carrera.codigo} quedó ${activar ? 'activa' : 'inactiva'}.`
+          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+        confirmButtonText: 'Continuar',
+      });
     } catch (causa) {
-      setAviso(mensajeError(causa, 'estado'));
-      setConflictoLista(causa instanceof ErrorApiHttp && causa.status === 409);
+      const conflicto = causa instanceof ErrorApiHttp && causa.status === 409;
+      if (conflicto) await recargar();
+      await Swal.fire({
+        icon: conflicto ? 'warning' : 'error',
+        title: conflicto ? 'La carrera cambió en otra sesión' : 'No se cambió el estado',
+        text: mensajeError(causa, 'estado'),
+        confirmButtonText: 'Entendido',
+      });
     } finally {
       setCambiandoId(null);
     }
@@ -204,16 +243,20 @@ export default function PaginaCarreras() {
         {puedeAdministrar && <button className="button button-primary" type="button" onClick={abrirNuevo}><Plus size={18} aria-hidden="true" /> Nueva carrera</button>}
       </> : null} />
 
-    <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
-      <p>{esApi
-        ? 'El catálogo se consulta en PostgreSQL. Los cambios aparecen después de la confirmación del servidor.'
-        : 'En modo prototipo no se simulan carreras ni se realizan escrituras API.'}</p>
-    </AlertaInstitucional>
-
-    {aviso && <AlertaInstitucional tono={conflictoLista ? 'warning' : 'danger'} titulo={conflictoLista ? 'La carrera cambió en otra sesión' : 'No se completó la operación'}>
-      <p role="alert">{aviso}</p>
-      {conflictoLista && <button className="button button-outline" type="button" onClick={() => recargar()}>Recargar catálogo</button>}
-    </AlertaInstitucional>}
+    {mostrarAvisoOrigen && <div className="modalidades-origen-alerta">
+      <AlertaInstitucional className="modalidades-origen-alerta-contenido" tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
+        <p>{esApi
+          ? 'El catálogo se consulta en PostgreSQL. Los cambios aparecen después de la confirmación del servidor.'
+          : 'En modo prototipo no se simulan carreras ni se realizan escrituras API.'}</p>
+      </AlertaInstitucional>
+      <button
+        className="modalidades-origen-alerta-cerrar"
+        type="button"
+        aria-label="Cerrar aviso de origen"
+        title="Cerrar aviso"
+        onClick={() => setMostrarAvisoOrigen(false)}
+      ><X size={18} aria-hidden="true" /></button>
+    </div>}
 
     {esApi && <section className="card modalidades-catalog" aria-labelledby="carreras-titulo">
       <header className="modalidades-catalog-header"><div><span className="section-kicker">Catálogo institucional</span><h2 id="carreras-titulo">Carreras registradas</h2></div></header>
@@ -264,11 +307,6 @@ export default function PaginaCarreras() {
           data-enfoque-inicial={modo === 'editar' ? 'true' : undefined}
           onChange={(evento) => setFormulario({ ...formulario, nombre: evento.target.value })} />
       </label>
-      {modo === 'crear' && <label htmlFor="carrera-estado">Estado inicial
-        <select id="carrera-estado" value={String(formulario.estaActivo)} onChange={(evento) => setFormulario({ ...formulario, estaActivo: evento.target.value === 'true' })}>
-          <option value="true">Activa</option><option value="false">Inactiva</option>
-        </select>
-      </label>}
     </ModalFormularioCatalogo>
   </div>;
 }
