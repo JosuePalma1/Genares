@@ -97,7 +97,7 @@ function PaginaImpresionRubricaPrototipo() {
           <h1>Vista previa de la rúbrica</h1>
           <p>{trabajo.codigo} · {nombreCompleto(estudiante)}</p>
         </div>
-        <InsigniaEstado tono="success">Evaluación finalizada</InsigniaEstado>
+        <InsigniaEstado tono="success">Documento preliminar · evaluación cerrada</InsigniaEstado>
       </header>
 
       <section className="print-preview-context no-print" aria-label="Información de la vista previa">

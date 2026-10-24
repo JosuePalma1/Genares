@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../componentes/interfaz';
 import { listarTrabajosEvaluacionApi } from '../servicios/evaluacionesApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
+import { ErrorConexionApi, ErrorRespuestaApi } from '../servicios/clienteHttp';
 import './evaluacionesApi.css';
 
 const ETIQUETAS_ESTADO = {
   SIN_EVALUACIONES: 'Sin evaluaciones',
   EN_PROGRESO: 'Evaluaciones en progreso',
   EVALUACIONES_CERRADAS_INCOMPLETAS: 'Cerradas, faltan evaluaciones',
-  RESULTADO_COMPLETO: 'Consolidación completa',
+  RESULTADO_COMPLETO: 'Resultado consultivo completo',
   LEGACY_NO_CONSOLIDADA: 'Histórica sin consolidación dinámica',
   COMPLETA: 'Completa',
   CERRADA_INCOMPLETA: 'Cerrada incompleta',
-  BORRADOR: 'En progreso',
-  CERRADA: 'Cerrada',
+  BORRADOR: 'Abierta · borrador',
+  CERRADA: 'Cerrada · solo lectura',
 };
 
 function estadoLegible(estado) {
@@ -24,11 +25,14 @@ function estadoLegible(estado) {
 }
 
 export function mensajeSeguroEvaluaciones(error) {
-  if (error?.status === 401) return 'La API no esta disponible con la configuracion actual.';
+  if (error instanceof ErrorConexionApi) return error.message;
+  if (error instanceof ErrorRespuestaApi) return error.message;
+  if (error?.status === 401) return 'La API requiere una identidad validada para esta consulta.';
   if (error?.status === 403 || error?.status === 404) {
     return 'No se pudo consultar este trabajo. Puede no existir o no estar disponible.';
   }
-  if (error?.status === 409) return 'El trabajo todavía no tiene una versión de rúbrica consolidable.';
+  if (error?.status === 409) return 'El servidor indicó que esta consulta todavía no está disponible para el estado actual del trabajo.';
+  if (error?.status >= 500) return error.message;
   if (error?.message === 'El identificador debe ser un UUID válido.') return error.message;
   return 'No fue posible consultar la API de evaluaciones. No se mostrarán datos de demostración como sustitución.';
 }
@@ -57,12 +61,12 @@ export function PaginaMisEvaluacionesApi() {
       <EncabezadoPagina
         title="Evaluaciones"
         description="Consulte trabajos, estudiantes, tribunales y resultados desde PostgreSQL."
-        breadcrumbs={['Gestion academica', 'Evaluaciones']}
+        breadcrumbs={['Gestión académica', 'Evaluaciones']}
         meta={<InsigniaEstado tono="info"><Database size={14} /> PostgreSQL local</InsigniaEstado>}
       />
       {estado === 'cargando' && <EstadoConsultaEvaluacionesApi estado="cargando" />}
       {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void cargar(); }} />}
-      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos apareceran aqui cuando existan en la base local." />}
+      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando existan en la base local." />}
       {estado === 'listo' && trabajos.length > 0 && <div className="evaluaciones-api-sections">
         {trabajos.map((trabajo) => (
           <article className="evaluaciones-api-card" key={trabajo.id}>
@@ -70,12 +74,12 @@ export function PaginaMisEvaluacionesApi() {
               <div>
                 <span>{trabajo.codigo} | {trabajo.codigoCarrera ?? trabajo.carrera} | {trabajo.periodo}</span>
                 <h2>{trabajo.titulo}</h2>
-                <p>{trabajo.modalidad}{trabajo.rubrica ? ' | ' + trabajo.rubrica + ' ' + (trabajo.versionRubrica ?? '') : ' | Sin rubrica asociada'}</p>
+                <p>{trabajo.modalidad}{trabajo.rubrica ? ' | ' + trabajo.rubrica + ' ' + (trabajo.versionRubrica ?? '') : ' | Sin rúbrica asociada'}</p>
               </div>
               <UsersRound aria-hidden="true" />
             </div>
             <p>Estudiantes: {trabajo.estudiantes.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Sin estudiantes registrados'}</p>
-            <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignacion'}</p>
+            <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignación'}</p>
             <div className="form-actions">
               {trabajo.miembrosTribunal.length > 0 && <Link className="button button-primary" to={'/evaluaciones/' + trabajo.id + '/escrita'}><ClipboardCheck size={16} /> Consultar y evaluar</Link>}
               {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={estudiante.id} to={'/resultados/' + trabajo.id + '/' + estudiante.id}><BookOpenCheck size={16} /> Resultado | {estudiante.nombres} {estudiante.apellidos}</Link>)}
@@ -94,9 +98,10 @@ function Calificacion({ valor }) {
 export function EstadoConsultaEvaluacionesApi({ estado, error, alReintentar }) {
   if (estado === 'cargando') return <div className="evaluaciones-api-card" role="status">Consultando al servidor…</div>;
   if (estado === 'error') return (
-    <div className="evaluaciones-api-card">
-      <EstadoVacio title="Consulta no disponible" description={mensajeSeguroEvaluaciones(error)} accion={<button className="button button-outline" type="button" onClick={alReintentar}>Reintentar</button>} />
-    </div>
+    <AlertaInstitucional className="evaluaciones-api-error" tono="danger" role="alert" titulo="No se pudo consultar la API de evaluaciones">
+      <p>{mensajeSeguroEvaluaciones(error)}</p>
+      <button className="button button-outline" type="button" onClick={alReintentar}>Reintentar</button>
+    </AlertaInstitucional>
   );
   return null;
 }
@@ -142,7 +147,7 @@ function EvaluacionCard({ evaluacion, compartida }) {
         <InsigniaEstado estado={evaluacion.estado} />
       </div>
       <dl className="evaluaciones-api-score-grid">
-        <div><dt>Ámbito</dt><dd>{evaluacion.alcance}</dd></div>
+        <div><dt>Ámbito</dt><dd aria-label={`${etiquetaAlcanceEtapa(evaluacion.alcance)} (${evaluacion.alcance})`}>{etiquetaAlcanceEtapa(evaluacion.alcance)}</dd></div>
         <div><dt>Versión de rúbrica</dt><dd>{evaluacion.instantaneaRubrica.version} · {evaluacion.idVersionRubrica}</dd></div>
         <div><dt>Miembro del tribunal</dt><dd>{evaluacion.idMiembroTribunal}</dd></div>
         <div><dt>Calificación registrada</dt><dd><Calificacion valor={evaluacion.calificacionTotal} /> / {evaluacion.calificacionMaxima}</dd></div>
@@ -178,7 +183,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
           return (
             <section className="evaluaciones-api-stage" key={etapa.id} aria-labelledby={`etapa-${etapa.id}`}>
               <div className="evaluaciones-api-stage-heading">
-                <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3 id={`etapa-${etapa.id}`}>{etapa.nombre}</h3><p>{etapa.alcance} · máximo {etapa.calificacionMaxima}</p></div>
+                <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3 id={`etapa-${etapa.id}`}>{etapa.nombre}</h3><p aria-label={`${etiquetaAlcanceEtapa(etapa.alcance)} (${etapa.alcance})`}>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
                 <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               </div>
               {esCompartida && <AlertaInstitucional tono="info">Una evaluación del trabajo puede traspasarse a cada estudiante. Se muestra la evaluación original y las referencias de traspaso del servidor.</AlertaInstitucional>}
@@ -236,7 +241,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
     .sort((a, b) => a.posicion - b.posicion);
   return (
     <>
-      <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación es informativa. No cambia estados académicos ni crea una nota oficial.</p></AlertaInstitucional>
+      <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación es informativa y se expresa sobre 10.00. El umbral de aprobación de 7.00 y los rótulos APROBADO/REPROBADO son provisionales; no constituyen una decisión institucional oficial ni crea una nota oficial.</p></AlertaInstitucional>
       <section className="evaluaciones-api-card" aria-labelledby="resultado-estudiante-title">
         <div className="evaluaciones-api-result-header">
           <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{[resultado.estudiante.nombres, resultado.estudiante.apellidos].filter(Boolean).join(' ') || resultado.estudiante.id}</h2><p>{resultado.estudiante.id}</p></div>
@@ -249,7 +254,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
         <div className="evaluaciones-api-stage-results">
           {resultado.etapas.map((etapa) => (
             <article className="evaluaciones-api-stage-result-card" key={etapa.id}>
-              <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3>{etapa.nombre}</h3><p>{etapa.alcance} · máximo {etapa.calificacionMaxima}</p></div>
+              <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3>{etapa.nombre}</h3><p aria-label={`${etiquetaAlcanceEtapa(etapa.alcance)} (${etapa.alcance})`}>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
               <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               <div className="evaluaciones-api-stage-grade"><span>Promedio presentado</span><strong><Calificacion valor={etapa.promedioEtapa?.presentado ?? null} /></strong></div>
               {etapa.evaluadoresPendientes.length > 0 && <div className="evaluaciones-api-pending"><strong>Evaluadores pendientes</strong><ul>{etapa.evaluadoresPendientes.map((pendiente) => <li key={pendiente.idMiembroTribunal}>Miembro {pendiente.posicion} · {pendiente.causa}</li>)}</ul></div>}
@@ -258,10 +263,10 @@ export function PanelResultadoIndividualApi({ resultado }) {
           ))}
         </div>
         <div className="evaluaciones-api-final">
-          <span>Resultado final individual · sobre 10</span>
+          <span>Resultado consultivo individual · sobre 10</span>
           {resultado.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion}</strong> : <strong className="evaluaciones-api-no-final">No disponible · {estadoLegible(resultado.estado)}</strong>}
         </div>
-        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La API entrega promedios exactos y su representación decimal.</p>
+        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final. La API entrega el resultado consultivo sobre 10.00.</p>
         {miembros.length > 0 && <div className="form-actions resultado-miembro-actions" aria-label="Rúbricas PDF por miembro del tribunal">
           {miembros.map((miembro) => <Link
             className="button button-outline"
@@ -296,7 +301,7 @@ export function PaginaEvaluacionTrabajoApi() {
         breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, trabajo.codigo]}
         meta={<InsigniaEstado tono="info"><Database size={14} /> API · acceso definido por el servidor</InsigniaEstado>}
       />
-      <AlertaInstitucional titulo="Evaluacion vinculada al tribunal"><p>Seleccione el miembro registrado del tribunal que corresponda. El servidor valida su asignacion al trabajo al crear, guardar y cerrar la evaluacion.</p></AlertaInstitucional>
+      <AlertaInstitucional titulo="Evaluación vinculada al tribunal"><p>Seleccione el miembro registrado del tribunal que corresponda. El servidor valida su asignación al trabajo al crear, guardar y cerrar la evaluación.</p></AlertaInstitucional>
       <EditorEvaluacionApi
         idTrabajo={idTrabajo}
         evaluaciones={consulta.evaluaciones}

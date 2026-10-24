@@ -33,7 +33,7 @@ export class ErrorApiHttp extends Error {
         : status === 409
           ? 'Los datos cambiaron o entran en conflicto. Recargue antes de continuar.'
           : status >= 500
-            ? 'La API no pudo completar la operación.'
+            ? `NestJS respondió con un error HTTP ${status}. La operación solicitada no se completó.`
             : status === 400 && details.length
               ? `La API rechazó la solicitud: ${details.join(' ')}`
               : `La API respondió con estado HTTP ${status}.`;
@@ -47,7 +47,7 @@ export class ErrorApiHttp extends Error {
 
 export class ErrorConexionApi extends Error {
   constructor() {
-    super('No fue posible conectar con la API de rúbricas. Verifique que el backend esté disponible.');
+    super('No fue posible contactar con la API local. Confirme que NestJS esté activo y que el proxy de Vite apunte al puerto configurado; después, reintente.');
     this.name = 'ErrorConexionApi';
   }
 }
@@ -94,12 +94,34 @@ export function crearClienteHttp({
     }
 
     let respuesta;
+    let textoRespuesta = '';
+    let copiaTexto = null;
+    try {
+      copiaTexto = response.clone?.() ?? null;
+    } catch {
+      copiaTexto = null;
+    }
     try {
       respuesta = await response.json();
     } catch {
       respuesta = null;
+      try {
+        textoRespuesta = await (copiaTexto ?? response).text();
+      } catch {
+        textoRespuesta = '';
+      }
     }
-    if (!response.ok) throw new ErrorApiHttp(response.status, respuesta);
+    if (!response.ok) {
+      const contentType = response.headers?.get?.('content-type') ?? '';
+      // Vite devuelve una página/texto de error cuando no consigue alcanzar NestJS.
+      // Los errores JSON de NestJS conservan su status y no se confunden con una caída.
+      const respuestaNoJson = respuesta === null && !contentType.includes('application/json');
+      const errorProxyVite = /(?:http\s+)?proxy error|ECONNREFUSED|ECONNRESET/i.test(textoRespuesta);
+      if (respuestaNoJson && ([502, 503, 504].includes(response.status) || (response.status >= 500 && errorProxyVite))) {
+        throw new ErrorConexionApi();
+      }
+      throw new ErrorApiHttp(response.status, respuesta);
+    }
     if (respuesta === null) throw new ErrorRespuestaApi();
     return respuesta;
   }

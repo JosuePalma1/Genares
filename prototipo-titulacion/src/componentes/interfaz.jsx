@@ -2,19 +2,25 @@ import React from 'react';
 import { ArrowLeft, CheckCircle2, ChevronRight, CircleX, Inbox, Info, TriangleAlert } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { tonoEstado } from '../dominio/flujoTrabajo';
-import { confirmarDescarteCambios } from '../dominio/cambiosSinGuardar';
+import { confirmarDescarteCambiosConDialogo } from '../dominio/cambiosSinGuardar';
 import { obtenerRutaAnteriorInterna, resolverNavegacionRetorno } from '../dominio/navegacionRetorno';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 
 const ETIQUETAS_ESTADO = {
   ACTIVA: 'Activa',
   ARCHIVADA: 'Archivada',
-  BORRADOR: 'Borrador',
-  CERRADA: 'Finalizada',
+  BORRADOR: 'Abierta · borrador',
+  CERRADA: 'Cerrada',
   PENDIENTE: 'Pendiente',
   READ: 'Leída',
   UNREAD: 'No leída',
 };
+
+export function etiquetaAlcanceEtapa(alcance) {
+  if (alcance === 'TRABAJO_COMPARTIDO') return 'Compartida por trabajo';
+  if (alcance === 'ESTUDIANTE_INDIVIDUAL') return 'Individual por estudiante';
+  return alcance ?? 'Ámbito no disponible';
+}
 
 const TONOS_ESTADO = {
   ACTIVA: 'success',
@@ -76,14 +82,14 @@ export function InsigniaEstado({ estado, tono, tone, children, className = '', .
 export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', className = '', ...props }) {
   const navegar = useNavigate();
 
-  const volver = () => {
+  const volver = async () => {
     const indice = window.history.state?.idx;
     const rutaAnterior = obtenerRutaAnteriorInterna(indice);
     const decision = resolverNavegacionRetorno({
       rutaAnterior,
       rutaRespaldo: respaldo,
     });
-    if (!confirmarDescarteCambios()) return;
+    if (!(await confirmarDescarteCambiosConDialogo())) return;
     navegar(decision.usarHistorial ? -1 : decision.destino);
   };
 

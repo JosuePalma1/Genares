@@ -1,9 +1,21 @@
-.documentos-page { display: grid; gap: 24px; }
+.documentos-page { display: grid; gap: 24px; min-width: 0; max-width: 100%; }
 .documentos-page .card { padding: 24px; }
 .documentos-page label { display: grid; gap: 8px; margin-block: 12px; font-weight: 600; }
 .documentos-page select, .documentos-page input { padding: 12px; border: 1px solid #cddae6; border-radius: 8px; width: 100%; background: white; color: #172b40; }
 .documentos-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
 .documentos-acciones { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 16px; }
-.documentos-page iframe { width: 100%; height: 780px; border: 1px solid #cddae6; }
+.documentos-page iframe { display: block; width: 100%; height: min(780px, 75vh); min-height: 420px; border: 1px solid #cddae6; }
 .documentos-page li { margin-block: 8px; }
-.documentos-page table { width: 100%; text-align: left; }
+.documentos-table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; border: 1px solid #cddae6; border-radius: 8px; scrollbar-gutter: stable; }
+.documentos-table-wrap:focus-visible { outline: 3px solid #9ac7ed; outline-offset: 3px; }
+.documentos-page table { width: 100%; min-width: 860px; text-align: left; border-collapse: collapse; }
+.documentos-page th, .documentos-page td { padding: 12px; border-bottom: 1px solid #e5ebf1; vertical-align: top; }
+.documentos-page th { background: #f4f7fa; color: #53677d; font-size: .8rem; text-align: left; }
+.documentos-page td button { min-height: 40px; }
+
+@media (max-width: 620px) {
+  .documentos-page .card { padding: 17px; }
+  .documentos-page iframe { height: 70vh; min-height: 360px; }
+  .documentos-acciones { align-items: stretch; flex-direction: column; }
+  .documentos-acciones .button { width: 100%; }
+}

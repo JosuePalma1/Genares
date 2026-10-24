@@ -280,7 +280,7 @@ export function EditorEvaluacionApi({
           <h2 id="evaluacion-registro-title">Registro de evaluación</h2>
           <p>Se conserva una revisión por evaluación y se registra el miembro del tribunal seleccionado.</p>
         </div>
-        {puedeOperar
+        {puedeOperar && (!evaluacion || evaluacion.estado !== 'CERRADA')
           ? <span className="evaluaciones-api-write-badge"><CheckCircle2 size={15} /> Escritura autorizada</span>
           : <span className="evaluaciones-api-read-badge"><LockKeyhole size={15} /> Solo lectura</span>}
       </div>

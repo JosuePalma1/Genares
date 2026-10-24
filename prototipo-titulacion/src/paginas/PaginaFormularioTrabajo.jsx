@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { Plus, Trash2 } from 'lucide-react';
 import { CARRERAS_DEMOSTRACION } from '../datos/datosPrototipo';
-import { confirmarDescarteCambios, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
+import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { validarFormularioTrabajo } from '../dominio/validacionFormulariosHeredados';
 import { usarPrototipo } from '../estado/ContextoPrototipo';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina } from '../componentes/interfaz';
@@ -77,8 +77,8 @@ function PaginaFormularioTrabajoPrototipo() {
     establecerErrores({});
   };
 
-  const cancelar = () => {
-    if (!confirmarDescarteCambios()) return;
+  const cancelar = async () => {
+    if (!(await confirmarDescarteCambiosConDialogo())) return;
     navegar('/trabajos');
   };
 

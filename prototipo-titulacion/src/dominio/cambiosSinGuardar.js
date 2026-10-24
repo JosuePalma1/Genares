@@ -8,13 +8,6 @@ export function hayCambiosSinGuardar() {
   return [...registrosActivos].some((registro) => registro.sucio.current);
 }
 
-export function confirmarDescarteCambios() {
-  if (!hayCambiosSinGuardar()) return true;
-  const confirmado = window.confirm(MENSAJE);
-  if (confirmado) descartarCambiosRegistrados();
-  return confirmado;
-}
-
 export async function confirmarDescarteCambiosConDialogo() {
   if (!hayCambiosSinGuardar()) return true;
   const respuesta = await Swal.fire({
@@ -29,6 +22,10 @@ export async function confirmarDescarteCambiosConDialogo() {
   if (!respuesta.isConfirmed) return false;
   descartarCambiosRegistrados();
   return true;
+}
+
+export function confirmarDescarteCambios() {
+  return confirmarDescarteCambiosConDialogo();
 }
 
 function descartarCambiosRegistrados() {

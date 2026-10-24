@@ -33,8 +33,8 @@ import { PaginaEvaluacionTrabajoApi } from './PaginaEvaluacionesApi';
 
 const textoEstadoOral = (oral) => (
   oral?.estado === ESTADO_EVALUACION.CERRADA
-    ? 'Evaluación finalizada'
-    : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Borrador' : 'Pendiente'
+    ? 'Cerrada · solo lectura'
+    : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente'
 );
 
 export default function PaginaEvaluacionOral() {
@@ -199,7 +199,7 @@ function PaginaEvaluacionOralPrototipo() {
   };
 
   const metaComparativa = todasComparativasCerradas
-    ? <InsigniaEstado tono="success">Evaluaciones finalizadas</InsigniaEstado>
+    ? <InsigniaEstado tono="success">Evaluaciones cerradas</InsigniaEstado>
     : algunaComparativaCerrada
       ? <InsigniaEstado tono="progress">Cierre parcial</InsigniaEstado>
       : <InsigniaEstado tono="pending">Evaluaciones individuales</InsigniaEstado>;
@@ -299,7 +299,7 @@ function PaginaEvaluacionOralPrototipo() {
             <div className="estudiante-tab evaluacion-estudiante-tab active">
               <span className="estudiante-tab-index" aria-hidden="true">01</span>
               <span className="estudiante-tab-info"><span className="estudiante-tab-name">{nombreCompleto(estudiante)}</span><small>Evaluando ahora</small></span>
-              <InsigniaEstado tono={cerrado ? 'success' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'progress' : 'pending'}>{cerrado ? 'Finalizada' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Borrador' : 'Pendiente'}</InsigniaEstado>
+              <InsigniaEstado tono={cerrado ? 'success' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'progress' : 'pending'}>{cerrado ? 'Cerrada · solo lectura' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente'}</InsigniaEstado>
             </div>
           </div>
         </section>
@@ -309,7 +309,7 @@ function PaginaEvaluacionOralPrototipo() {
         <UserRound size={20} aria-hidden="true" />
         <div>
           <strong>{esComparativa ? 'Dos evaluaciones individuales en una sola vista' : `Evaluando a ${nombreCompleto(estudiante)}`}</strong>
-          <span>{esComparativa ? 'Los datos nunca se copian ni se promedian entre estudiantes. Los guardados se ejecutan de forma independiente con el modelo actual.' : 'Este formulario y su borrador pertenecen únicamente al estudiante seleccionado.'}</span>
+          <span>{esComparativa ? 'Los datos nunca se copian ni se promedian entre estudiantes. Los guardados se ejecutan de forma independiente con el modelo actual.' : 'Esta etapa es individual por estudiante: el formulario y su borrador pertenecen únicamente al estudiante seleccionado.'}</span>
         </div>
       </div>
 

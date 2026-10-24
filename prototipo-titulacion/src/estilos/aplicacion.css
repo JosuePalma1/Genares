@@ -1,6 +1,9 @@
 /* Componentes compartidos: alertas institucionales y dialogos de confirmacion. */
 .institutional-alert {
   align-items: flex-start;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
+  line-height: var(--line-height-base);
 }
 
 .institutional-alert-icon {
@@ -19,6 +22,16 @@
 
 .institutional-alert-content {
   min-width: 0;
+}
+
+.institutional-alert-content > :last-child {
+  margin-bottom: 0;
+}
+
+.institutional-alert-content strong {
+  display: block;
+  margin-bottom: var(--space-1);
+  color: inherit;
 }
 
 .alert-danger {
@@ -50,6 +63,7 @@
 
 .genares-dialog .genares-dialog-actions {
   gap: var(--space-3);
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .genares-dialog .genares-dialog-actions .button {

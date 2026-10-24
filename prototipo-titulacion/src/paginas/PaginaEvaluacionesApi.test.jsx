@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Router } from 'react-router-dom';
+import { ErrorConexionApi } from '../servicios/clienteHttp';
 import {
   EstadoConsultaEvaluacionesApi,
   PanelEvaluacionesTrabajoApi,
@@ -172,12 +173,20 @@ describe('presentación de consulta API de evaluaciones', () => {
     },
   );
 
-  it('comunica de manera segura 403/404 y mantiene el estado de carga', () => {
+  it('muestra un único error recuperable sin usar el estado vacío cuando falla la API', () => {
     expect(mensajeSeguroEvaluaciones({ status: 403 })).toBe(mensajeSeguroEvaluaciones({ status: 404 }));
     expect(mensajeSeguroEvaluaciones({ status: 404 })).not.toContain('No existe');
     const cargando = html(createElement(EstadoConsultaEvaluacionesApi, { estado: 'cargando' }));
     expect(cargando).toContain('Consultando al servidor');
+    const desconectado = html(createElement(EstadoConsultaEvaluacionesApi, { estado: 'error', error: new ErrorConexionApi(), alReintentar: vi.fn() }));
+    expect(desconectado.match(/role="alert"/g)).toHaveLength(1);
+    expect(desconectado).toContain('No se pudo consultar la API de evaluaciones');
+    expect(desconectado).toContain('Confirme que NestJS esté activo');
+    expect(desconectado).toContain('Reintentar');
+    expect(desconectado).not.toContain('empty-estado');
+
     const denegado = html(createElement(EstadoConsultaEvaluacionesApi, { estado: 'error', error: { status: 404 }, alReintentar: vi.fn() }));
     expect(denegado).toContain('No se pudo consultar este trabajo');
+    expect(denegado).not.toContain('empty-estado');
   });
 });

@@ -10,6 +10,7 @@ import { registrarRutaInterna } from '../dominio/navegacionRetorno';
 import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
 import { FUENTE_PROGRAMACIONES } from '../configuracion/programaciones';
 import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
+import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
 
 const NAVEGACION = [
   {
@@ -75,6 +76,7 @@ export function EstructuraAplicacion({ children }) {
     && (ubicacion.pathname === '/mis-evaluaciones' || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/'));
   const esVistaCronogramaApi = FUENTE_PROGRAMACIONES === 'api' && ubicacion.pathname === '/cronograma';
   const esVistaDatosApi = esVistaEvaluacionesApi || esVistaCronogramaApi || FUENTE_RUBRICAS === 'api';
+  const esModoApi = [FUENTE_TRABAJOS, FUENTE_EVALUACIONES, FUENTE_PROGRAMACIONES, FUENTE_RUBRICAS].includes('api');
 
   useEffect(() => {
     if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
@@ -124,7 +126,7 @@ export function EstructuraAplicacion({ children }) {
         </div>
 
         <div className="topbar-actions">
-          <CampanaNotificaciones />
+          {!esModoApi && <CampanaNotificaciones />}
           <div className="user-box" aria-label="Sistema abierto de desarrollo">
             <div className="user-meta"><strong>Sistema local</strong><span>Sin cuentas de usuario</span></div>
             <span className="avatar" aria-hidden="true">{iniciales('Sistema local')}</span>

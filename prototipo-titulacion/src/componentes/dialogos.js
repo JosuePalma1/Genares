@@ -19,5 +19,5 @@ export const CONFIGURACION_DIALOGOS = Object.freeze({
 });
 
 // El mixin conserva el contrato y el resultado de Swal.fire; solamente centraliza
-// la presentacion visual y mantiene la restauracion de foco de SweetAlert2.
+// la presentación visual y mantiene la restauración de foco de SweetAlert2.
 export const DialogoGenares = SweetAlert.mixin(CONFIGURACION_DIALOGOS);

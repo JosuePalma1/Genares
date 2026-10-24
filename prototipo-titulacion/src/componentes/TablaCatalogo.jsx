@@ -87,13 +87,12 @@ export function TablaCatalogo({
         </label>
       </div>
 
-      {error && <div className="tabla-catalogo-error" role="alert">
+      {error ? <div className="tabla-catalogo-error" role="alert">
         <p>{error}</p>
         {onReintentar && <button className="button button-outline" type="button" onClick={onReintentar}>Reintentar lectura</button>}
-      </div>}
-      {cargando && <p className="tabla-catalogo-cargando" role="status">Actualizando {etiquetaRegistro}…</p>}
+      </div> : cargando ? <p className="tabla-catalogo-cargando" role="status">Actualizando {etiquetaRegistro}…</p> : null}
 
-      {ordenados.length === 0 && !cargando ? contenidoVacio() : <div className="tabla-catalogo-scroll" tabIndex="0" aria-label={`${caption}; desplazamiento horizontal disponible`}>
+      {!error && !cargando && (ordenados.length === 0 ? contenidoVacio() : <div className="tabla-catalogo-scroll" tabIndex="0" aria-label={`${caption}; desplazamiento horizontal disponible`}>
         <table>
           <caption className="visually-hidden">{caption}</caption>
           <thead>
@@ -122,7 +121,7 @@ export function TablaCatalogo({
             </tr>)}
           </tbody>
         </table>
-      </div>}
+      </div>)}
     </div>
   );
 }

@@ -136,4 +136,18 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).not.toContain('DEV-TI-001');
     expect(html).not.toContain('Sistema de titulación de ejemplo');
   });
+
+  it('Dashboard no presenta indicadores vacíos cuando falla la lectura de trabajos', () => {
+    usarSeguimientoApi.mockReturnValue({
+      ...datosBase(),
+      trabajos: { estado: 'error', datos: [], error: new Error('NestJS no responde') },
+      consolidaciones: { estado: 'no_disponible', datos: {}, error: null, mensaje: 'No hay trabajos disponibles.' },
+    });
+    const html = renderizar(<DashboardSeguimientoApi />);
+    expect(html).toContain('No fue posible consultar trabajos.');
+    expect(html.match(/role="alert"/g)).toHaveLength(1);
+    expect(html).not.toContain('No hay trabajos disponibles.');
+    expect(html).not.toContain('No hay trabajos registrados');
+    expect(html).not.toContain('Sin estados para mostrar');
+  });
 });

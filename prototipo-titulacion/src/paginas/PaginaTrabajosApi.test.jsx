@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './PaginaTrabajosApi';
 import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
+import { ErrorConexionApi } from '../servicios/clienteHttp';
 
 vi.mock('../hooks/usarTrabajosApi', () => ({
   usarTrabajosApi: vi.fn(),
@@ -52,6 +53,19 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain('Andrea Vera');
     expect(html).not.toContain('trabajo-184');
     expect(html).toContain(`/trabajos/${trabajoId}`);
+  });
+
+  it('presenta el fallo API como error recuperable sin un estado vacío de trabajos', () => {
+    usarTrabajosApi.mockReturnValue({
+      estado: 'error', trabajos: [], error: new ErrorConexionApi(), recargar: vi.fn(),
+    });
+    const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
+    expect(html.match(/role="alert"/g)).toHaveLength(1);
+    expect(html).toContain('No se pudo consultar PostgreSQL');
+    expect(html).toContain('Confirme que NestJS esté activo');
+    expect(html).toContain('Reintentar');
+    expect(html).not.toContain('No hay trabajos registrados');
+    expect(html).not.toContain('empty-estado');
   });
 
   it('enlaza el expediente persistido con evaluaciones, resultados y tribunal', () => {

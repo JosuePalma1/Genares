@@ -16,7 +16,6 @@ import {
   nombreCompleto,
   obtenerEtapasRubrica,
   calificacionMiembro,
-  maximoRubrica,
   maximoEtapa,
   calificacionEtapa,
   calificacionFinalEstudiante,
@@ -54,7 +53,6 @@ function PaginaResultadosPrototipo() {
   const calificacionFinal = calificacionFinalEstudiante(estado, trabajo, estudiante.id);
   const rubricaReferencia = evaluaciones[0]?.instantaneaRubrica ?? estado.versionesRubrica.find((rubrica) => rubrica.id === trabajo.idVersionRubrica);
   const etapasReferencia = obtenerEtapasRubrica(rubricaReferencia);
-  const maximo = maximoRubrica(rubricaReferencia);
   const estadoProceso = derivarEstadoTrabajo(estado, trabajo);
   const tutor = estado.personas.find((persona) => persona.id === trabajo.idTutor);
   const resultadosEstudiantes = estudiantes.map((persona) => ({
@@ -116,9 +114,9 @@ function PaginaResultadosPrototipo() {
                     <small>{miembrosFinalizados} de {trabajo.idsTribunal.length} evaluaciones completas</small>
                   </div>
                   <div className="resultados-estudiante-score">
-                    <span>{calificacion !== null ? 'Definitiva' : 'Pendiente'}</span>
+                    <span>{calificacion !== null ? 'Resultado consultivo' : 'Pendiente'}</span>
                     <strong>{calificacion !== null ? calificacion.toFixed(2) : '—'}</strong>
-                    <small>/ {maximo.toFixed(2)}</small>
+                    <small>/ 10.00</small>
                   </div>
                 </Link>
               );
@@ -137,9 +135,9 @@ function PaginaResultadosPrototipo() {
           </div>
         </div>
         <div className="resultado-final-score">
-          <span>{calificacionFinal !== null ? 'Resultado definitivo' : 'Resultado aún no consolidado'}</span>
+          <span>{calificacionFinal !== null ? 'Resultado consultivo' : 'Resultado aún no consolidado'}</span>
           <strong>{calificacionFinal !== null ? calificacionFinal.toFixed(2) : '—'}</strong>
-          <small>sobre {maximo.toFixed(2)} puntos</small>
+          <small>sobre 10.00 puntos</small>
         </div>
       </section>
 
@@ -164,7 +162,7 @@ function PaginaResultadosPrototipo() {
                     <span>Miembro {indice + 1}</span>
                     <h3>{nombreCompleto(miembro)}</h3>
                   </div>
-                  <InsigniaEstado tono={calificacion !== null ? 'success' : 'pending'}>{calificacion !== null ? 'Finalizada' : 'Incompleta'}</InsigniaEstado>
+                  <InsigniaEstado tono={calificacion !== null ? 'success' : 'pending'}>{calificacion !== null ? 'Cerrada' : 'Incompleta'}</InsigniaEstado>
                 </header>
 
                 <div className="resultado-etapas">
@@ -186,7 +184,7 @@ function PaginaResultadosPrototipo() {
 
                 <div className="result-total resultado-miembro-total">
                   <div><span>Nota del miembro</span><small>{calificacion !== null ? 'Escrita + oral' : 'Aún no consolidada'}</small></div>
-                  <strong>{calificacion !== null ? calificacion.toFixed(2) : '—'} <span>/ {(rubrica ? maximoRubrica(rubrica) : maximo).toFixed(2)}</span></strong>
+                  <strong>{calificacion !== null ? calificacion.toFixed(2) : '—'} <span>/ 10.00</span></strong>
                 </div>
 
                 {calificacion !== null ? (
@@ -210,7 +208,7 @@ function PaginaResultadosPrototipo() {
             <h2 id="resultado-consolidado-title">Calificación final del estudiante</h2>
             <p>Promedio de las calificaciones finales otorgadas por los dos miembros del tribunal.</p>
           </div>
-          <InsigniaEstado tono={calificacionFinal !== null ? 'success' : 'pending'}>{calificacionFinal !== null ? 'Resultado definitivo' : 'Faltan evaluaciones'}</InsigniaEstado>
+          <InsigniaEstado tono={calificacionFinal !== null ? 'success' : 'pending'}>{calificacionFinal !== null ? 'Resultado consultivo' : 'Faltan evaluaciones'}</InsigniaEstado>
         </header>
 
         <div className="calculation resultado-calculation" role="region" aria-label="Fórmula de calificación final">
@@ -228,7 +226,7 @@ function PaginaResultadosPrototipo() {
           <div className="calculation-box calculation-final">
             <small>Calificación final</small>
             <strong>{calificacionFinal !== null ? calificacionFinal.toFixed(2) : '—'}</strong>
-            <span className="calculation-scale">sobre {maximo.toFixed(2)} pts</span>
+            <span className="calculation-scale">sobre 10.00 pts</span>
           </div>
         </div>
 
@@ -236,12 +234,15 @@ function PaginaResultadosPrototipo() {
           <div className="resultado-consolidado-note" role="note">
             <Clock3 size={20} aria-hidden="true" />
             <div>
-              <strong>Resultado parcial</strong>
-              <p>La calificación definitiva de {nombreCompleto(estudiante)} se calculará únicamente cuando los dos miembros completen su revisión escrita y evaluación oral.</p>
+              <strong>Resultado consultivo parcial</strong>
+              <p>El resultado consultivo de {nombreCompleto(estudiante)} se completará únicamente cuando los dos miembros completen su revisión escrita y evaluación oral.</p>
             </div>
           </div>
         )}
       </section>
+      <AlertaInstitucional tono="info" titulo="Escala y umbral provisionales">
+        <p>La suma de máximos de las etapas describe la estructura de la rúbrica y no es la nota final. Este resultado consultivo se expresa sobre 10.00; el umbral de aprobación es 7.00. APROBADO/REPROBADO solo son rótulos provisionales y no una decisión institucional oficial.</p>
+      </AlertaInstitucional>
     </div>
   );
 }

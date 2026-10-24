@@ -134,5 +134,35 @@ describe('cliente HTTP de escritura local', () => {
       fetcher: vi.fn().mockRejectedValue(new TypeError('offline')),
     });
     await expect(offline.postJson('/rubricas', {})).rejects.toBeInstanceOf(ErrorConexionApi);
+    await expect(offline.getJson('/carreras')).rejects.toMatchObject({
+      name: ErrorConexionApi.name,
+      message: expect.stringContaining('NestJS'),
+    });
+  });
+
+  it('distingue el error de proxy de Vite de un error JSON devuelto por NestJS', async () => {
+    const proxyCaido = crearClienteHttp({
+      baseUrl: '/api/v1',
+      habilitado: true,
+      fetcher: vi.fn().mockResolvedValue(new Response('http proxy error', {
+        status: 500,
+        headers: { 'Content-Type': 'text/plain' },
+      })),
+    });
+    await expect(proxyCaido.getJson('/trabajos')).rejects.toBeInstanceOf(ErrorConexionApi);
+
+    const errorNest = crearClienteHttp({
+      baseUrl: '/api/v1',
+      habilitado: true,
+      fetcher: vi.fn().mockResolvedValue(new Response(JSON.stringify({ statusCode: 500 }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })),
+    });
+    await expect(errorNest.getJson('/trabajos')).rejects.toMatchObject({
+      name: ErrorApiHttp.name,
+      status: 500,
+      message: 'NestJS respondió con un error HTTP 500. La operación solicitada no se completó.',
+    });
   });
 });

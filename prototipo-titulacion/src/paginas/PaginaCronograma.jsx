@@ -427,8 +427,9 @@ export default function PaginaCronograma() {
             <div className="cronograma-empty"><CalendarDays size={30} aria-hidden="true" /><h3>No hay sustentaciones para estos filtros</h3><p>Pruebe otro período, carrera o estado, o agregue un trabajo elegible.</p></div>
           ) : null}
           {!cargando && elementos.length > 0 ? (
-            <div className="cronograma-table-wrap">
+            <div className="cronograma-table-wrap" role="region" aria-label="Tabla de sustentaciones programadas" tabIndex="0">
               <table className="cronograma-table">
+                <caption className="sr-only">Sustentaciones programadas y acciones disponibles</caption>
                 <thead><tr><th>Fecha</th><th>Horario estimado</th><th>Estudiante(s)</th><th>Trabajo</th><th>Tribunal</th><th>Sala</th><th>Estado y hora real</th><th>Acciones</th></tr></thead>
                 <tbody>
                   {elementos.map((elemento) => (

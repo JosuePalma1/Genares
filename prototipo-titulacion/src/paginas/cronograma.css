@@ -1,6 +1,7 @@
-.cronograma-page { display: grid; gap: 22px; }
-.cronograma-header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
-.cronograma-form-card, .cronograma-list-card { padding: 24px; }
+.cronograma-page { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; min-width: 0; max-width: 100%; }
+.cronograma-screen-only { min-width: 0; max-width: 100%; }
+.cronograma-header-actions { display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.cronograma-form-card, .cronograma-list-card { min-width: 0; padding: 24px; }
 .cronograma-form-header, .cronograma-list-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .cronograma-form-header h2, .cronograma-list-header h2 { margin: 5px 0 7px; }
 .cronograma-form-header p { margin: 0; color: var(--text-secondary, #5f7186); }
@@ -25,7 +26,8 @@
 .cronograma-empty { display: grid; justify-items: center; gap: 8px; padding: 42px 18px; text-align: center; color: #5b7086; }
 .cronograma-empty svg { color: #1b527d; }
 .cronograma-empty h3, .cronograma-empty p { margin: 0; }
-.cronograma-table-wrap { overflow-x: auto; border: 1px solid #dce5ed; border-radius: 12px; }
+.cronograma-table-wrap { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; overflow-y: hidden; overscroll-behavior-inline: contain; border: 1px solid #dce5ed; border-radius: 12px; scrollbar-gutter: stable; }
+.cronograma-table-wrap:focus-visible { outline: 3px solid #9ac7ed; outline-offset: 3px; }
 .cronograma-table { width: 100%; border-collapse: collapse; min-width: 1100px; }
 .cronograma-table th { padding: 13px 12px; background: #f4f7fa; color: #53677d; text-align: left; font-size: .78rem; letter-spacing: .04em; text-transform: uppercase; }
 .cronograma-table td { padding: 14px 12px; border-top: 1px solid #e5ebf1; color: #27425c; vertical-align: top; }
@@ -46,6 +48,7 @@
 .cronograma-row-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 220px; }
 .cronograma-actual-time { display: block; margin-top: 7px; min-width: 190px; color: #60758a; font-size: .8rem; }
 .cronograma-table td:nth-child(2) small { display: block; margin-top: 4px; color: #63788c; }
+.cronograma-table th:last-child, .cronograma-table td:last-child { min-width: 220px; }
 .cronograma-readonly { color: #74869a; font-size: .85rem; }
 .cronograma-print { display: none; }
 .cronograma-print-header { margin-bottom: 22px; text-align: center; color: #111; }
@@ -70,6 +73,8 @@
   .cronograma-form-actions { flex-direction: column-reverse; }
   .cronograma-form-actions .button { width: 100%; }
   .cronograma-header-actions { display: grid; grid-template-columns: 1fr; width: 100%; }
+  .cronograma-list-card { padding-right: 12px; padding-left: 12px; }
+  .cronograma-table-wrap { margin-right: 0; margin-left: 0; }
 }
 
 @media print {

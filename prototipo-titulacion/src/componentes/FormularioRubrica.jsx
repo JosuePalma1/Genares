@@ -68,7 +68,7 @@ export function FormularioRubrica({
         {readOnly && (
           <InsigniaEstado estado="CERRADA" className="rubrica-locked-badge">
             <LockKeyhole aria-hidden="true" />
-            Evaluación finalizada
+            Cerrada · solo lectura
           </InsigniaEstado>
         )}
       </header>

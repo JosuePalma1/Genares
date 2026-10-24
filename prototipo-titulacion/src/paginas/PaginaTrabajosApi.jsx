@@ -7,6 +7,7 @@ import {
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../componentes/interfaz';
 import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
+import { ErrorConexionApi, ErrorRespuestaApi } from '../servicios/clienteHttp';
 
 const ETIQUETAS_ESTADO = Object.freeze({
   REGISTRADO: 'Registrado',
@@ -35,20 +36,17 @@ function textoError(error) {
   if (error?.status === 404) return 'No existe un trabajo con ese identificador en PostgreSQL.';
   if (error?.status === 401 || error?.status === 403) return 'El servidor no habilitó esta consulta local.';
   if (error?.message?.includes('UUID')) return 'El enlace no contiene un identificador persistido válido.';
+  if (error instanceof ErrorConexionApi || error instanceof ErrorRespuestaApi || error?.status >= 500) return error.message;
   return 'La API no pudo completar la consulta. No se mostrarán registros locales como sustitución.';
 }
 
 function EstadoCarga({ estado, error, reintentar }) {
   if (estado === 'cargando') return <div className="card" role="status">Consultando expedientes en PostgreSQL…</div>;
   if (estado === 'error') return (
-    <div className="card">
-      <EstadoVacio
-        icon={FileSearch}
-        title="Consulta de trabajos no disponible"
-        description={textoError(error)}
-        accion={<button className="button button-outline" type="button" onClick={reintentar}>Reintentar</button>}
-      />
-    </div>
+    <AlertaInstitucional className="trabajos-api-error" tono="danger" role="alert" titulo="No se pudo consultar PostgreSQL">
+      <p>{textoError(error)}</p>
+      <button className="button button-outline" type="button" onClick={reintentar}>Reintentar</button>
+    </AlertaInstitucional>
   );
   return null;
 }

@@ -243,7 +243,7 @@ export default function PaginaDetalleRubrica() {
         </div>
         <dl className="rubrica-version-summary">
           <div><dt><CalendarRange size={16} /> Período</dt><dd>{rubrica.periodo}</dd></div>
-          <div><dt><Scale size={16} /> Máximos por etapa</dt><dd>{puntos(maximumTotal)} puntos</dd></div>
+          <div><dt><Scale size={16} /> Máximos por etapa · suma estructural</dt><dd>{puntos(maximumTotal)} puntos · no es nota final</dd></div>
           <div><dt><Layers3 size={16} /> Estructura</dt><dd>{visibleCategories.length} categorías · {indicatorCount} indicadores</dd></div>
           <div><dt><BookOpenCheck size={16} /> {esApi ? 'Vigencia por carrera' : 'Vigencia'}</dt><dd>{esApi ? describirVigenciaPorCarrera(rubrica.carreras) : (rubrica.vigenteDesde ? `Desde ${formatearFecha(rubrica.vigenteDesde)}` : 'Aún no activada')}{!esApi && rubrica.vigenteHasta ? ` hasta ${formatearFecha(rubrica.vigenteHasta)}` : ''}</dd></div>
         </dl>
@@ -283,7 +283,7 @@ export default function PaginaDetalleRubrica() {
           <header className="rubrica-editor-stage-heading">
             <span className="rubrica-stage-number" aria-hidden="true">{String(stageIndex + 1).padStart(2, '0')}</span>
             <div className="rubrica-stage-copy"><span className="section-kicker">{etapa.codigo}</span><h2 id={`etapa-${etapa.id}-title`}>{etapa.nombre}</h2><p>{etapa.descripcion}</p></div>
-            <div className="rubrica-stage-score"><span>Máximo de etapa</span><strong>{puntos(stageTotal)}</strong><small>puntos</small></div>
+            <div className="rubrica-stage-score"><span>Máximo de etapa</span><strong>{puntos(stageTotal)}</strong><small>puntos de esta etapa</small></div>
           </header>
           <div className="rubrica-editor-categories">{categorias.map((categoria) => <article className="rubrica-editor-category" key={categoria.id} aria-labelledby={`categoria-${categoria.id}-title`}>
             <header className="rubrica-editor-category-heading">
@@ -303,7 +303,7 @@ export default function PaginaDetalleRubrica() {
 
       <section className="rubrica-values-summary" aria-labelledby="rubrica-summary-title">
         <header>
-          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Esta suma describe la estructura y no es la calificación final de un estudiante.</p></div>
+          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Esta suma describe la estructura y no es la calificación final de un estudiante. El resultado consultivo se expresa sobre 10.00.</p></div>
           <div className="rubrica-summary-total"><span>Suma de máximos por etapa</span><strong>{puntos(maximumTotal)}</strong><small>puntos</small></div>
         </header>
         <div className="rubrica-summary-grid">

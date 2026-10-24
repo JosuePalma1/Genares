@@ -59,8 +59,8 @@ function PaginaEvaluacionEscritaPrototipo() {
   const progreso = indicadores.length ? Math.round((indicadoresCompletos / indicadores.length) * 100) : 0;
   const vistaPrevia = { ...evaluacion, escrita: { ...evaluacion.escrita, calificaciones } };
   const estadoEvaluacion = cerrado
-    ? 'Evaluación finalizada'
-    : evaluacion.escrita.estado === ESTADO_EVALUACION.BORRADOR ? 'Borrador' : 'Pendiente';
+    ? 'Cerrada · solo lectura'
+    : evaluacion.escrita.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente';
 
   const guardar = async () => {
     despachar({ tipo: 'GUARDAR_ESCRITA', idEvaluacion: evaluacion.id, calificaciones, observaciones });
