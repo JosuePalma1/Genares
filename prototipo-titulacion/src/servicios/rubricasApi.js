@@ -34,7 +34,7 @@ export async function cargarCapacidadesRubricasApi({ signal, solicitarJson = get
   const capacidades = await solicitarJson('/rubricas/capacidades', { signal });
   if (!capacidades || typeof capacidades !== 'object' || Array.isArray(capacidades)
     || typeof capacidades.puedeAdministrar !== 'boolean') {
-    throw new Error('La API devolvió capacidades de rúbricas inválidas.');
+    throw new Error('No fue posible consultar los permisos de administración de rúbricas.');
   }
   return capacidades;
 }

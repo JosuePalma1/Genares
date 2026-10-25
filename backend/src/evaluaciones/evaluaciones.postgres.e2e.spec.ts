@@ -1,6 +1,7 @@
 import { ArchivoActas1760000012000 } from '../base-datos/migraciones/1760000012000-archivo-actas';
 import { NotaMinimaActas1760000013000 } from '../base-datos/migraciones/1760000013000-nota-minima-actas';
 import { ActorTecnicoProgramacionesLocales1760000014000 } from '../base-datos/migraciones/1760000014000-actor-tecnico-programaciones-locales';
+import { TrazabilidadTrabajos1760000015000 } from '../base-datos/migraciones/1760000015000-trazabilidad-trabajos';
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
 import { DocumentosModule } from '../documentos/documentos.module';
@@ -66,6 +67,7 @@ if (testDatabaseUrl) {
         ArchivoActas1760000012000,
         NotaMinimaActas1760000013000,
         ActorTecnicoProgramacionesLocales1760000014000,
+        TrazabilidadTrabajos1760000015000,
       ],
       migrationsTransactionMode: 'each',
       migrationsRun: true,
@@ -2926,6 +2928,24 @@ suite('Evaluaciones de etapas dinámicas (PostgreSQL 9D aislado)', () => {
     await expect(dataSource.query('TRUNCATE actas_archivadas')).rejects.toThrow();
     await expect(dataSource.transaction((m) => archivarActaEn(m,{...datos,notaFinal:'10.01'},async () => pdfFixture))).rejects.toThrow();
   }, 60000);
+
+  it('proyecta auditorias de evaluacion en la trazabilidad persistida del trabajo', async () => {
+    const coincidencias = await dataSource.query(`
+      SELECT auditoria."id", auditoria."accion", evaluacion."id_trabajo", trazabilidad."tipo_evento"
+      FROM "eventos_auditoria_evaluacion" auditoria
+      JOIN "evaluaciones" evaluacion ON evaluacion."id" = auditoria."id_evaluacion"
+      JOIN "eventos_trazabilidad_trabajo" trazabilidad
+        ON trazabilidad."fuente_tipo" = 'auditoria_evaluacion'
+        AND trazabilidad."fuente_id" = auditoria."id"
+        AND trazabilidad."id_trabajo" = evaluacion."id_trabajo"
+      ORDER BY auditoria."ocurrido_en" DESC
+      LIMIT 10
+    `);
+    expect(coincidencias.length).toBeGreaterThan(0);
+    expect(coincidencias.every((evento: { accion: string; tipo_evento: string }) => (
+      evento.accion === evento.tipo_evento
+    ))).toBe(true);
+  });
 });
 
 function redondearPromediosDeEtapaSoloComoComparacion(valores: string[]): string {

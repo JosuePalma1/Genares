@@ -78,7 +78,6 @@ function PaginaCoordinacionPrototipo() {
   return (
     <div className="coordinacion-page">
       <EncabezadoPagina
-        eyebrow="Solo lectura"
         title="Seguimiento de Coordinación"
         description="Consulta de trabajos y evaluaciones de las carreras TI y SOFT."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Coordinación' }]}

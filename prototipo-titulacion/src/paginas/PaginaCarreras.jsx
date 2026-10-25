@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pencil, Plus, RefreshCw, X } from 'lucide-react';
+import { Pencil, Plus, RefreshCw } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado } from '../componentes/interfaz';
 import { ModalFormularioCatalogo } from '../componentes/ModalFormularioCatalogo';
 import { TablaCatalogo } from '../componentes/TablaCatalogo';
-import { FUENTE_RUBRICAS, ESCRITURA_CARRERAS_API_HABILITADA } from '../configuracion/rubricas';
+import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
 import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import { ErrorApiHttp } from '../servicios/clienteHttp';
 import {
@@ -17,11 +17,11 @@ import './carreras.css';
 const FORMULARIO_VACIO = { codigo: '', nombre: '', estaActivo: true };
 
 function mensajeError(error, modo) {
-  if (error instanceof ErrorApiHttp && error.status === 401) return 'El servidor no habilitó esta operación en el entorno actual.';
-  if (error instanceof ErrorApiHttp && error.status === 403) return 'La operación no está disponible en el entorno actual.';
+  if (error instanceof ErrorApiHttp && error.status === 401) return 'Su perfil no tiene permiso para realizar esta operación.';
+  if (error instanceof ErrorApiHttp && error.status === 403) return 'Su perfil no tiene permiso para realizar esta operación.';
   if (error instanceof ErrorApiHttp && error.status === 404) return 'La carrera ya no existe. Recargue el catálogo.';
   if (error instanceof ErrorApiHttp && error.status === 409) {
-    if (modo === 'editar') return 'Otra sesión modificó esta carrera. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.';
+    if (modo === 'editar') return 'Otra sesión modificó esta carrera. Sus campos siguen aquí; vuelva a cargar la versión vigente si desea sustituirlos.';
     if (modo === 'estado') return 'Otra sesión modificó el estado de esta carrera. Se recargaron los datos actuales.';
     return 'Ya existe una carrera con ese código. Revise el código institucional e inténtelo de nuevo.';
   }
@@ -30,11 +30,10 @@ function mensajeError(error, modo) {
 
 export default function PaginaCarreras() {
   const esApi = FUENTE_RUBRICAS === 'api';
-  const puedeEscribir = esApi && ESCRITURA_CARRERAS_API_HABILITADA;
+  const puedeEscribir = esApi;
   const [carreras, setCarreras] = useState([]);
   const [puedeAdministrar, setPuedeAdministrar] = useState(false);
   const [cargando, setCargando] = useState(esApi);
-  const [mostrarAvisoOrigen, setMostrarAvisoOrigen] = useState(true);
   const [errorLectura, setErrorLectura] = useState('');
   const [modo, setModo] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
@@ -96,7 +95,7 @@ export default function PaginaCarreras() {
         <button className="button button-outline" type="button" disabled={cambiandoId !== null} onClick={() => cambiarEstado(carrera)}>
           {cambiandoId === carrera.id ? 'Actualizando…' : carrera.estaActivo ? 'Desactivar' : 'Activar'}
         </button>
-      </div> : <span className="tabla-catalogo-solo-lectura">Solo lectura</span>,
+      </div> : null,
     },
   ], [puedeAdministrar, cambiandoId]);
 
@@ -154,7 +153,7 @@ export default function PaginaCarreras() {
         title: listaActualizada ? titulo : `${titulo}; listado pendiente`,
         text: listaActualizada
           ? `${codigo} se guardó correctamente.`
-          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+          : 'El cambio se guardó, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
         confirmButtonText: 'Continuar',
       });
     } catch (causa) {
@@ -217,7 +216,7 @@ export default function PaginaCarreras() {
           : activar ? 'Activación confirmada; listado pendiente' : 'Desactivación confirmada; listado pendiente',
         text: listaActualizada
           ? `${carrera.codigo} quedó ${activar ? 'activa' : 'inactiva'}.`
-          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+          : 'El cambio se guardó, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
         confirmButtonText: 'Continuar',
       });
     } catch (causa) {
@@ -243,21 +242,6 @@ export default function PaginaCarreras() {
         {puedeAdministrar && <button className="button button-primary" type="button" onClick={abrirNuevo}><Plus size={18} aria-hidden="true" /> Nueva carrera</button>}
       </> : null} />
 
-    {mostrarAvisoOrigen && <div className="modalidades-origen-alerta">
-      <AlertaInstitucional className="modalidades-origen-alerta-contenido" tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
-        <p>{esApi
-          ? 'El catálogo se consulta en PostgreSQL. Los cambios aparecen después de la confirmación del servidor.'
-          : 'En modo prototipo no se simulan carreras ni se realizan escrituras API.'}</p>
-      </AlertaInstitucional>
-      <button
-        className="modalidades-origen-alerta-cerrar"
-        type="button"
-        aria-label="Cerrar aviso de origen"
-        title="Cerrar aviso"
-        onClick={() => setMostrarAvisoOrigen(false)}
-      ><X size={18} aria-hidden="true" /></button>
-    </div>}
-
     {esApi && <section className="card modalidades-catalog" aria-labelledby="carreras-titulo">
       <header className="modalidades-catalog-header"><div><span className="section-kicker">Catálogo institucional</span><h2 id="carreras-titulo">Carreras registradas</h2></div></header>
       <TablaCatalogo
@@ -273,7 +257,7 @@ export default function PaginaCarreras() {
 
     {!esApi && <section className="card modalidades-catalog" aria-labelledby="carreras-titulo">
       <header className="modalidades-catalog-header"><div><span className="section-kicker">Catálogo institucional</span><h2 id="carreras-titulo">Carreras registradas</h2></div></header>
-      <p className="modalidades-status">Active la lectura API en un entorno autorizado para consultar este catálogo.</p>
+      <p className="modalidades-status">La consulta de este catálogo no está disponible para este perfil.</p>
     </section>}
 
     <ModalFormularioCatalogo

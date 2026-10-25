@@ -73,7 +73,7 @@ export function FormularioRubricaComparativa({
                               <span>Estudiante {String.fromCharCode(65 + studentIndex)}</span>
                               <strong>{nombre}</strong>
                             </div>
-                            {cerrado && <InsigniaEstado tono="success"><LockKeyhole size={14} /> Cerrada · solo lectura</InsigniaEstado>}
+                            {cerrado && <InsigniaEstado tono="success"><LockKeyhole size={14} /> Cerrada</InsigniaEstado>}
                           </div>
 
                           <div className="calificacion-control">

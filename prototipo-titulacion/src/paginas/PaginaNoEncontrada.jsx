@@ -14,7 +14,7 @@ export default function PaginaNoEncontrada() {
         <div className="card-body">
           <EstadoVacio
             title="No pudimos encontrar esta pantalla"
-            description="Revise la dirección o vuelva al resumen operativo para continuar con el prototipo."
+            description="Revise la dirección o vuelva al resumen operativo para continuar."
             accion={<Link className="button button-primary" to="/dashboard">Volver al dashboard</Link>}
           />
         </div>

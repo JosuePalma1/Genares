@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowDown, ArrowLeft, ArrowUp, Plus, RefreshCw, Save, Trash2 } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina } from '../componentes/interfaz';
-import { FUENTE_RUBRICAS, ESCRITURA_RUBRICAS_API_HABILITADA } from '../configuracion/rubricas';
+import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
 import {
   agregarCategoriaRubrica,
   agregarEtapaRubrica,
@@ -56,10 +56,10 @@ function vigenteActual(versiones, modalidadId, periodoId, carreraId) {
 
 function mensajeError(error) {
   if (error?.status === 409) return 'La revisión de una carrera o su vigencia cambió mientras preparaba esta rúbrica. Sus datos siguen en el editor; actualice carreras y vigencias antes de volver a guardar.';
-  if (error?.status === 400) return error.message || 'El servidor rechazó algunos datos. Revise las etapas y sus ponderaciones.';
-  if (error?.status === 401) return 'El servidor no habilitó el guardado en el entorno actual.';
-  if (error?.status === 403) return 'El servidor denegó la creación. Sus datos siguen en el editor.';
-  if (error?.status >= 500) return 'El servidor no pudo completar el guardado. Sus datos siguen en el editor.';
+  if (error?.status === 400) return error.message || 'Algunos datos no son válidos. Revise las etapas y sus ponderaciones.';
+  if (error?.status === 401) return 'Su perfil no tiene permiso para guardar esta rúbrica.';
+  if (error?.status === 403) return 'Su perfil no tiene permiso para crear versiones de rúbrica. Sus cambios siguen en el editor.';
+  if (error?.status >= 500) return 'No se pudo completar el guardado. Sus cambios siguen en el editor.';
   return error?.message || 'No fue posible guardar la rúbrica. Sus datos siguen en el editor.';
 }
 
@@ -143,8 +143,7 @@ export default function PaginaNuevaRubrica() {
 
   const puedeCrear = Boolean(
     esApi
-    && contexto?.capacidades.puedeAdministrar
-    && ESCRITURA_RUBRICAS_API_HABILITADA,
+    && contexto?.capacidades.puedeAdministrar,
   );
   const carrerasActivas = contexto?.carreras ?? [];
   const carrerasElegidas = useMemo(() => carrerasActivas.filter((carrera) => seleccionCarreras[carrera.id]), [carrerasActivas, seleccionCarreras]);
@@ -218,7 +217,7 @@ export default function PaginaNuevaRubrica() {
     const confirmacion = await Swal.fire({
       icon: 'warning',
       title: 'Descartar cambios y recargar versión base',
-      text: 'Se reemplazarán la estructura editada, la revisión base y las vigencias con los datos actuales del servidor.',
+      text: 'Se reemplazarán la estructura editada, la revisión base y las vigencias con la versión actual.',
       showCancelButton: true,
       confirmButtonText: 'Descartar y recargar',
       cancelButtonText: 'Seguir editando',
@@ -258,7 +257,7 @@ export default function PaginaNuevaRubrica() {
       icon: 'question',
       title: clonandoVersion ? 'Crear nueva versión completa' : 'Guardar rúbrica completa',
       text: clonandoVersion
-        ? `Basada en ${versionBase.version} · el servidor asignará el identificador de versión · ${carrerasDto.length} ${carrerasDto.length === 1 ? 'carrera' : 'carreras'}${vigencias.length ? ` · vigencia explícita para: ${vigencias.join(', ')}` : ' · sin establecer vigencia'}.`
+        ? `Basada en ${versionBase.version} · el número de versión se asignará al guardar · ${carrerasDto.length} ${carrerasDto.length === 1 ? 'carrera' : 'carreras'}${vigencias.length ? ` · vigencia explícita para: ${vigencias.join(', ')}` : ' · sin establecer vigencia'}.`
         : `${datos.nombre.trim()} · versión ${datos.version.trim()} · ${carrerasDto.length} ${carrerasDto.length === 1 ? 'carrera' : 'carreras'}${vigencias.length ? ` · vigencia explícita para: ${vigencias.join(', ')}` : ' · sin establecer vigencia'}.`,
       showCancelButton: true,
       confirmButtonText: clonandoVersion ? 'Crear versión' : 'Guardar rúbrica',
@@ -276,7 +275,7 @@ export default function PaginaNuevaRubrica() {
         ? await crearVersionCompletaRubricaApi({ ...formulario, versionBase })
         : await crearRubricaCompletaApi(formulario);
       if (!respuesta || typeof respuesta.id !== 'string' || !respuesta.rubrica?.id) {
-        throw new Error('La API no devolvió el identificador de la versión creada. Compruebe el catálogo antes de repetir el guardado.');
+        throw new Error('No se confirmó la creación de la versión. Consulte el catálogo antes de intentarlo de nuevo.');
       }
       setTieneCambios(false);
       const pudoRecargar = await cargarContexto();
@@ -287,7 +286,7 @@ export default function PaginaNuevaRubrica() {
           : clonandoVersion ? 'Versión creada; catálogo pendiente' : 'Rúbrica guardada; catálogo pendiente',
         text: pudoRecargar
           ? `Se creó la versión ${respuesta.version} y quedó asociada a las carreras seleccionadas. La versión de origen conserva su estructura e identificadores.`
-          : 'El servidor confirmó el guardado, pero no se pudo actualizar la lectura. Consulte el catálogo antes de volver a guardar.',
+          : 'La versión se guardó, pero no se pudo actualizar la vista. Consulte el catálogo antes de volver a guardar.',
         confirmButtonText: 'Continuar',
       });
       navigate(pudoRecargar ? `/rubricas/${encodeURIComponent(respuesta.id)}` : '/rubricas');
@@ -307,8 +306,8 @@ export default function PaginaNuevaRubrica() {
   if (!esApi) {
     return <div className="rubrica-completa-page">
       <EncabezadoPagina eyebrow="Configuración académica" title={clonandoVersion ? 'Nueva versión de rúbrica' : 'Nueva rúbrica'} description="Editor integral de etapas, categorías e indicadores." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: clonandoVersion ? 'Nueva versión' : 'Nueva rúbrica' }]} />
-      <AlertaInstitucional tono="info" titulo={clonandoVersion ? 'Clonación no disponible en modo prototipo' : 'Alta institucional no disponible en modo prototipo'}>
-        <p>Este modo usa datos de demostración y no registra rúbricas en PostgreSQL. Cambie a la fuente API con autorización administrativa para crear y asignar vigencias.</p>
+      <AlertaInstitucional tono="info" titulo={clonandoVersion ? 'Clonación no disponible' : 'Creación de rúbricas no disponible'}>
+        <p>En esta vista puede consultar las rúbricas, pero no crear versiones ni asignar vigencias. Estas operaciones requieren autorización de administración académica.</p>
       </AlertaInstitucional>
       <button className="button button-outline" type="button" onClick={() => navigate('/rubricas')}><ArrowLeft size={17} /> Volver a Rúbricas</button>
     </div>;
@@ -338,11 +337,8 @@ export default function PaginaNuevaRubrica() {
       <button className="button button-outline" type="button" disabled={actualizando} onClick={() => cargarContexto()}><RefreshCw size={16} /> {actualizando ? 'Actualizando…' : 'Reintentar consulta'}</button>
     </AlertaInstitucional>}
 
-    {contexto && !contexto.capacidades.puedeAdministrar && <AlertaInstitucional tono="warning" titulo="El servidor no autorizó la creación">
-      <p>El servidor dejó esta vista en modo de consulta. No se muestran controles para guardar.</p>
-    </AlertaInstitucional>}
-    {contexto?.capacidades.puedeAdministrar && !ESCRITURA_RUBRICAS_API_HABILITADA && <AlertaInstitucional tono="warning" titulo="Escritura local deshabilitada">
-      <p>El servidor reconoce la capacidad administrativa, pero este cliente está configurado en modo de solo lectura. No se muestran controles para guardar.</p>
+    {contexto && !contexto.capacidades.puedeAdministrar && <AlertaInstitucional tono="warning" titulo="Creación no autorizada">
+      <p>Su perfil puede consultar las rúbricas, pero no crear versiones ni asignar vigencias.</p>
     </AlertaInstitucional>}
     {conflicto && <AlertaInstitucional tono="warning" titulo="Cambió la versión base o la configuración de una carrera">
       <p>{clonandoVersion ? 'Sus cambios siguen en el editor. Para resolver el conflicto, confirme una recarga de la versión base, revisiones y vigencias; esa acción reemplazará lo editado.' : 'El editor conserva sus cambios. Actualice el contexto y revise las vigencias antes de volver a intentar.'}</p>
@@ -366,7 +362,7 @@ export default function PaginaNuevaRubrica() {
             ? <div className="field"><span className="rubrica-completa-label">Rúbrica</span><p>{versionBase.titulo}</p></div>
             : <div className="field"><label htmlFor="rubrica-nombre">Nombre de la rúbrica <span aria-hidden="true">*</span></label><input id="rubrica-nombre" className="input" maxLength={220} value={datos.nombre} disabled={!puedeCrear || guardando} aria-invalid={errores.some(({ campo }) => campo === 'nombre')} onChange={(e) => cambiarDato('nombre', e.target.value)} /></div>}
           {clonandoVersion
-            ? <div className="field"><span className="rubrica-completa-label">Versión de origen</span><p>Basada en {versionBase.version}</p><small>El servidor asignará el identificador de esta nueva versión.</small></div>
+            ? <div className="field"><span className="rubrica-completa-label">Versión de origen</span><p>Basada en {versionBase.version}</p><small>El número de versión se asignará al guardar.</small></div>
             : <div className="field"><label htmlFor="rubrica-version">Versión <span aria-hidden="true">*</span></label><input id="rubrica-version" className="input" maxLength={30} value={datos.version} placeholder="Ej. 1.0" disabled={!puedeCrear || guardando} aria-invalid={errores.some(({ campo }) => campo === 'version')} onChange={(e) => cambiarDato('version', e.target.value)} /><small>Identificador visible de esta versión.</small></div>}
         </div>
 

@@ -32,13 +32,13 @@ export function crearFilasCatalogoRubricas(versiones, fuente) {
         version: version.version,
         creadaEn: version.creadaEn ?? null,
         carreraId: carrera?.id ?? (esApi ? FILTRO_SIN_ASOCIACION : FILTRO_NO_INFORMADA),
-        carrera: carrera?.nombre ?? (esApi ? 'Sin carrera asociada' : 'No disponible en prototipo'),
+        carrera: carrera?.nombre ?? (esApi ? 'Sin carrera asociada' : 'No disponible'),
         carreraCodigo: carrera?.codigo ?? '',
         tieneAsociacion: Boolean(carrera),
         vigente,
         etiquetaVigencia: vigenciaConocida
           ? carrera.vigente ? 'Vigente' : 'No vigente'
-          : esApi ? 'Sin asignación' : 'No informada en prototipo',
+          : esApi ? 'Sin asignación' : 'No informada',
         fuente,
       };
     });

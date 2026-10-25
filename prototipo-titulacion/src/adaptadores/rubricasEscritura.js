@@ -64,7 +64,7 @@ function decimal(valor, campo, nullable = false, maxDigitosEnteros = 3) {
 
 function soloBorrador(version) {
   if (!objeto(version) || version.fuenteDatos !== 'api') {
-    throw new ErrorMapeoEscrituraRubrica('La escritura solo admite registros cuya procedencia sea la API.');
+    throw new ErrorMapeoEscrituraRubrica('Solo se pueden modificar rúbricas disponibles para su perfil.');
   }
   if (version.estado !== 'BORRADOR') {
     throw new ErrorMapeoEscrituraRubrica('Solo se pueden preparar escrituras para versiones BORRADOR.');
@@ -194,12 +194,12 @@ export function mapearCrearRubricaCompletaDto(datos) {
 export function mapearCrearVersionCompletaRubrica(datos) {
   const versionBase = datos?.versionBase;
   if (!objeto(datos) || !objeto(versionBase) || versionBase.fuenteDatos !== 'api') {
-    throw new ErrorMapeoEscrituraRubrica('La clonación requiere una versión de origen procedente de la API.');
+    throw new ErrorMapeoEscrituraRubrica('Seleccione una versión disponible como base para la nueva rúbrica.');
   }
   const rubricaId = uuid(versionBase.idRubrica, 'versionBase.idRubrica');
   const versionBaseId = uuid(versionBase.id, 'versionBase.id');
   if (!Number.isInteger(versionBase.revision) || versionBase.revision < 1 || versionBase.revision > 2147483647) {
-    throw new ErrorMapeoEscrituraRubrica('La revisión de servidor de la versión base no es válida.');
+    throw new ErrorMapeoEscrituraRubrica('La revisión de la versión base no es válida. Recargue el catálogo.');
   }
 
   const estructura = mapearCrearRubricaCompletaDto({
@@ -222,7 +222,7 @@ export function mapearCrearVersionCompletaRubrica(datos) {
 
 export function mapearClonarVersionRubrica(datos) {
   if (!objeto(datos) || !objeto(datos.versionBase) || datos.versionBase.fuenteDatos !== 'api') {
-    throw new ErrorMapeoEscrituraRubrica('La clonación requiere una versión de origen procedente de la API.');
+    throw new ErrorMapeoEscrituraRubrica('Seleccione una versión disponible para clonar.');
   }
   const versionBaseId = uuid(datos.versionBase.id, 'versionBase.id');
   return {

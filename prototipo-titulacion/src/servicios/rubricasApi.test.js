@@ -96,7 +96,7 @@ describe('lectura HTTP de rúbricas', () => {
     const cliente = crearClienteHttp({ baseUrl: '/api/v1', habilitado: true });
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('{', { status: 200 }));
-    await expect(cargarRubricasApi({ solicitarJson: cliente.getJson })).rejects.toThrow(/respuesta inválida/i);
+    await expect(cargarRubricasApi({ solicitarJson: cliente.getJson })).rejects.toThrow(/información recibida no es válida/i);
 
     vi.spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response(JSON.stringify([{ ...listado[0], versiones: 'mal' }]), { status: 200 }));

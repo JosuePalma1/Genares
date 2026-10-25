@@ -1,21 +1,18 @@
 import {
   API_BASE_URL,
-  ESCRITURA_MODALIDADES_API_HABILITADA,
-  ESCRITURA_CARRERAS_API_HABILITADA,
-  ESCRITURA_RUBRICAS_API_HABILITADA,
   FUENTE_RUBRICAS,
 } from '../configuracion/rubricas';
 
 export class ErrorApiDeshabilitada extends Error {
   constructor() {
-    super('La lectura desde la API no está habilitada en este entorno.');
+    super('La consulta no está disponible en esta sesión.');
     this.name = 'ErrorApiDeshabilitada';
   }
 }
 
 export class ErrorEscrituraApiDeshabilitada extends Error {
   constructor() {
-    super('El cliente de escritura API no está habilitado para este entorno de desarrollo.');
+    super('En esta sesión solo está habilitada la consulta.');
     this.name = 'ErrorEscrituraApiDeshabilitada';
   }
 }
@@ -27,16 +24,16 @@ export class ErrorApiHttp extends Error {
       ? respuesta.details.filter((detalle) => typeof detalle === 'string')
       : [];
     const mensaje = status === 401
-      ? 'La API requiere una identidad validada.'
+      ? 'La sesión no tiene una identidad validada. Inicie sesión y vuelva a intentarlo.'
       : status === 403
-        ? 'La API denegó esta operación.'
+        ? 'Su perfil no tiene permiso para realizar esta operación.'
         : status === 409
           ? 'Los datos cambiaron o entran en conflicto. Recargue antes de continuar.'
           : status >= 500
-            ? `NestJS respondió con un error HTTP ${status}. La operación solicitada no se completó.`
+            ? `No se pudo completar la operación (código ${status}).`
             : status === 400 && details.length
-              ? `La API rechazó la solicitud: ${details.join(' ')}`
-              : `La API respondió con estado HTTP ${status}.`;
+              ? `No se pudo completar la solicitud: ${details.join(' ')}`
+              : `No se pudo completar la solicitud (código ${status}).`;
     super(mensaje);
     this.name = 'ErrorApiHttp';
     this.status = status;
@@ -47,14 +44,14 @@ export class ErrorApiHttp extends Error {
 
 export class ErrorConexionApi extends Error {
   constructor() {
-    super('No fue posible contactar con la API local. Confirme que NestJS esté activo y que el proxy de Vite apunte al puerto configurado; después, reintente.');
+    super('No fue posible completar la consulta. Intente de nuevo; si el problema continúa, contacte con soporte.');
     this.name = 'ErrorConexionApi';
   }
 }
 
 export class ErrorRespuestaApi extends Error {
   constructor() {
-    super('La API devolvió una respuesta inválida. No se mostrarán datos simulados como sustitución.');
+    super('La información recibida no es válida. No se mostrarán datos incompletos.');
     this.name = 'ErrorRespuestaApi';
   }
 }
@@ -151,10 +148,10 @@ export function crearClientesHttpPorModulo({
 }
 
 const clientesApi = crearClientesHttpPorModulo({
-  habilitado: import.meta.env.DEV === true && FUENTE_RUBRICAS === 'api',
-  escriturasRubricasHabilitadas: import.meta.env.DEV === true && ESCRITURA_RUBRICAS_API_HABILITADA,
-  escriturasModalidadesHabilitadas: import.meta.env.DEV === true && ESCRITURA_MODALIDADES_API_HABILITADA,
-  escriturasCarrerasHabilitadas: import.meta.env.DEV === true && ESCRITURA_CARRERAS_API_HABILITADA,
+  habilitado: FUENTE_RUBRICAS === 'api',
+  escriturasRubricasHabilitadas: true,
+  escriturasModalidadesHabilitadas: true,
+  escriturasCarrerasHabilitadas: true,
 });
 
 export const getJsonApi = (...argumentos) => clientesApi.rubricas.getJson(...argumentos);

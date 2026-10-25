@@ -102,8 +102,8 @@ describe('servicio API de evaluaciones', () => {
   it('en modo prototipo mantiene deshabilitadas las consultas API', async () => {
     const getJson = vi.fn();
     const servicio = crearServicioEvaluacionesApi({ getJson, habilitado: false });
-    await expect(servicio.listarEvaluacionesTrabajo(trabajoId)).rejects.toThrow('respuesta inválida');
-    await expect(servicio.consolidarTrabajo(trabajoId)).rejects.toThrow('respuesta inválida');
+    await expect(servicio.listarEvaluacionesTrabajo(trabajoId)).rejects.toThrow('información recibida no es válida');
+    await expect(servicio.consolidarTrabajo(trabajoId)).rejects.toThrow('información recibida no es válida');
     expect(getJson).not.toHaveBeenCalled();
   });
 
@@ -115,7 +115,7 @@ describe('servicio API de evaluaciones', () => {
       estudiantes: [{ ...consolidacion.estudiantes[0], estado: 'EN_PROGRESO', resultadoFinal: consolidacion.estudiantes[0].resultadoFinal }],
     };
     const servicioInvalido = crearServicioEvaluacionesApi({ getJson: vi.fn().mockResolvedValue(incompleta) });
-    await expect(servicioInvalido.consolidarTrabajo(trabajoId)).rejects.toThrow('respuesta inválida');
+    await expect(servicioInvalido.consolidarTrabajo(trabajoId)).rejects.toThrow('información recibida no es válida');
   });
 
   it('usa los contratos POST/PUT reales sin enviar ámbito, nota final ni datos de identidad', async () => {
@@ -177,7 +177,7 @@ describe('servicio API de evaluaciones', () => {
     await expect(servicio.crearEvaluacion(trabajoId, { idEtapaRubrica: 'etapa-invalida' })).rejects.toThrow('UUID válido');
     await expect(servicio.guardarPuntajes(evaluacionId, {
       revision: 1, puntajes: [{ idIndicador: 'indicador-invalido', puntaje: '1.00' }],
-    })).rejects.toThrow(/contrato API/);
+    })).rejects.toThrow(/puntaje de indicador debe ser un valor numérico válido/);
     await expect(servicio.cerrarEvaluacion('evaluacion-invalida', { revision: 1 })).rejects.toThrow('UUID válido');
 
     expect(postJson).not.toHaveBeenCalled();
@@ -203,9 +203,9 @@ describe('servicio API de evaluaciones', () => {
     const postJson = vi.fn();
     const putJson = vi.fn();
     const servicio = crearServicioEvaluacionesApi({ getJson: vi.fn(), postJson, putJson });
-    await expect(servicio.crearEvaluacion(trabajoId, { idEtapaRubrica: etapaId })).rejects.toThrow(/escritura.*no est[aá] habilitado/i);
+    await expect(servicio.crearEvaluacion(trabajoId, { idEtapaRubrica: etapaId })).rejects.toThrow(/solo está habilitada la consulta/i);
     await expect(servicio.guardarPuntajes(evaluacionId, { revision: 1, puntajes: [{ idIndicador: indicadorId, puntaje: '1.00' }] }))
-      .rejects.toThrow(/escritura.*no est[aá] habilitado/i);
+      .rejects.toThrow(/solo está habilitada la consulta/i);
     expect(postJson).not.toHaveBeenCalled();
     expect(putJson).not.toHaveBeenCalled();
   });
@@ -243,7 +243,7 @@ describe('servicio API de evaluaciones', () => {
     const servicio = crearServicioEvaluacionesApi({ getJson: vi.fn(), putJson, escriturasHabilitadas: true });
     await expect(servicio.guardarPuntajes(evaluacionId, { revision: 1, puntajes: [
       { idIndicador: indicadorId, puntaje: '1.001' },
-    ] })).rejects.toThrow(/contrato API/);
+    ] })).rejects.toThrow(/puntaje de indicador debe ser un valor numérico válido/);
     await expect(servicio.guardarPuntajes(evaluacionId, { revision: 1, puntajes: [
       { idIndicador: indicadorId, puntaje: '1.00' }, { idIndicador: indicadorId, puntaje: '2.00' },
     ] })).rejects.toThrow(/repetir un indicador/);

@@ -31,13 +31,13 @@ export default function PaginaImpresionRubrica() {
 
   if (FUENTE_EVALUACIONES === 'api') {
     if (!DOCUMENTOS_API_HABILITADA) return <EstadoVacio
-      title="Impresión API no disponible"
-      description="La fuente API está configurada, pero los documentos API no están habilitados en este entorno. No se usará el prototipo local como sustituto."
+      title="Impresión no disponible"
+      description="La generación de documentos de rúbrica no está disponible actualmente."
     />;
     if (![idTrabajo, idEstudiante, idMiembro].every(esUuidPostgres)) {
       return <EstadoVacio
-        title="Rúbrica API no disponible"
-        description="La ruta contiene identificadores que no corresponden al formato UUID del servidor. No se generó un documento local como sustituto."
+        title="Rúbrica no disponible"
+        description="No fue posible localizar la rúbrica solicitada. Verifique el enlace e inténtelo de nuevo."
         accion={<a className="button button-outline" href="/trabajos">Volver a trabajos</a>}
       />;
     }

@@ -3,7 +3,6 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { EditorEvaluacionApi, mensajeErrorEscrituraEvaluacion } from './EditorEvaluacionApi';
 
-vi.mock('../configuracion/evaluaciones', () => ({ ESCRITURA_EVALUACIONES_API_HABILITADA: true }));
 vi.mock('../servicios/evaluacionesApi', () => ({
   cerrarEvaluacionApi: vi.fn(),
   crearEvaluacionApi: vi.fn(),
@@ -61,7 +60,7 @@ function markup({ puedeCalificar = true, evaluaciones = [], alcance = 'TRABAJO_C
 describe('registro API de evaluaciones', () => {
   it('oculta toda acción de escritura para el miembro con permiso de solo lectura', () => {
     const html = markup({ puedeCalificar: false, evaluaciones: [evaluacion()] });
-    expect(html).toContain('esta vista en modo de consulta');
+    expect(html).toContain('Su perfil puede consultar esta evaluación');
     expect(html).toContain('disabled=""');
     expect(html).not.toContain('<button');
     expect(html).toContain('Calidad de fuentes');
@@ -84,15 +83,15 @@ describe('registro API de evaluaciones', () => {
 
   it('mantiene cerrada una evaluación de solo lectura y no muestra controles de edición', () => {
     const html = markup({ evaluaciones: [evaluacion('CERRADA')] });
-    expect(html).toContain('Cerrada · solo lectura');
-    expect(html).toContain('no se puede editar');
+    expect(html).toContain('Cerrada');
+    expect(html).toContain('no admite cambios');
     expect(html).toContain(`/rubrica/${ids.trabajo}/${ids.estudiante}/${ids.miembro}`);
     expect(html).not.toContain('puntaje-');
     expect(html).not.toContain('Cerrar evaluación</button>');
   });
 
   it('traduce autorización, acceso, conflicto y conexión sin ocultar cambios locales', () => {
-    expect(mensajeErrorEscrituraEvaluacion({ status: 403 })).toMatch(/disponible en el entorno actual/i);
+    expect(mensajeErrorEscrituraEvaluacion({ status: 403 })).toMatch(/perfil no tiene permiso/i);
     expect(mensajeErrorEscrituraEvaluacion({ status: 404 })).toMatch(/solicitada para este trabajo/i);
     expect(mensajeErrorEscrituraEvaluacion({ status: 409 })).toMatch(/entradas se conservaron/i);
     expect(mensajeErrorEscrituraEvaluacion({ name: 'ErrorConexionApi' })).toMatch(/permanecen en el formulario/i);

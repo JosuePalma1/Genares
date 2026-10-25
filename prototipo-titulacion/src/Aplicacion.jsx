@@ -1,10 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { EstructuraAplicacion } from './estructuras/EstructuraAplicacion';
 import DashboardPage from './paginas/DashboardPage';
-import PaginaTrabajos from './paginas/PaginaTrabajos';
 import PaginaFormularioTrabajo from './paginas/PaginaFormularioTrabajo';
-import PaginaDetalleTrabajo from './paginas/PaginaDetalleTrabajo';
-import PaginaAsignacionTribunal from './paginas/PaginaAsignacionTribunal';
 import PaginaProgramacionSustentacion from './paginas/PaginaProgramacionSustentacion';
 import PaginaMisEvaluaciones from './paginas/PaginaMisEvaluaciones';
 import PaginaEvaluacionEscrita from './paginas/PaginaEvaluacionEscrita';
@@ -23,6 +20,7 @@ import PaginaDetalleModalidad from './paginas/PaginaDetalleModalidad';
 import PaginaCarreras from './paginas/PaginaCarreras';
 import PaginaCronograma from './paginas/PaginaCronograma';
 import PaginaDocumentos from './paginas/PaginaDocumentos';
+import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './paginas/PaginaTrabajosApi';
 
 export default function Aplicacion() {
   return (
@@ -30,10 +28,10 @@ export default function Aplicacion() {
       <Route path="/" element={<Navigate replace to="/dashboard" />} />
       <Route element={<EstructuraAplicacion />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/trabajos" element={<PaginaTrabajos />} />
+        <Route path="/trabajos" element={<PaginaTrabajosApi />} />
         <Route path="/trabajos/nuevo" element={<PaginaFormularioTrabajo />} />
-        <Route path="/trabajos/:idTrabajo" element={<PaginaDetalleTrabajo />} />
-        <Route path="/trabajos/:idTrabajo/tribunal" element={<PaginaAsignacionTribunal />} />
+        <Route path="/trabajos/:idTrabajo" element={<PaginaDetalleTrabajoApi />} />
+        <Route path="/trabajos/:idTrabajo/tribunal" element={<PaginaTribunalTrabajoApi />} />
         <Route path="/trabajos/:idTrabajo/sustentacion" element={<PaginaProgramacionSustentacion />} />
         <Route path="/cronograma" element={<PaginaCronograma />} />
         <Route path="/mis-evaluaciones" element={<PaginaMisEvaluaciones />} />

@@ -8,7 +8,6 @@ describe('servicio de actas archivadas', () => {
   });
 
   it('consulta el archivo por carrera y período y recupera los bytes archivados por su ID', async () => {
-    vi.stubEnv('VITE_EVALUACIONES_SOURCE', 'api');
     vi.stubEnv('VITE_API_BASE_URL', '/api/v1');
     const actas = [{
       id: 'a1111111-1111-4111-8111-111111111111', numero: '001-2026-2-SOFT',

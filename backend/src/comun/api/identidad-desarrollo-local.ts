@@ -4,7 +4,12 @@ import { IdentidadApi, SolicitudConIdentidad } from './identidad-api';
 export interface EntornoAccesoDesarrollo {
   NODE_ENV?: string;
   LOCAL_DEV_OPEN_ACCESS?: string;
+  LOCAL_DEV_IDENTITY_ENABLED?: string;
+  LOCAL_DEV_IDENTITY_PROFILE?: string;
+  LOCAL_DEV_9D_TEMPORAL?: string;
+  LOCAL_DEV_WRITE_ENABLED?: string;
   LOCAL_DEV_WRITE_ORIGINS?: string;
+  DB_DISPOSABLE?: string;
   DB_HOST?: string;
   DB_PORT?: string;
   DB_NAME?: string;
@@ -42,6 +47,15 @@ export const CAPACIDADES_DESARROLLO_LOCAL = Object.freeze([
 const BASE_DESARROLLO = Object.freeze({
   host: '127.0.0.1', puerto: 55442, nombre: 'genares_dev_10_9', marca: 'GENARES:10.9B:DEVELOPMENT',
 });
+const PERFIL_9D_CONSULTA_INTEGRADA = 'consulta-integrada';
+const CAPACIDADES_9D_CONSULTA_INTEGRADA = Object.freeze([
+  'rubricas:leer', 'modalidades:leer', 'carreras:leer', 'programaciones:leer',
+  'evaluaciones:leer', 'evaluaciones:leer-demostracion',
+]);
+
+function esIntegracionTemporal9D(entorno: EntornoAccesoDesarrollo): boolean {
+  return entorno.LOCAL_DEV_IDENTITY_ENABLED === 'true' || entorno.LOCAL_DEV_9D_TEMPORAL === 'true';
+}
 
 export function direccionEsLoopback(direccion?: string): boolean {
   if (!direccion) return false;
@@ -50,7 +64,26 @@ export function direccionEsLoopback(direccion?: string): boolean {
 }
 
 export function validarConfiguracionAccesoDesarrollo(entorno: EntornoAccesoDesarrollo): void {
-  if (entorno.NODE_ENV !== 'development' || entorno.LOCAL_DEV_OPEN_ACCESS !== 'true') {
+  if (entorno.NODE_ENV !== 'development') {
+    throw new Error('La identidad de desarrollo solo puede habilitarse con NODE_ENV=development.');
+  }
+
+  if (esIntegracionTemporal9D(entorno)) {
+    if (entorno.LOCAL_DEV_IDENTITY_ENABLED !== 'true'
+      || entorno.LOCAL_DEV_9D_TEMPORAL !== 'true'
+      || entorno.DB_DISPOSABLE !== 'true'
+      || entorno.DB_HOST !== '127.0.0.1'
+      || Number(entorno.DB_PORT) !== 55441
+      || !/^genares_9d_test_[a-f0-9]{8}$/.test(entorno.DB_NAME ?? '')
+      || entorno.LOCAL_DEV_IDENTITY_PROFILE !== PERFIL_9D_CONSULTA_INTEGRADA
+      || entorno.LOCAL_DEV_WRITE_ENABLED !== 'false'
+      || entorno.LOCAL_DEV_WRITE_ORIGINS !== 'http://127.0.0.1:5180') {
+      throw new Error('El acceso integrado 9D requiere una base UUID desechable y el perfil fijo de consulta sin escritura.');
+    }
+    return;
+  }
+
+  if (entorno.LOCAL_DEV_OPEN_ACCESS !== 'true') {
     throw new Error('El acceso abierto requiere NODE_ENV=development y LOCAL_DEV_OPEN_ACCESS=true.');
   }
   if (entorno.DB_HOST !== BASE_DESARROLLO.host
@@ -65,6 +98,16 @@ export function validarBaseDesarrolloActiva(
   base: VerificacionBaseDesarrollo,
 ): void {
   validarConfiguracionAccesoDesarrollo(entorno);
+  if (esIntegracionTemporal9D(entorno)) {
+    if (base.nombre !== entorno.DB_NAME
+      || !/^genares_9d_test_[a-f0-9]{8}$/.test(base.nombre)
+      || !direccionEsLoopback(base.direccion ?? undefined)
+      || base.puerto !== 55441
+      || base.marca !== 'GENARES:9D:DISPOSABLE') {
+      throw new Error('La conexión PostgreSQL activa no corresponde a la base temporal 9D marcada como desechable.');
+    }
+    return;
+  }
   if (base.nombre !== BASE_DESARROLLO.nombre
     || !direccionEsLoopback(base.direccion ?? undefined)
     || base.puerto !== BASE_DESARROLLO.puerto
@@ -101,11 +144,11 @@ function rechazar(respuesta: RespuestaLocalApi, estado: number, codigo: string, 
 }
 
 /** Identidad técnica del proceso local, nunca representa una persona ni una cuenta. */
-export function crearMiddlewareAccesoDesarrolloLocal() {
+export function crearMiddlewareAccesoDesarrolloLocal(capacidades = CAPACIDADES_DESARROLLO_LOCAL) {
   const identidad: IdentidadApi = Object.freeze({
     sujeto: IDENTIDAD_TECNICA_DESARROLLO,
     tipo: 'DESARROLLO_LOCAL',
-    capacidades: CAPACIDADES_DESARROLLO_LOCAL,
+    capacidades,
   });
   return (solicitud: SolicitudLocalApi, respuesta: RespuestaLocalApi, continuar: () => void): void => {
     if (encabezado(solicitud, 'x-genares-dev-identity') !== undefined) {
@@ -117,6 +160,13 @@ export function crearMiddlewareAccesoDesarrolloLocal() {
     solicitud.identidadApi = identidad;
     respuesta.setHeader?.('Cache-Control', 'no-store');
     continuar();
+  };
+}
+
+export function crearMiddlewareSoloLecturaDesarrolloLocal() {
+  return (solicitud: SolicitudLocalApi, respuesta: RespuestaLocalApi, continuar: () => void): void => {
+    if (['GET', 'HEAD', 'OPTIONS'].includes((solicitud.method ?? '').toUpperCase())) return continuar();
+    rechazar(respuesta, 403, 'LOCAL_DEVELOPMENT_READ_ONLY', 'El perfil integrado 9D solo permite consultas.');
   };
 }
 
@@ -145,11 +195,20 @@ export async function instalarIdentidadDesarrolloLocal(
   entorno: EntornoAccesoDesarrollo = process.env,
   verificarBase?: () => Promise<VerificacionBaseDesarrollo>,
 ): Promise<boolean> {
-  if (entorno.NODE_ENV !== 'development' || entorno.LOCAL_DEV_OPEN_ACCESS !== 'true') return false;
+  const habilitado9D = entorno.NODE_ENV === 'development'
+    && entorno.LOCAL_DEV_IDENTITY_ENABLED === 'true'
+    && entorno.LOCAL_DEV_9D_TEMPORAL === 'true';
+  const habilitado10_9B = entorno.NODE_ENV === 'development' && entorno.LOCAL_DEV_OPEN_ACCESS === 'true';
+  if (!habilitado9D && !habilitado10_9B) return false;
   validarConfiguracionAccesoDesarrollo(entorno);
   if (!verificarBase) throw new Error('No se pudo verificar PostgreSQL antes de habilitar el acceso local.');
   validarBaseDesarrolloActiva(entorno, await verificarBase());
-  aplicacion.use(crearMiddlewareAccesoDesarrolloLocal());
-  aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));
+  if (habilitado9D) {
+    aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(CAPACIDADES_9D_CONSULTA_INTEGRADA));
+    aplicacion.use(crearMiddlewareSoloLecturaDesarrolloLocal());
+  } else {
+    aplicacion.use(crearMiddlewareAccesoDesarrolloLocal());
+    aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));
+  }
   return true;
 }

@@ -1,6 +1,5 @@
 import { API_BASE_URL } from '../configuracion/rubricas';
 import {
-  ESCRITURA_PROGRAMACIONES_HABILITADA,
   FUENTE_PROGRAMACIONES,
 } from '../configuracion/programaciones';
 import { ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
@@ -185,8 +184,8 @@ export function crearServicioProgramacionesApi(cliente) {
 
 const cliente = crearClienteHttp({
   baseUrl: API_BASE_URL,
-  habilitado: import.meta.env.DEV === true && FUENTE_PROGRAMACIONES === 'api',
-  escriturasHabilitadas: import.meta.env.DEV === true && ESCRITURA_PROGRAMACIONES_HABILITADA,
+  habilitado: FUENTE_PROGRAMACIONES === 'api',
+  escriturasHabilitadas: true,
 });
 
 const programacionesApi = crearServicioProgramacionesApi(cliente);

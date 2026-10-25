@@ -136,7 +136,7 @@ describe('cliente HTTP de escritura local', () => {
     await expect(offline.postJson('/rubricas', {})).rejects.toBeInstanceOf(ErrorConexionApi);
     await expect(offline.getJson('/carreras')).rejects.toMatchObject({
       name: ErrorConexionApi.name,
-      message: expect.stringContaining('NestJS'),
+      message: expect.stringContaining('No fue posible completar la consulta'),
     });
   });
 
@@ -162,7 +162,7 @@ describe('cliente HTTP de escritura local', () => {
     await expect(errorNest.getJson('/trabajos')).rejects.toMatchObject({
       name: ErrorApiHttp.name,
       status: 500,
-      message: 'NestJS respondió con un error HTTP 500. La operación solicitada no se completó.',
+      message: 'No se pudo completar la operación (código 500).',
     });
   });
 });

@@ -1,5 +1,5 @@
 import { ErrorApiHttp, ErrorEscrituraApiDeshabilitada, ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
-import { ESCRITURA_EVALUACIONES_API_HABILITADA, FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
+import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
 import { esUuidPostgres } from '../adaptadores/uuidPostgres';
 import {
   adaptarListaTrabajosEvaluacionApi,
@@ -21,7 +21,7 @@ function mapearPuntajes(puntajes) {
     if (!puntaje || typeof puntaje !== 'object' || !esUuidPostgres(puntaje.idIndicador)
       || typeof puntaje.puntaje !== 'string' || !PUNTAJE_DECIMAL.test(puntaje.puntaje)
       || (puntaje.observacion !== undefined && puntaje.observacion !== null && typeof puntaje.observacion !== 'string')) {
-      throw new TypeError('El puntaje de indicador no cumple el contrato API.');
+      throw new TypeError('El puntaje de indicador debe ser un valor numérico válido.');
     }
     const id = puntaje.idIndicador.toLowerCase();
     if (ids.has(id)) throw new TypeError('No se puede repetir un indicador en la misma solicitud.');
@@ -114,16 +114,16 @@ export function crearServicioEvaluacionesApi({ getJson, postJson, putJson, habil
 }
 
 const clienteEvaluaciones = crearClienteHttp({
-  habilitado: import.meta.env.DEV === true && FUENTE_EVALUACIONES === 'api',
-  escriturasHabilitadas: ESCRITURA_EVALUACIONES_API_HABILITADA,
+  habilitado: FUENTE_EVALUACIONES === 'api',
+  escriturasHabilitadas: true,
 });
 
 const servicio = crearServicioEvaluacionesApi({
-  habilitado: import.meta.env.DEV === true && FUENTE_EVALUACIONES === 'api',
+  habilitado: FUENTE_EVALUACIONES === 'api',
   getJson: clienteEvaluaciones.getJson,
   postJson: clienteEvaluaciones.postJson,
   putJson: clienteEvaluaciones.putJson,
-  escriturasHabilitadas: ESCRITURA_EVALUACIONES_API_HABILITADA,
+  escriturasHabilitadas: true,
 });
 
 export const listarEvaluacionesTrabajoApi = (...argumentos) => servicio.listarEvaluacionesTrabajo(...argumentos);

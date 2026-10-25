@@ -53,12 +53,12 @@ describe('catálogo de rúbricas', () => {
     expect(html).toContain('href="/rubricas/nueva"');
   });
 
-  it('mantiene solo lectura cuando no recibe capacidad administrativa del servidor', () => {
+  it('mantiene el control de permisos cuando el servidor no concede capacidad administrativa', () => {
     configurar({ puedeAdministrar: false });
     const html = renderToStaticMarkup(<PaginaRubricas />);
     expect(html).not.toContain('Nueva rúbrica');
-    expect(html).toContain('solo lectura');
-    expect(html).toContain('sin habilitar la creaci');
+    expect(html).toContain('Su perfil puede consultar las rúbricas, pero no crear versiones nuevas');
+    expect(html).toContain('no crear versiones nuevas');
   });
 
   it('distingue catálogo vacío, carga y error recuperable', () => {
@@ -82,9 +82,9 @@ describe('catálogo de rúbricas', () => {
   it('mantiene separados los datos del prototipo y no inventa carreras o vigencias', () => {
     configurar({ fuente: 'prototipo', versiones: [{ ...version, fuenteDatos: undefined, carreras: undefined }] });
     const html = renderToStaticMarkup(<PaginaRubricas />);
-    expect(html).toContain('Origen: prototipo local');
-    expect(html).toContain('No disponible en prototipo');
-    expect(html).toContain('No informada en prototipo');
+    expect(html).not.toContain('Origen: prototipo local');
+    expect(html).toContain('No disponible');
+    expect(html).toContain('No informada');
   });
 
   it('muestra historial por carrera y conserva el acceso al detalle existente', () => {

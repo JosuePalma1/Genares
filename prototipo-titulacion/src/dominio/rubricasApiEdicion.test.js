@@ -30,7 +30,7 @@ describe('preparación precisa de borradores API', () => {
 
   it('explica conflictos y conserva los cambios para recarga explícita', () => {
     expect(mensajeErrorEscrituraRubrica({ status: 409 })).toMatch(/cambió/i);
-    expect(mensajeErrorEscrituraRubrica({ status: 403 })).toMatch(/autorizó/i);
-    expect(mensajeErrorEscrituraRubrica({ name: 'ErrorConexionApi' })).toMatch(/cambios locales siguen disponibles/i);
+    expect(mensajeErrorEscrituraRubrica({ status: 403 })).toMatch(/perfil no tiene permiso/i);
+    expect(mensajeErrorEscrituraRubrica({ name: 'ErrorConexionApi' })).toMatch(/cambios siguen disponibles en el editor/i);
   });
 });

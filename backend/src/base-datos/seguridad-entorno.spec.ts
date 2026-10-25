@@ -28,4 +28,33 @@ describe('seguridad del destino PostgreSQL de desarrollo', () => {
     expect(() => validarDestinoBaseDesarrollo({ ...entorno, NODE_ENV: 'production', DB_PORT: '5432' })).toThrow(/no puede conectarse/);
     expect(() => validarDestinoBaseDesarrollo({ ...entorno, NODE_ENV: undefined, DB_PORT: '5432' })).toThrow(/no puede conectarse/);
   });
+
+  it('permite 9D solo con opt-in y una base temporal UUID marcada por el launcher', () => {
+    expect(() => validarDestinoBaseDesarrollo({
+      NODE_ENV: 'development', DB_HOST: '127.0.0.1', DB_PORT: '55441',
+      DB_NAME: 'genares_9d_test_a1b2c3d4', DB_DISPOSABLE: 'true', LOCAL_DEV_9D_TEMPORAL: 'true',
+    })).not.toThrow();
+    for (const cambios of [
+      { NODE_ENV: 'production' },
+      { DB_DISPOSABLE: 'false' },
+      { LOCAL_DEV_9D_TEMPORAL: 'false' },
+      { DB_NAME: 'genares_9d_disposable' },
+      { DB_HOST: 'localhost' },
+    ]) {
+      expect(() => validarDestinoBaseDesarrollo({
+        NODE_ENV: 'development', DB_HOST: '127.0.0.1', DB_PORT: '55441',
+        DB_NAME: 'genares_9d_test_a1b2c3d4', DB_DISPOSABLE: 'true', LOCAL_DEV_9D_TEMPORAL: 'true',
+        ...cambios,
+      })).toThrow();
+    }
+  });
+
+  it.each(['test', 'development', 'production', undefined])('bloquea 5432 y 8E también con NODE_ENV=%s', (NODE_ENV) => {
+    for (const DB_PORT of ['5432', '55440']) {
+      expect(() => validarDestinoBaseDesarrollo({
+        NODE_ENV, DB_HOST: '127.0.0.1', DB_PORT, DB_NAME: 'genares_9d_test_a1b2c3d4',
+        DB_DISPOSABLE: 'true', LOCAL_DEV_9D_TEMPORAL: 'true',
+      })).toThrow();
+    }
+  });
 });

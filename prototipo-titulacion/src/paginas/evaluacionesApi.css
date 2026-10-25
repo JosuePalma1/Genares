@@ -1,6 +1,6 @@
 .evaluaciones-api-page { display: grid; gap: 1.25rem; min-width: 0; }
 .evaluaciones-api-page .page-header { align-items: flex-start; }
-.evaluaciones-api-card { min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); border: 1px solid var(--border, #dfe5e1); border-radius: 1rem; background: var(--surface, #fff); box-shadow: 0 8px 28px rgb(20 45 32 / 5%); }
+.evaluaciones-api-card { min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); border: 1px solid #d5dfe8; border-bottom: 3px solid #c8d5e1; border-radius: 1rem; background: var(--surface, #fff); box-shadow: none; }
 .evaluaciones-api-card h2 { margin: 0; font-size: 1.1rem; }
 .evaluaciones-api-card > p { color: var(--text-muted, #617067); }
 .evaluaciones-api-section-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }

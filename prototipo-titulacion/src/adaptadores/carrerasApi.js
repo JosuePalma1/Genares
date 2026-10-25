@@ -10,7 +10,7 @@ export function adaptarCarreraApi(valor) {
     || typeof valor.estaActivo !== 'boolean'
     || !Number.isInteger(valor.revision) || valor.revision < 1
     || !fecha(valor.creadoEn) || !fecha(valor.actualizadoEn)) {
-    throw new Error('La API devolvió una carrera con formato inválido.');
+    throw new Error('La información recibida para esta carrera está incompleta.');
   }
   return {
     id: valor.id, codigo: valor.codigo, nombre: valor.nombre,
@@ -20,7 +20,7 @@ export function adaptarCarreraApi(valor) {
 }
 
 export function adaptarListadoCarrerasApi(valor) {
-  if (!Array.isArray(valor)) throw new Error('La API devolvió un listado de carreras inválido.');
+  if (!Array.isArray(valor)) throw new Error('No fue posible cargar el listado de carreras.');
   return valor.map(adaptarCarreraApi);
 }
 

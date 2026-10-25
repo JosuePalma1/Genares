@@ -17,7 +17,7 @@ const ETIQUETAS_ESTADO = {
   COMPLETA: 'Completa',
   CERRADA_INCOMPLETA: 'Cerrada incompleta',
   BORRADOR: 'Abierta · borrador',
-  CERRADA: 'Cerrada · solo lectura',
+  CERRADA: 'Cerrada',
 };
 
 function estadoLegible(estado) {
@@ -27,14 +27,14 @@ function estadoLegible(estado) {
 export function mensajeSeguroEvaluaciones(error) {
   if (error instanceof ErrorConexionApi) return error.message;
   if (error instanceof ErrorRespuestaApi) return error.message;
-  if (error?.status === 401) return 'La API requiere una identidad validada para esta consulta.';
+  if (error?.status === 401) return 'La sesión no tiene una identidad validada. Inicie sesión y vuelva a intentarlo.';
   if (error?.status === 403 || error?.status === 404) {
     return 'No se pudo consultar este trabajo. Puede no existir o no estar disponible.';
   }
-  if (error?.status === 409) return 'El servidor indicó que esta consulta todavía no está disponible para el estado actual del trabajo.';
+  if (error?.status === 409) return 'Esta consulta no está disponible para el estado actual del trabajo.';
   if (error?.status >= 500) return error.message;
   if (error?.message === 'El identificador debe ser un UUID válido.') return error.message;
-  return 'No fue posible consultar la API de evaluaciones. No se mostrarán datos de demostración como sustitución.';
+  return 'No fue posible consultar las evaluaciones. Intente de nuevo.';
 }
 
 export function PaginaMisEvaluacionesApi() {
@@ -60,13 +60,13 @@ export function PaginaMisEvaluacionesApi() {
     <div className="evaluaciones-api-page">
       <EncabezadoPagina
         title="Evaluaciones"
-        description="Consulte trabajos, estudiantes, tribunales y resultados desde PostgreSQL."
+        description="Consulte trabajos, estudiantes, tribunales y resultados de las evaluaciones."
         breadcrumbs={['Gestión académica', 'Evaluaciones']}
-        meta={<InsigniaEstado tono="info"><Database size={14} /> PostgreSQL local</InsigniaEstado>}
+        meta={<InsigniaEstado tono="info"><Database size={14} /> Seguimiento académico</InsigniaEstado>}
       />
       {estado === 'cargando' && <EstadoConsultaEvaluacionesApi estado="cargando" />}
       {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void cargar(); }} />}
-      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando existan en la base local." />}
+      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando estén disponibles para su perfil." />}
       {estado === 'listo' && trabajos.length > 0 && <div className="evaluaciones-api-sections">
         {trabajos.map((trabajo) => (
           <article className="evaluaciones-api-card" key={trabajo.id}>
@@ -96,9 +96,9 @@ function Calificacion({ valor }) {
 }
 
 export function EstadoConsultaEvaluacionesApi({ estado, error, alReintentar }) {
-  if (estado === 'cargando') return <div className="evaluaciones-api-card" role="status">Consultando al servidor…</div>;
+  if (estado === 'cargando') return <div className="evaluaciones-api-card" role="status">Cargando evaluaciones…</div>;
   if (estado === 'error') return (
-    <AlertaInstitucional className="evaluaciones-api-error" tono="danger" role="alert" titulo="No se pudo consultar la API de evaluaciones">
+    <AlertaInstitucional className="evaluaciones-api-error" tono="danger" role="alert" titulo="No se pudieron consultar las evaluaciones">
       <p>{mensajeSeguroEvaluaciones(error)}</p>
       <button className="button button-outline" type="button" onClick={alReintentar}>Reintentar</button>
     </AlertaInstitucional>
@@ -155,7 +155,7 @@ function EvaluacionCard({ evaluacion, compartida }) {
       {compartida && (
         <div className="evaluaciones-api-transfer-note">
           <LockKeyhole size={16} aria-hidden="true" />
-          <span>El traspaso a estudiantes se consulta desde las referencias guardadas por el servidor. Esta evaluación original no se duplica.</span>
+          <span>La evaluación compartida se vincula a cada estudiante mediante el traspaso registrado. La evaluación original no se duplica.</span>
           {evaluacion.estudiantesTraspasados.length > 0 && <ul>{evaluacion.estudiantesTraspasados.map(({ idEstudiante }) => <li key={idEstudiante}>{idEstudiante}</li>)}</ul>}
         </div>
       )}
@@ -186,7 +186,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
                 <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3 id={`etapa-${etapa.id}`}>{etapa.nombre}</h3><p aria-label={`${etiquetaAlcanceEtapa(etapa.alcance)} (${etapa.alcance})`}>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
                 <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               </div>
-              {esCompartida && <AlertaInstitucional tono="info">Una evaluación del trabajo puede traspasarse a cada estudiante. Se muestra la evaluación original y las referencias de traspaso del servidor.</AlertaInstitucional>}
+              {esCompartida && <AlertaInstitucional tono="info">Una evaluación del trabajo puede traspasarse a cada estudiante. Se muestra la evaluación original y sus traspasos registrados.</AlertaInstitucional>}
               {registrosEtapa.length === 0 ? <EstadoVacio title="Todavía no hay evaluaciones registradas" /> : (
                 esCompartida
                   ? registrosEtapa.filter(({ idEstudiante }) => idEstudiante === null).map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida />)
@@ -247,7 +247,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
           <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{[resultado.estudiante.nombres, resultado.estudiante.apellidos].filter(Boolean).join(' ') || resultado.estudiante.id}</h2><p>{resultado.estudiante.id}</p></div>
           <div><span>Versión de rúbrica fijada</span><strong>{resultado.versionRubrica.version} · {resultado.versionRubrica.id}</strong></div>
         </div>
-        {resultado.estado === 'LEGACY_NO_CONSOLIDADA' && <AlertaInstitucional tono="warning" titulo="Evaluación histórica">La API señala registros legacy sin consolidación dinámica. No se recalculan ni se mezclan con las etapas actuales.</AlertaInstitucional>}
+        {resultado.estado === 'LEGACY_NO_CONSOLIDADA' && <AlertaInstitucional tono="warning" titulo="Evaluación histórica">Hay registros históricos sin consolidación. No se recalculan ni se mezclan con las etapas actuales.</AlertaInstitucional>}
         {resultado.estado === 'SIN_EVALUACIONES' && <EstadoVacio title="Sin evaluaciones registradas" description="No se muestra una calificación final." />}
         {resultado.estado === 'EN_PROGRESO' && <AlertaInstitucional tono="info" titulo="Evaluaciones en progreso">Las evaluaciones disponibles todavía no forman un resultado definitivo.</AlertaInstitucional>}
         {resultado.estado === 'EVALUACIONES_CERRADAS_INCOMPLETAS' && <AlertaInstitucional tono="warning" titulo="Faltan evaluaciones obligatorias">Las evaluaciones cerradas todavía no completan todas las etapas y evaluadores esperados.</AlertaInstitucional>}
@@ -258,7 +258,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
               <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               <div className="evaluaciones-api-stage-grade"><span>Promedio presentado</span><strong><Calificacion valor={etapa.promedioEtapa?.presentado ?? null} /></strong></div>
               {etapa.evaluadoresPendientes.length > 0 && <div className="evaluaciones-api-pending"><strong>Evaluadores pendientes</strong><ul>{etapa.evaluadoresPendientes.map((pendiente) => <li key={pendiente.idMiembroTribunal}>Miembro {pendiente.posicion} · {pendiente.causa}</li>)}</ul></div>}
-              {etapa.alcance === 'TRABAJO_COMPARTIDO' && etapa.evaluaciones.some(({ traspaso }) => traspaso) && <p className="evaluaciones-api-transfer-note"><LockKeyhole size={15} aria-hidden="true" /> Calificación compartida recibida mediante el traspaso registrado por el servidor.</p>}
+              {etapa.alcance === 'TRABAJO_COMPARTIDO' && etapa.evaluaciones.some(({ traspaso }) => traspaso) && <p className="evaluaciones-api-transfer-note"><LockKeyhole size={15} aria-hidden="true" /> Calificación compartida recibida mediante el traspaso registrado.</p>}
             </article>
           ))}
         </div>
@@ -266,7 +266,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
           <span>Resultado consultivo individual · sobre 10</span>
           {resultado.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion}</strong> : <strong className="evaluaciones-api-no-final">No disponible · {estadoLegible(resultado.estado)}</strong>}
         </div>
-        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final. La API entrega el resultado consultivo sobre 10.00.</p>
+        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final. El resultado final se expresa sobre 10.00.</p>
         {miembros.length > 0 && <div className="form-actions resultado-miembro-actions" aria-label="Rúbricas PDF por miembro del tribunal">
           {miembros.map((miembro) => <Link
             className="button button-outline"
@@ -286,7 +286,7 @@ export function PaginaEvaluacionTrabajoApi() {
 
   if (consulta.estado !== 'listo') return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Evaluaciones del trabajo" description={idTrabajo} breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, 'Consulta API']} />
+      <EncabezadoPagina title="Evaluaciones del trabajo" description={idTrabajo} breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, 'Evaluaciones']} />
       <EstadoConsultaEvaluacionesApi estado={consulta.estado} error={consulta.error} alReintentar={reintentar} />
     </div>
   );
@@ -299,9 +299,9 @@ export function PaginaEvaluacionTrabajoApi() {
         title="Evaluaciones del trabajo"
         description={`${trabajo.codigo} · ${trabajo.titulo}`}
         breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, trabajo.codigo]}
-        meta={<InsigniaEstado tono="info"><Database size={14} /> API · acceso definido por el servidor</InsigniaEstado>}
+        meta={<InsigniaEstado tono="info"><Database size={14} /> Acceso según los permisos del perfil</InsigniaEstado>}
       />
-      <AlertaInstitucional titulo="Evaluación vinculada al tribunal"><p>Seleccione el miembro registrado del tribunal que corresponda. El servidor valida su asignación al trabajo al crear, guardar y cerrar la evaluación.</p></AlertaInstitucional>
+      <AlertaInstitucional titulo="Evaluación vinculada al tribunal"><p>Seleccione el miembro registrado del tribunal que corresponda. Solo puede registrar y cerrar evaluaciones quien está habilitado como integrante del tribunal del trabajo.</p></AlertaInstitucional>
       <EditorEvaluacionApi
         idTrabajo={idTrabajo}
         evaluaciones={consulta.evaluaciones}
@@ -320,14 +320,14 @@ export function PaginaResultadoApi() {
   const consulta = usarEvaluacionesTrabajoApi(idTrabajo, { incluirEvaluaciones: false });
   if (consulta.estado !== 'listo') return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Resultado individual" description="Consulta de consolidación devuelta por el servidor." breadcrumbs={['Resultados']} />
+      <EncabezadoPagina title="Resultado individual" description="Resultado consolidado según las evaluaciones registradas." breadcrumbs={['Resultados']} />
       <EstadoConsultaEvaluacionesApi estado={consulta.estado} error={consulta.error} alReintentar={() => window.location.reload()} />
     </div>
   );
 
   const { consolidacion } = consulta;
   const resultado = consolidacion.estudiantes.find(({ estudiante }) => estudiante.id.toLowerCase() === idEstudiante?.toLowerCase());
-  if (!resultado) return <div className="evaluaciones-api-page"><EstadoVacio title="Resultado no disponible" description="El estudiante no pertenece al trabajo consultado o no está incluido en la respuesta autorizada del servidor." /></div>;
+  if (!resultado) return <div className="evaluaciones-api-page"><EstadoVacio title="Resultado no disponible" description="No existe un resultado para este estudiante en el trabajo seleccionado o su perfil no tiene permiso para consultarlo." /></div>;
 
   return (
     <div className="evaluaciones-api-page">

@@ -114,7 +114,7 @@ export function ModalFormularioCatalogo({
         {error && <div className="modal-catalogo-error" role="alert">
           <p>{error}</p>
           {mostrarRecarga && <button className="button button-outline" type="button" onClick={alRecargar} disabled={guardando}>
-            Recargar datos del servidor
+            Recargar información
           </button>}
         </div>}
 

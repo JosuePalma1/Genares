@@ -3,8 +3,9 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "dev:web": "node scripts/dev.mjs --frontend-only",
+    "dev:web": "npm run dev",
     "dev:api": "node scripts/dev.mjs --backend-only",
+    "dev:postgres-9d": "node scripts/dev-postgres-9d.mjs",
     "db:prepare": "node scripts/db-dev.mjs"
   }
 }

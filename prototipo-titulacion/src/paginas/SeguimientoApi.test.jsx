@@ -110,7 +110,7 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('DEV-SOFT-001');
     expect(html).toContain('<option value="TI">TI</option>');
     expect(html).toContain('<option value="SOFT">SOFT</option>');
-    expect(html).toContain('2 de 2 trabajos · solo datos API');
+    expect(html).toContain('2 de 2 trabajos');
     expect(html).toContain('coordinacion-api-carrera');
   });
 

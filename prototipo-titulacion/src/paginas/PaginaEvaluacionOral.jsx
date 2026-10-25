@@ -33,7 +33,7 @@ import { PaginaEvaluacionTrabajoApi } from './PaginaEvaluacionesApi';
 
 const textoEstadoOral = (oral) => (
   oral?.estado === ESTADO_EVALUACION.CERRADA
-    ? 'Cerrada · solo lectura'
+    ? 'Cerrada'
     : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente'
 );
 
@@ -272,7 +272,7 @@ function PaginaEvaluacionOralPrototipo() {
                   </div>
                   <progress value={datos.completos} max={indicadores.length} aria-label={`${datos.completos} de ${indicadores.length} indicadores completos para ${nombreCompleto(persona)}`} />
                   <div className={`evaluacion-comparativa-save-state ${datos.formulario.tieneCambios ? 'has-changes' : ''}`} aria-live="polite">
-                    {datos.cerrado ? <><CheckCircle2 size={16} /> Solo lectura</> : datos.formulario.tieneCambios ? <><span className="save-state-dot" /> Cambios sin guardar</> : <><CheckCircle2 size={16} /> Sin cambios pendientes</>}
+                    {datos.cerrado ? <><CheckCircle2 size={16} /> Evaluación cerrada</> : datos.formulario.tieneCambios ? <><span className="save-state-dot" /> Cambios sin guardar</> : <><CheckCircle2 size={16} /> Sin cambios pendientes</>}
                   </div>
                   <div className="evaluacion-comparativa-card-actions">
                     {datos.cerrado ? (
@@ -299,7 +299,7 @@ function PaginaEvaluacionOralPrototipo() {
             <div className="estudiante-tab evaluacion-estudiante-tab active">
               <span className="estudiante-tab-index" aria-hidden="true">01</span>
               <span className="estudiante-tab-info"><span className="estudiante-tab-name">{nombreCompleto(estudiante)}</span><small>Evaluando ahora</small></span>
-              <InsigniaEstado tono={cerrado ? 'success' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'progress' : 'pending'}>{cerrado ? 'Cerrada · solo lectura' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente'}</InsigniaEstado>
+              <InsigniaEstado tono={cerrado ? 'success' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'progress' : 'pending'}>{cerrado ? 'Cerrada' : oral?.estado === ESTADO_EVALUACION.BORRADOR ? 'Abierta · borrador' : 'Abierta · pendiente'}</InsigniaEstado>
             </div>
           </div>
         </section>

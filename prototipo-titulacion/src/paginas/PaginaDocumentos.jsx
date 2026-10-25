@@ -5,7 +5,6 @@ import {
   actualizarConfiguracionDocumental,
   consultarDocumentos,
   DOCUMENTOS_API_HABILITADA,
-  ESCRITURA_DOCUMENTOS_API_HABILITADA,
   guardarDocumento,
   obtenerPdfDocumento,
 } from '../servicios/documentosApi';
@@ -16,10 +15,10 @@ const FORMATO = 'PAT-01-F-019';
 function mensajeErrorDocumento(error, ruta) {
   if (!ruta.includes('/rubricas/')) return error.message;
   if (error.status === 400) return 'Los identificadores del trabajo, estudiante o miembro del tribunal no son válidos.';
-  if (error.status === 403) return 'El servidor no autorizó la consulta de esta rúbrica.';
+  if (error.status === 403) return 'Su perfil no tiene permiso para consultar esta rúbrica.';
   if (error.status === 404) return 'No se encontró el trabajo, el estudiante integrante o el miembro del tribunal confirmado solicitado.';
   if (error.status === 409) return 'El trabajo no tiene una versión de rúbrica disponible para imprimir.';
-  if (error.name === 'ErrorConexionApi') return 'No se pudo conectar con NestJS. No se generó una rúbrica local como sustituto.';
+  if (error.name === 'ErrorConexionApi') return 'No fue posible generar el documento. Intente de nuevo más tarde.';
   return error.message;
 }
 
@@ -162,7 +161,7 @@ export default function PaginaDocumentos() {
   const pendientes = actaEstudiante?.pendientes ?? [];
   return <div className="documentos-page">
     <EncabezadoPagina title="Documentos académicos" description="Consulte resultados consultivos, documentos preliminares y actas archivadas." breadcrumbs={['Inicio', 'Documentos']} />
-    {!DOCUMENTOS_API_HABILITADA ? <section className="card"><p>Active la consulta API de evaluaciones para acceder a documentos reales.</p></section> : <>
+    {!DOCUMENTOS_API_HABILITADA ? <section className="card"><p>La consulta de documentos de evaluación no está disponible actualmente.</p></section> : <>
       {error && <div role="alert" className="card"><p>{error}</p><button type="button" onClick={() => setError('')}>Cerrar aviso</button></div>}
       {mensaje && <div role="status" className="card"><p>{mensaje}</p><button type="button" onClick={() => setMensaje('')}>Cerrar aviso</button></div>}
       {configuracion?.puedeEditar && <section className="card">
@@ -170,8 +169,7 @@ export default function PaginaDocumentos() {
         <p>Umbral de aprobación provisional: 7.00 sobre 10.00. El valor utilizado queda archivado con cada acta; no representa por sí solo una decisión institucional oficial.</p>
         {configuracion.actualizadoEn && <p>Última modificación: {new Date(configuracion.actualizadoEn).toLocaleString()}</p>}
         <label>Nota mínima provisional<input type="number" min="0" max="10" step="0.01" value={notaMinima} onChange={(e) => setNotaMinima(e.target.value)} /></label>
-        <button className="button button-primary" disabled={guardandoConfiguracion || !ESCRITURA_DOCUMENTOS_API_HABILITADA} onClick={guardarNotaMinima}>Guardar configuración</button>
-        {!ESCRITURA_DOCUMENTOS_API_HABILITADA && <p>Active la escritura API autorizada para guardar esta configuración.</p>}
+        <button className="button button-primary" disabled={guardandoConfiguracion} onClick={guardarNotaMinima}>Guardar configuración</button>
       </section>}
       <section className="card">
         <h2>Resultado consultivo y documentos</h2>
@@ -193,7 +191,7 @@ export default function PaginaDocumentos() {
           <label>Formato institucional<select value={formato} onChange={(e) => { imprimirRubricaPendiente.current = false; cerrarPdf(); setFormato(e.target.value); }}><option value="PAT-01-F-019">PAT-01-F-019 · Revisión 1</option><option value="PAT-04-F-017">PAT-04-F-017 · Revisión 2</option></select></label>
           <div className="documentos-acciones">
             <button className="button button-secondary" disabled={ocupado || !estudianteId} onClick={() => abrirPdf(`${base}/acta-preliminar?formato=${formato}`, 'Documento preliminar · acta sin número')}>Vista previa de documento preliminar</button>
-            <button className="button button-primary" disabled={ocupado || !actaEstudiante?.puedeEmitir || !ESCRITURA_DOCUMENTOS_API_HABILITADA} onClick={generarActa}>{actaEstudiante?.puedeEmitir ? 'Generar / reimprimir acta' : 'Acta pendiente'}</button>
+            <button className="button button-primary" disabled={ocupado || !actaEstudiante?.puedeEmitir} onClick={generarActa}>{actaEstudiante?.puedeEmitir ? 'Generar / reimprimir acta' : 'Acta pendiente'}</button>
           </div>
         </>}
       </section>
@@ -202,7 +200,7 @@ export default function PaginaDocumentos() {
         {actas.length === 0 ? <p>No hay actas archivadas que coincidan con estos filtros y permisos.</p> : <div className="documentos-table-wrap" role="region" aria-label="Actas archivadas" tabIndex="0"><table><caption className="sr-only">Actas archivadas y resultados provisionales</caption><thead><tr><th scope="col">Número</th><th scope="col">Estudiante</th><th scope="col">Carrera</th><th scope="col">Período</th><th scope="col">Nota /10</th><th scope="col">Umbral aplicado</th><th scope="col">Resultado provisional</th><th scope="col">Documento archivado</th></tr></thead><tbody>{actas.map((a) => <tr key={a.id}><td>{a.numero}</td><td>{a.estudiante}</td><td>{a.carrera}</td><td>{a.periodo}</td><td>{a.notaFinal ?? 'Histórica'}</td><td>{a.notaMinimaAplicada ?? '—'}</td><td>{a.aprobado === null ? 'No registrado' : a.aprobado ? 'APROBADO (provisional)' : 'REPROBADO (provisional)'}</td><td><button disabled={ocupado} onClick={() => abrirPdf(`/actas/${a.id}/pdf`, `Acta archivada · ${a.numero}`)}>Abrir acta archivada</button></td></tr>)}</tbody></table></div>}
       </section>
       {ocupado && <p role="status">Preparando documento…</p>}
-      {pdf && <section className="card"><h2>{pdf.titulo}</h2><div className="documentos-acciones"><a className="button button-primary" href={pdf.url} download={`${pdf.titulo}.pdf`}>Guardar PDF</a><a className="button button-secondary" href={pdf.url} target="_blank" rel="noreferrer">Abrir PDF en pestaña nueva</a><button className="button button-secondary" onClick={() => { imprimirRubricaPendiente.current = false; cerrarPdf(); }}>Cerrar vista previa</button></div><p>El PDF original entregado por el servidor se conserva en el visor. Puede abrirlo en una pestaña nueva para ampliarlo o imprimirlo.</p><iframe ref={iframePdf} title={pdf.titulo} src={pdf.url} onLoad={() => {
+      {pdf && <section className="card"><h2>{pdf.titulo}</h2><div className="documentos-acciones"><a className="button button-primary" href={pdf.url} download={`${pdf.titulo}.pdf`}>Guardar PDF</a><a className="button button-secondary" href={pdf.url} target="_blank" rel="noreferrer">Abrir PDF en pestaña nueva</a><button className="button button-secondary" onClick={() => { imprimirRubricaPendiente.current = false; cerrarPdf(); }}>Cerrar vista previa</button></div><p>El documento original se conserva en el visor. Puede abrirlo en una pestaña nueva para ampliarlo o imprimirlo.</p><iframe ref={iframePdf} title={pdf.titulo} src={pdf.url} onLoad={() => {
         if (!imprimirRubricaPendiente.current) return;
         imprimirRubricaPendiente.current = false;
         window.setTimeout(() => iframePdf.current?.contentWindow?.print(), 250);

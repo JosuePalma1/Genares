@@ -15,7 +15,7 @@ function adaptarVersion(valor) {
     || !esObjeto(valor.periodo) || !UUID_V4.test(valor.periodo.id ?? '')
     || typeof valor.periodo.codigo !== 'string'
     || (valor.activadaEn !== null && !fechaIso(valor.activadaEn))) {
-    throw new Error('La API devolvió una versión de rúbrica con formato inválido.');
+    throw new Error('La información recibida para esta versión de rúbrica está incompleta.');
   }
   return {
     id: valor.id,
@@ -35,7 +35,7 @@ export function adaptarModalidadApi(valor) {
     || typeof valor.estaActivo !== 'boolean'
     || !Number.isInteger(valor.revision) || valor.revision < 1
     || !fechaIso(valor.creadoEn) || !fechaIso(valor.actualizadoEn)) {
-    throw new Error('La API devolvió una modalidad con formato inválido.');
+    throw new Error('La información recibida para esta modalidad está incompleta.');
   }
   let familiaRubricas = null;
   if (valor.familiaRubricas !== null) {
@@ -45,7 +45,7 @@ export function adaptarModalidadApi(valor) {
       || (familia.descripcion !== null && typeof familia.descripcion !== 'string')
       || !Number.isInteger(familia.cantidadVersiones) || familia.cantidadVersiones < 0
       || (familia.versiones !== undefined && !Array.isArray(familia.versiones))) {
-      throw new Error('La API devolvió una familia de rúbricas con formato inválido.');
+      throw new Error('La información recibida para esta familia de rúbricas está incompleta.');
     }
     familiaRubricas = {
       id: familia.id,
@@ -70,7 +70,7 @@ export function adaptarModalidadApi(valor) {
 }
 
 export function adaptarListadoModalidadesApi(valor) {
-  if (!Array.isArray(valor)) throw new Error('La API devolvió un listado de modalidades inválido.');
+  if (!Array.isArray(valor)) throw new Error('No fue posible cargar el listado de modalidades.');
   return valor.map(adaptarModalidadApi);
 }
 

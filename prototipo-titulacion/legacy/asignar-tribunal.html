@@ -1,8 +1,132 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Asignar tribunal</title><link rel="stylesheet" href="css/styles.css"><link rel="stylesheet" href="css/responsive.css"></head><body><div class="app-shell">
-<aside class="sidebar"><div class="brand"><span class="brand-mark">GT</span><div><strong>Gestión de Titulación</strong><small>Prototipo institucional</small></div></div><nav class="side-nav"><p class="nav-label">Operación</p><a href="dashboard.html"><span class="nav-icon">⌂</span>Dashboard</a><a class="active" href="trabajos.html"><span class="nav-icon">▤</span>Trabajos de titulación</a><a href="mis-evaluaciones.html"><span class="nav-icon">✓</span>Mis evaluaciones</a><a href="consulta.html"><span class="nav-icon">⌕</span>Consulta</a><p class="nav-label">Administración</p><a href="rubricas.html"><span class="nav-icon">▦</span>Rúbricas</a><a href="usuarios.html"><span class="nav-icon">♙</span>Usuarios y roles</a></nav></aside>
-<header class="topbar"><span class="topbar-title">Gestión de asignaciones</span><div class="user-box"><div class="user-meta"><strong>Daniela Cedeño</strong><span>Comisión Académica</span></div><span class="avatar">DC</span></div></header><details class="mobile-nav"><summary>Menú del sistema</summary><nav class="mobile-links"><a href="dashboard.html">Dashboard</a><a class="active" href="trabajos.html">Trabajos</a><a href="mis-evaluaciones.html">Evaluaciones</a><a href="consulta.html">Consulta</a></nav></details>
-<main class="main-content"><div class="content-header"><div><div class="breadcrumb"><a href="trabajos.html">Trabajos</a><span><a href="trabajo-detalle.html">Detalle</a></span><span>Asignar tribunal</span></div><h1>Asignación de tribunal</h1><p>Configure los dos miembros responsables de la evaluación.</p></div><a class="button button-outline" href="trabajo-detalle.html">Volver al detalle</a></div>
-<section class="card"><div class="card-header"><h2>Información del trabajo</h2><span class="badge badge-success">Tutor asignado</span></div><div class="card-body"><dl class="info-list"><div><dt>Estudiante</dt><dd>Andrea Mendoza</dd></div><div><dt>Carrera</dt><dd>Tecnologías de la Información</dd></div><div class="wide"><dt>Tema</dt><dd>Sistema web para la gestión de procesos académicos</dd></div><div><dt>Tutor</dt><dd>Carlos Andrade</dd></div><div><dt>Período</dt><dd>2026-1</dd></div></dl></div></section>
-<div class="grid-2"><section class="card"><div class="card-header"><h2>Miembros del tribunal</h2></div><div class="card-body stack"><div class="field"><label for="miembro1">Miembro de tribunal 1</label><select class="select" id="miembro1"><option>María López · Tecnologías de la Información</option><option>Paola Reyes · Software</option><option>Jorge Vera · Tecnologías de la Información</option></select></div><div class="field"><label for="miembro2">Miembro de tribunal 2</label><select class="select" id="miembro2"><option>José Mendoza · Software</option><option>Paola Reyes · Software</option><option>Jorge Vera · Tecnologías de la Información</option></select></div><div class="alert alert-info"><span>ⓘ</span><div>Los docentes mostrados son ficticios. En el sistema definitivo se aplicarían las reglas institucionales validadas.</div></div></div></section>
-<section class="card"><div class="card-header"><h2>Resumen antes de confirmar</h2></div><div class="card-body"><div class="activity-list"><div class="activity-item"><span class="avatar">ML</span><div class="activity-content"><strong>María López</strong><small>Miembro de tribunal 1</small></div><span class="badge badge-info">Seleccionada</span></div><div class="activity-item"><span class="avatar">JM</span><div class="activity-content"><strong>José Mendoza</strong><small>Miembro de tribunal 2</small></div><span class="badge badge-info">Seleccionado</span></div></div><div class="assignment-summary mt-4"><p><strong>Carrera:</strong> Tecnologías de la Información</p><p class="mb-0"><strong>Trabajo:</strong> TT-2026-0184</p></div><div class="form-actions"><a class="button button-outline" href="trabajo-detalle.html">Cancelar</a><a class="button button-primary" href="trabajo-detalle.html">Confirmar asignación</a></div></div></section></div>
-</main></div></body></html>
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Asignar tribunal</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/responsive.css">
+</head>
+
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand"><span class="brand-mark">GT</span>
+                <div><strong>Gestión de Titulación</strong><small>Prototipo institucional</small></div>
+            </div>
+            <nav class="side-nav">
+                <p class="nav-label">Operación</p><a href="dashboard.html"><span
+                        class="nav-icon">⌂</span>Dashboard</a><a class="active" href="trabajos.html"><span
+                        class="nav-icon">▤</span>Trabajos de titulación</a><a href="mis-evaluaciones.html"><span
+                        class="nav-icon">✓</span>Mis evaluaciones</a><a href="consulta.html"><span
+                        class="nav-icon">⌕</span>Consulta</a>
+                <p class="nav-label">Administración</p><a href="rubricas.html"><span
+                        class="nav-icon">▦</span>Rúbricas</a><a href="usuarios.html"><span
+                        class="nav-icon">♙</span>Usuarios y roles</a>
+            </nav>
+        </aside>
+        <header class="topbar"><span class="topbar-title">Gestión de asignaciones</span>
+            <div class="user-box">
+                <div class="user-meta"><strong>Daniela Cedeño</strong><span>Comisión Académica</span></div><span
+                    class="avatar">DC</span>
+            </div>
+        </header>
+        <details class="mobile-nav">
+            <summary>Menú del sistema</summary>
+            <nav class="mobile-links"><a href="dashboard.html">Dashboard</a><a class="active"
+                    href="trabajos.html">Trabajos</a><a href="mis-evaluaciones.html">Evaluaciones</a><a
+                    href="consulta.html">Consulta</a></nav>
+        </details>
+        <main class="main-content">
+            <div class="content-header">
+                <div>
+                    <div class="breadcrumb"><a href="trabajos.html">Trabajos</a><span><a
+                                href="trabajo-detalle.html">Detalle</a></span><span>Asignar tribunal</span></div>
+                    <h1>Asignación de tribunal</h1>
+                    <p>Configure los dos miembros responsables de la evaluación.</p>
+                </div><a class="button button-outline" href="trabajo-detalle.html">Volver al detalle</a>
+            </div>
+            <section class="card">
+                <div class="card-header">
+                    <h2>Información del trabajo</h2><span class="badge badge-success">Tutor asignado</span>
+                </div>
+                <div class="card-body">
+                    <dl class="info-list">
+                        <div>
+                            <dt>Estudiante</dt>
+                            <dd>Andrea Mendoza</dd>
+                        </div>
+                        <div>
+                            <dt>Carrera</dt>
+                            <dd>Tecnologías de la Información</dd>
+                        </div>
+                        <div class="wide">
+                            <dt>Tema</dt>
+                            <dd>Sistema web para la gestión de procesos académicos</dd>
+                        </div>
+                        <div>
+                            <dt>Tutor</dt>
+                            <dd>Carlos Andrade</dd>
+                        </div>
+                        <div>
+                            <dt>Período</dt>
+                            <dd>2026-1</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+            <div class="grid-2">
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Miembros del tribunal</h2>
+                    </div>
+                    <div class="card-body stack">
+                        <div class="field"><label for="miembro1">Miembro de tribunal 1</label><select class="select"
+                                id="miembro1">
+                                <option>María López · Tecnologías de la Información</option>
+                                <option>Paola Reyes · Software</option>
+                                <option>Jorge Vera · Tecnologías de la Información</option>
+                            </select></div>
+                        <div class="field"><label for="miembro2">Miembro de tribunal 2</label><select class="select"
+                                id="miembro2">
+                                <option>José Mendoza · Software</option>
+                                <option>Paola Reyes · Software</option>
+                                <option>Jorge Vera · Tecnologías de la Información</option>
+                            </select></div>
+                        <div class="alert alert-info"><span>ⓘ</span>
+                            <div>Los docentes mostrados son ficticios. En el sistema definitivo se aplicarían las reglas
+                                institucionales validadas.</div>
+                        </div>
+                    </div>
+                </section>
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Resumen antes de confirmar</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="activity-list">
+                            <div class="activity-item"><span class="avatar">ML</span>
+                                <div class="activity-content"><strong>María López</strong><small>Miembro de tribunal
+                                        1</small></div><span class="badge badge-info">Seleccionada</span>
+                            </div>
+                            <div class="activity-item"><span class="avatar">JM</span>
+                                <div class="activity-content"><strong>José Mendoza</strong><small>Miembro de tribunal
+                                        2</small></div><span class="badge badge-info">Seleccionado</span>
+                            </div>
+                        </div>
+                        <div class="assignment-summary mt-4">
+                            <p><strong>Carrera:</strong> Tecnologías de la Información</p>
+                            <p class="mb-0"><strong>Trabajo:</strong> TT-2026-0184</p>
+                        </div>
+                        <div class="form-actions"><a class="button button-outline"
+                                href="trabajo-detalle.html">Cancelar</a><a class="button button-primary"
+                                href="trabajo-detalle.html">Confirmar asignación</a></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

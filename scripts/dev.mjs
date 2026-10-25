@@ -118,14 +118,6 @@ async function main() {
     ...process.env,
     VITE_API_BASE_URL: '/api/v1',
     VITE_API_PROXY_TARGET: `http://127.0.0.1:${entornoApi?.PORT ?? '3001'}`,
-    VITE_RUBRICAS_SOURCE: combinados ? 'api' : 'prototipo',
-    VITE_EVALUACIONES_SOURCE: combinados ? 'api' : 'prototipo',
-    VITE_PROGRAMACIONES_SOURCE: combinados ? 'api' : 'deshabilitada',
-    VITE_RUBRICAS_WRITE_API: combinados ? 'true' : 'false',
-    VITE_MODALIDADES_WRITE_API: combinados ? 'true' : 'false',
-    VITE_CARRERAS_WRITE_API: combinados ? 'true' : 'false',
-    VITE_EVALUACIONES_WRITE_ENABLED: combinados ? 'true' : 'false',
-    VITE_PROGRAMACIONES_WRITE_API: combinados ? 'true' : 'false',
   };
 
   const procesoWeb = soloBackend ? null : iniciar('Vite', vite, ['--strictPort'], web, entornoWeb);

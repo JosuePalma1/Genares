@@ -1,6 +1,7 @@
 param(
   [switch] $PreservarBaseEvaluaciones,
-  [switch] $PreservarBasesPrueba
+  [switch] $PreservarBasesPrueba,
+  [switch] $SoloTrazabilidad
 )
 
 $ErrorActionPreference = 'Stop'
@@ -43,8 +44,12 @@ $postgresSuites = @(
   'src/carreras/carreras.postgres.e2e.spec.ts',
   'src/rubricas/vigencias-rubrica-carrera.postgres.e2e.spec.ts',
   'src/rubricas/rubricas.postgres.e2e.spec.ts',
-  'src/evaluaciones/evaluaciones.postgres.e2e.spec.ts'
+  'src/evaluaciones/evaluaciones.postgres.e2e.spec.ts',
+  'src/trabajos/trazabilidad-trabajos.postgres.e2e.spec.ts'
 )
+if ($SoloTrazabilidad) {
+  $postgresSuites = @('src/trabajos/trazabilidad-trabajos.postgres.e2e.spec.ts')
+}
 try {
   Push-Location $backendPath
   try {

@@ -12,7 +12,7 @@ export async function cargarCarrerasApi({ signal, solicitarJson = getJsonApi } =
 
 export async function cargarCarreraApi(id, { signal, solicitarJson = getJsonApi } = {}) {
   if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-    throw new TypeError('carreraId debe ser un UUID v4.');
+    throw new TypeError('Seleccione una carrera válida.');
   }
   return adaptarCarreraApi(await solicitarJson(`/carreras/${encodeURIComponent(id)}`, { signal }));
 }
@@ -21,7 +21,7 @@ export async function cargarCapacidadesCarrerasApi({ signal, solicitarJson = get
   const respuesta = await solicitarJson('/carreras/capacidades', { signal });
   if (!respuesta || typeof respuesta !== 'object' || Array.isArray(respuesta)
     || typeof respuesta.puedeAdministrar !== 'boolean') {
-    throw new Error('La API devolvió capacidades de carreras inválidas.');
+    throw new Error('No fue posible consultar los permisos de administración de carreras.');
   }
   return respuesta;
 }

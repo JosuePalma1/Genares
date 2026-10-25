@@ -101,7 +101,6 @@ function PaginaSecretariaPrototipo() {
   return (
     <div className="secretaria-page">
       <EncabezadoPagina
-        eyebrow="Solo lectura"
         title="Seguimiento de Secretaría"
         description="Consulta del avance y resultados necesarios para el proceso administrativo posterior."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Secretaría' }]}

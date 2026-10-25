@@ -30,7 +30,7 @@ describe('contratos HTTP de modalidades', () => {
     expect(solicitarJson.mock.calls.map(([path]) => path)).toEqual([
       '/modalidades', '/modalidades?disponiblesParaFamilia=true', `/modalidades/${id}`,
     ]);
-    await expect(cargarModalidadApi('not-uuid', { solicitarJson })).rejects.toThrow(/UUID/);
+    await expect(cargarModalidadApi('not-uuid', { solicitarJson })).rejects.toThrow(/modalidad válida/);
   });
 
   it('envía crear, PUT completo y PATCH con revisión sin credenciales de identidad', async () => {

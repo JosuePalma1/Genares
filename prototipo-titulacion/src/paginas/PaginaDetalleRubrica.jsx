@@ -98,7 +98,7 @@ export default function PaginaDetalleRubrica() {
     const aviso = await Swal.fire({
       icon: 'warning',
       title: 'Descartar cambios locales',
-      text: 'La recarga reemplazará lo escrito en esta pantalla con la versión actual del servidor.',
+      text: 'La recarga reemplazará lo escrito en esta pantalla con la versión vigente.',
       showCancelButton: true,
       confirmButtonText: 'Descartar y recargar',
       cancelButtonText: 'Seguir editando',
@@ -131,7 +131,7 @@ export default function PaginaDetalleRubrica() {
         );
         const respuesta = await actualizarVersionRubricaApi(preparada);
         if (respuesta?.id !== rubrica.id || !Number.isInteger(respuesta.revision) || respuesta.revision <= revision) {
-          throw new Error('La API guardó la solicitud, pero devolvió una revisión inválida. Recargue antes de volver a guardar.');
+          throw new Error('No se pudo confirmar la revisión guardada. Recargue la versión antes de volver a intentarlo.');
         }
         setRevisionEditada(respuesta.revision);
         setTieneCambios(false);
@@ -140,15 +140,15 @@ export default function PaginaDetalleRubrica() {
         try {
           await lectura.reintentar();
         } catch {
-          await Swal.fire({ icon: 'warning', title: 'Borrador guardado', text: 'El servidor confirmó el guardado, pero no fue posible recargar los datos. Use Reintentar para consultar la revisión actual.' });
+          await Swal.fire({ icon: 'warning', title: 'Borrador guardado', text: 'El borrador se guardó, pero no fue posible actualizar la vista. Use Reintentar para consultar la revisión actual.' });
         }
       } catch (error) {
         if (error?.status === 409) {
           setConflicto(true);
           await Swal.fire({
             icon: 'warning',
-            title: 'El borrador cambió en el servidor',
-            text: `${mensajeErrorEscrituraRubrica(error)} Sus cambios locales se conservarán. Use “Recargar versión” para descartarlos y consultar el servidor.`,
+            title: 'El borrador cambió',
+            text: `${mensajeErrorEscrituraRubrica(error)} Sus cambios se conservarán. Use “Recargar versión” para descartarlos y cargar la versión vigente.`,
           });
         } else {
           await Swal.fire({ icon: 'error', title: 'No se guardó el borrador', text: mensajeErrorEscrituraRubrica(error) });
@@ -186,11 +186,11 @@ export default function PaginaDetalleRubrica() {
   };
 
   if (!rubrica && esApi && lectura.cargando) {
-    return <><EncabezadoPagina title="Cargando rúbrica" description="Consultando la versión en PostgreSQL." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Cargando' }]} /><p role="status">Consultando rúbricas del backend…</p></>;
+    return <><EncabezadoPagina title="Cargando rúbrica" description="Consultando la versión seleccionada." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Cargando' }]} /><p role="status">Cargando rúbrica…</p></>;
   }
 
   if (!rubrica && esApi && lectura.error) {
-    return <><EncabezadoPagina title="No fue posible cargar la rúbrica" description="La API no respondió con datos disponibles." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Error' }]} /><AlertaInstitucional tono="danger" titulo="Error de consulta"><p>{lectura.error.message}</p><button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button></AlertaInstitucional><VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo></>;
+    return <><EncabezadoPagina title="No fue posible cargar la rúbrica" description="No se pudo consultar la versión seleccionada." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Error' }]} /><AlertaInstitucional tono="danger" titulo="Error de consulta"><p>{lectura.error.message}</p><button className="button button-outline" type="button" onClick={lectura.reintentar}>Reintentar</button></AlertaInstitucional><VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo></>;
   }
 
   if (!rubrica) {
@@ -198,19 +198,16 @@ export default function PaginaDetalleRubrica() {
       <>
         <EncabezadoPagina
           title="Rúbrica no encontrada"
-          description={esApi ? 'La API no devolvió esta versión.' : 'La versión solicitada no existe en el prototipo.'}
+          description="La versión solicitada no existe."
           breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'No encontrada' }]}
         />
-      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
-        <p>{esApi ? canEdit ? 'Este borrador se edita en PostgreSQL. Active e históricas permanecen en consulta.' : 'Esta versión del backend es de solo lectura con la autorización actual.' : 'Esta versión pertenece a los datos simulados locales del prototipo.'}</p>
-      </AlertaInstitucional>
         <section className="card"><div className="card-body"><EstadoVacio title="No se encontró esta versión" description="Regrese al listado para seleccionar una rúbrica disponible." accion={<VolverAlCatalogo esApi={esApi}>Volver a rúbricas</VolverAlCatalogo>} /></div></section>
       </>
     );
   }
 
   const presentation = esApi && rubrica.estado === 'BORRADOR'
-    ? { etiqueta: canEdit ? 'Borrador editable' : 'Borrador - solo lectura', tono: 'progress', icono: FileClock }
+    ? { etiqueta: canEdit ? 'Borrador editable' : 'Borrador · consulta', tono: 'progress', icono: FileClock }
     : statusPresentation[rubrica.estado] ?? { etiqueta: rubrica.estado, tono: 'neutral', icono: LockKeyhole };
   const StatusIcon = presentation.icono;
 
@@ -226,10 +223,6 @@ export default function PaginaDetalleRubrica() {
           <VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo>
         </>}
       />
-
-      <AlertaInstitucional tono="info" titulo={esApi ? `Origen: API PostgreSQL - ${canEdit ? 'borrador editable' : 'solo lectura'}` : 'Origen: prototipo local'}>
-        <p>{esApi ? canEdit ? 'Este borrador se edita en PostgreSQL. Active e históricas permanecen en consulta.' : 'Esta versión del backend es de solo lectura con la autorización actual.' : 'Esta versión pertenece a los datos simulados locales del prototipo.'}</p>
-      </AlertaInstitucional>
 
       <section className="rubrica-version-hero" aria-labelledby="rubrica-version-title">
         <div className="rubrica-version-hero-heading">
@@ -252,8 +245,8 @@ export default function PaginaDetalleRubrica() {
       <div className={`rubrica-editing-note ${canEdit ? 'is-editable' : 'is-protected'}`} role="note">
         {canEdit ? <FileClock size={21} aria-hidden="true" /> : <LockKeyhole size={21} aria-hidden="true" />}
         <div>
-          <strong>{canEdit ? 'Borrador editable' : esApi ? 'Consulta API de solo lectura' : 'Versión protegida'}</strong>
-          <p>{canEdit ? 'Puede construir categorías e indicadores dentro de las etapas escrita y oral. Guardar conserva el borrador y sus cambios pendientes de activación.' : esApi ? 'Esta versión de PostgreSQL está disponible solo para consulta con la autorización actual.' : 'No puede modificarse ni altera evaluaciones históricas. Para realizar cambios debe crearse una versión nueva.'}</p>
+          <strong>{canEdit ? 'Borrador editable' : esApi ? 'Consulta de la versión' : 'Versión protegida'}</strong>
+          <p>{canEdit ? 'Puede construir categorías e indicadores dentro de las etapas escrita y oral. Guardar conserva el borrador y sus cambios pendientes de activación.' : esApi ? 'Su perfil puede consultar esta versión, pero no modificarla. Para cambiar la rúbrica, cree una versión nueva con autorización académica.' : 'No puede modificarse ni altera evaluaciones históricas. Para realizar cambios debe crearse una versión nueva.'}</p>
         </div>
       </div>
 
@@ -272,7 +265,7 @@ export default function PaginaDetalleRubrica() {
 
       {canEdit ? <>
         <AlertaInstitucional tono={diagnostico.pendientes.length ? 'warning' : 'info'} titulo={diagnostico.pendientes.length ? 'Pendiente para una futura activación' : 'Estructura completa'}>
-          {diagnostico.pendientes.length ? <ul>{diagnostico.pendientes.map((mensaje) => <li key={mensaje}>{mensaje}</li>)}</ul> : <p>La estructura cumple las comprobaciones actuales de campos y subtotales. La activación API se gestionará en una etapa posterior.</p>}
+          {diagnostico.pendientes.length ? <ul>{diagnostico.pendientes.map((mensaje) => <li key={mensaje}>{mensaje}</li>)}</ul> : <p>La estructura cumple las comprobaciones actuales de campos y subtotales. La activación de versiones se encuentra pendiente.</p>}
         </AlertaInstitucional>
         <EditorEstructuraRubrica etapas={draftStages} categorias={draftCategories} esApi={esApi} bloqueado={guardando}
           cambiarEtapa={updateStage} cambiarCategorias={(categorias) => { setDraftCategories(categorias); setTieneCambios(true); }} />

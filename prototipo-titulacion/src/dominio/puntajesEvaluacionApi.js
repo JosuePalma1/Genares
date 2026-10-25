@@ -23,7 +23,7 @@ export function validarFormularioPuntajes({ indicadores, puntajesGuardados = [],
       faltantes.push(indicador.id);
       if (anterior !== undefined) {
         tieneCambios = true;
-        errores[indicador.id] = 'La API no admite borrar un puntaje ya persistido. Ingrese un valor para conservarlo.';
+        errores[indicador.id] = 'No se puede borrar un puntaje ya guardado. Ingrese un valor para conservarlo.';
       }
       continue;
     }

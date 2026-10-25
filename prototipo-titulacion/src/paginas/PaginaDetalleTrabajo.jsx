@@ -51,7 +51,7 @@ function PaginaDetalleTrabajoPrototipo() {
   const { idTrabajo } = useParams();
   const { estado } = usarPrototipo();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);
-  if (!trabajo) return <EstadoVacio title="Trabajo no encontrado" description="El registro solicitado no existe en los datos del prototipo." />;
+  if (!trabajo) return <EstadoVacio title="Trabajo no encontrado" description="El expediente solicitado no existe." />;
 
   const estudiantes = trabajo.idsEstudiantes.map((id) => estado.personas.find((persona) => persona.id === id)).filter(Boolean);
   const tutor = estado.personas.find((persona) => persona.id === trabajo.idTutor);
@@ -73,7 +73,7 @@ function PaginaDetalleTrabajoPrototipo() {
   const oralDisponible = writtenReady && puedeEvaluarSustentacion(trabajo.programacion?.fecha, hoy);
 
   const eventos = [
-    trabajo.registradoEn && { id: 'registro', fecha: trabajo.registradoEn, titulo: 'Trabajo registrado', detalle: 'Expediente incorporado al prototipo.' },
+    trabajo.registradoEn && { id: 'registro', fecha: trabajo.registradoEn, titulo: 'Trabajo registrado', detalle: 'Expediente registrado.' },
     trabajo.tribunalAsignadoEn && { id: 'tribunal', fecha: trabajo.tribunalAsignadoEn, titulo: 'Tribunal asignado', detalle: `${miembros.length} de 2 miembros registrados.` },
     ...evaluaciones.flatMap((evaluacion) => {
       const miembro = estado.personas.find((persona) => persona.id === evaluacion.idMiembro);
@@ -137,7 +137,7 @@ function PaginaDetalleTrabajoPrototipo() {
             <div><dt>Período académico</dt><dd>{trabajo.periodo}</dd></div>
             <div><dt>Rúbrica asignada</dt><dd>{rubricaAsignada ? `${rubricaAsignada.version} · ${rubricaAsignada.periodo}` : 'Sin asignar'}</dd></div>
           </dl>
-          <p className="trabajo-source-note">En el prototipo estos datos son locales. Su procedencia institucional futura deberá definirse con S1, S2 y S3.</p>
+          <p className="trabajo-source-note">Esta información es ilustrativa y no constituye un expediente académico oficial.</p>
         </section>
 
         <section className="trabajo-detail-card" aria-labelledby="trabajo-participants-title">
@@ -209,7 +209,7 @@ function PaginaDetalleTrabajoPrototipo() {
 
       <section className="trabajo-history-panel" aria-labelledby="trabajo-history-title">
         <header><div><span className="section-kicker">Trazabilidad disponible</span><h2 id="trabajo-history-title">Historial registrado</h2></div><FileClock size={22} aria-hidden="true" /></header>
-        {eventos.length === 0 ? <p className="trabajo-history-empty">El prototipo no conserva fechas adicionales para este expediente.</p> : (
+        {eventos.length === 0 ? <p className="trabajo-history-empty">No hay fechas adicionales registradas para este expediente.</p> : (
           <ol>
             {eventos.map((evento) => <li key={evento.id}><span aria-hidden="true"><CheckCircle2 size={17} /></span><div><strong>{evento.titulo}</strong><p>{evento.detalle}</p></div><time dateTime={evento.fecha}>{formatearFechaHora(evento.fecha)}</time></li>)}
           </ol>

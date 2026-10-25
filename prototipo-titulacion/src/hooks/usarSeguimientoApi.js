@@ -35,7 +35,7 @@ function recursoLista(datos) {
 }
 
 function estadoGlobalConsolidaciones(porTrabajo, habilitadas, cantidadTrabajos) {
-  if (!habilitadas) return RECURSO_NO_DISPONIBLE('La consulta de evaluaciones API no está habilitada.');
+  if (!habilitadas) return RECURSO_NO_DISPONIBLE('La consulta de evaluaciones no está disponible actualmente.');
   const recursos = Object.values(porTrabajo);
   if (cantidadTrabajos === 0) return recursoLista(porTrabajo);
   const hayRespuesta = recursos.some((recurso) => recurso.estado === 'listo');
@@ -91,17 +91,17 @@ export async function cargarSeguimientoApi({
     ? recursoLista(trabajosResultado.value)
     : RECURSO_ERROR(trabajosResultado.reason);
   const programaciones = !habilitadas.programaciones
-    ? RECURSO_NO_DISPONIBLE('La fuente API de programaciones no está habilitada.')
+    ? RECURSO_NO_DISPONIBLE('La consulta de programaciones no está disponible actualmente.')
     : programacionesResultado.status === 'rejected'
       ? RECURSO_ERROR(programacionesResultado.reason)
       : recursoLista(programacionesResultado.value.elementos);
   let actas;
   if (!habilitadas.documentos) {
-    actas = RECURSO_NO_DISPONIBLE('La fuente API de documentos no está habilitada.');
+    actas = RECURSO_NO_DISPONIBLE('La consulta de documentos no está disponible actualmente.');
   } else if (actasResultado.status === 'rejected') {
     actas = RECURSO_ERROR(actasResultado.reason);
   } else if (!Array.isArray(actasResultado.value) || !actasResultado.value.every(esActaApi)) {
-    actas = RECURSO_ERROR(new Error('La API devolvió un listado de actas con formato inválido.'));
+    actas = RECURSO_ERROR(new Error('La información recibida para las actas no tiene un formato válido.'));
   } else {
     actas = recursoLista(actasResultado.value);
   }
@@ -111,7 +111,7 @@ export async function cargarSeguimientoApi({
       trabajos,
       programaciones,
       actas,
-      consolidaciones: RECURSO_NO_DISPONIBLE('Se necesitan los trabajos API para consultar sus resultados.'),
+      consolidaciones: RECURSO_NO_DISPONIBLE('No se pudieron consultar los resultados porque no hay trabajos disponibles.'),
     };
   }
 
@@ -154,9 +154,9 @@ export async function cargarSeguimientoApi({
 
 const estadoInicial = () => ({
   trabajos: RECURSO_CARGANDO(),
-  programaciones: FUENTE_PROGRAMACIONES === 'api' ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La fuente API de programaciones no está habilitada.'),
-  actas: DOCUMENTOS_API_HABILITADA ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La fuente API de documentos no está habilitada.'),
-  consolidaciones: FUENTE_EVALUACIONES === 'api' ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La consulta de evaluaciones API no está habilitada.'),
+  programaciones: FUENTE_PROGRAMACIONES === 'api' ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La consulta de programaciones no está disponible actualmente.'),
+  actas: DOCUMENTOS_API_HABILITADA ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La consulta de documentos no está disponible actualmente.'),
+  consolidaciones: FUENTE_EVALUACIONES === 'api' ? RECURSO_CARGANDO() : RECURSO_NO_DISPONIBLE('La consulta de evaluaciones no está disponible actualmente.'),
 });
 
 export function usarSeguimientoApi() {

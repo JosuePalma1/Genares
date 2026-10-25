@@ -100,26 +100,15 @@ export default function PaginaRubricas() {
 
       {esApi && !lectura.cargando && !lectura.error && !puedeCrearEnApi && <p className="rubricas-creacion-pendiente">
         {lectura.puedeAdministrarServidor
-          ? 'La creación requiere habilitar la escritura local de la API en este entorno.'
-          : 'El servidor dejó el catálogo en modo de consulta, sin habilitar la creación de rúbricas.'}
+          ? 'La creación de rúbricas requiere autorización de administración académica.'
+          : 'Su perfil puede consultar las rúbricas, pero no crear versiones nuevas.'}
       </p>}
-      {!esApi && <p className="rubricas-creacion-pendiente">La creación institucional requiere la fuente API y autorización administrativa; el prototipo no guarda rúbricas en PostgreSQL.</p>}
-
-      <AlertaInstitucional
-        tono="info"
-        titulo={esApi ? (lectura.puedeAdministrar ? 'Origen: API PostgreSQL · escritura autorizada' : 'Origen: API PostgreSQL · solo lectura') : 'Origen: prototipo local'}
-      >
-        <p>{esApi
-          ? 'Las asociaciones y vigencias mostradas provienen del servidor. El estado de una versión no determina su vigencia.'
-          : 'Los datos simulados se mantienen separados de PostgreSQL. El prototipo no contiene asociaciones institucionales de carrera.'}</p>
-      </AlertaInstitucional>
-
       <section className="rubricas-catalogo" aria-labelledby="rubricas-catalogo-titulo">
         <header className="rubricas-catalogo-heading">
           <div>
             <span className="section-kicker">Catálogo institucional</span>
             <h2 id="rubricas-catalogo-titulo">Versiones y vigencias</h2>
-            <p>La vigencia se consulta para cada carrera, modalidad y período.</p>
+            <p>La vigencia se consulta por carrera, modalidad y período; no se deduce solo del estado de la versión.</p>
           </div>
           <span className="rubricas-catalogo-conteo" aria-live="polite">
             {lectura.error ? 'No disponible' : lectura.cargando ? 'Cargando…' : `${filtradas.length} ${filtradas.length === 1 ? 'resultado' : 'resultados'}`}
@@ -169,7 +158,7 @@ export default function PaginaRubricas() {
               <option value="VIGENTE">Vigentes</option>
               <option value="NO_VIGENTE">No vigentes</option>
               {esApi && <option value={FILTRO_SIN_ASOCIACION}>Sin carrera asociada</option>}
-              {!esApi && <option value={FILTRO_NO_INFORMADA}>No informada en prototipo</option>}
+              {!esApi && <option value={FILTRO_NO_INFORMADA}>No informada</option>}
             </select>
           </label>
         </div>

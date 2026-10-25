@@ -4,13 +4,8 @@ import {
   LayoutDashboard, ListChecks, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { CampanaNotificaciones } from '../componentes/CampanaNotificaciones';
 import { iniciales } from '../dominio/flujoTrabajo';
 import { registrarRutaInterna } from '../dominio/navegacionRetorno';
-import { FUENTE_EVALUACIONES } from '../configuracion/evaluaciones';
-import { FUENTE_PROGRAMACIONES } from '../configuracion/programaciones';
-import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
-import { FUENTE_TRABAJOS } from '../configuracion/trabajos';
 
 const NAVEGACION = [
   {
@@ -72,11 +67,8 @@ export function EstructuraAplicacion({ children }) {
   const ubicacion = useLocation();
   const referenciaNavegacionMovil = useRef(null);
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
-  const esVistaEvaluacionesApi = FUENTE_EVALUACIONES === 'api'
-    && (ubicacion.pathname === '/mis-evaluaciones' || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/'));
-  const esVistaCronogramaApi = FUENTE_PROGRAMACIONES === 'api' && ubicacion.pathname === '/cronograma';
-  const esVistaDatosApi = esVistaEvaluacionesApi || esVistaCronogramaApi || FUENTE_RUBRICAS === 'api';
-  const esModoApi = [FUENTE_TRABAJOS, FUENTE_EVALUACIONES, FUENTE_PROGRAMACIONES, FUENTE_RUBRICAS].includes('api');
+  const esVistaEvaluacionesApi = ubicacion.pathname === '/mis-evaluaciones'
+    || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/');
 
   useEffect(() => {
     if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
@@ -102,10 +94,6 @@ export function EstructuraAplicacion({ children }) {
           </div>
         </NavLink>
         <Navegacion />
-        <div className="sidebar-foot">
-          <span className="sidebar-foot-badge">Entorno de desarrollo</span>
-          <span>{esVistaDatosApi ? 'API local · PostgreSQL' : 'Datos académicos locales'}</span>
-        </div>
       </aside>
 
       <header className="topbar app-topbar">
@@ -120,15 +108,14 @@ export function EstructuraAplicacion({ children }) {
             <PanelLeft size={20} aria-hidden="true" />
           </button>
           <div className="topbar-institution">
-            <span className="topbar-eyebrow">Entorno académico local</span>
+            <span className="topbar-eyebrow">Portal académico</span>
             <span className="topbar-title">Facultad de Ciencias de la Vida y Tecnologías</span>
           </div>
         </div>
 
         <div className="topbar-actions">
-          {!esModoApi && <CampanaNotificaciones />}
-          <div className="user-box" aria-label="Sistema abierto de desarrollo">
-            <div className="user-meta"><strong>Sistema local</strong><span>Sin cuentas de usuario</span></div>
+          <div className="user-box" aria-label="Sesión activa">
+            <div className="user-meta"><strong>Sesión activa</strong></div>
             <span className="avatar" aria-hidden="true">{iniciales('Sistema local')}</span>
           </div>
         </div>

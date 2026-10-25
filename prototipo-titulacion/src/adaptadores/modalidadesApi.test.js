@@ -32,7 +32,7 @@ describe('adaptador de modalidades API', () => {
 
   it('rechaza respuestas incompletas o jerarquías corruptas y mantiene modalidades sin familia', () => {
     expect(adaptarModalidadApi({ ...base, familiaRubricas: null }).familiaRubricas).toBeNull();
-    expect(() => adaptarModalidadApi({ ...base, revision: 0 })).toThrow(/formato inválido/i);
+    expect(() => adaptarModalidadApi({ ...base, revision: 0 })).toThrow(/información recibida para esta modalidad está incompleta/i);
     expect(() => adaptarModalidadApi({ ...base, familiaRubricas: { ...base.familiaRubricas, versiones: [{}] } })).toThrow(/versión/i);
     expect(() => adaptarListadoModalidadesApi({})).toThrow(/listado/i);
   });

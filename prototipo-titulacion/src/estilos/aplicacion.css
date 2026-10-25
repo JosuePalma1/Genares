@@ -1683,6 +1683,14 @@ button {
   height: 17px;
 }
 
+.trabajo-progress-api .trabajo-progress-step-detail {
+  max-width: 138px;
+  color: var(--color-muted);
+  font-size: .68rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .process-step.is-done {
   color: var(--color-success);
 }
@@ -4907,6 +4915,14 @@ input.calificacion-input {
   margin-bottom: var(--space-5);
 }
 
+.pagina-detalle-trabajo .trabajo-detail-columns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pagina-detalle-trabajo > .trabajo-detail-card {
+  margin-bottom: var(--space-5);
+}
+
 .trabajo-detail-card > header > svg,
 .trabajo-history-panel > header > svg {
   color: var(--color-action-secondary);
@@ -4941,6 +4957,50 @@ input.calificacion-input {
   font-weight: 750;
 }
 
+.pagina-detalle-trabajo .trabajo-detail-card > p {
+  margin: 0;
+  padding: var(--space-4) var(--space-5);
+  color: var(--color-text-secondary);
+}
+
+.pagina-detalle-trabajo .trabajo-api-stage {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-5);
+  margin: 0 var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.pagina-detalle-trabajo .trabajo-api-stage strong,
+.pagina-detalle-trabajo .trabajo-api-stage span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.pagina-detalle-trabajo .trabajo-api-stage span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  text-align: right;
+}
+
+.pagina-detalle-trabajo .trabajo-api-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-subtle);
+}
+
+.pagina-detalle-trabajo .trabajo-api-actions > .button {
+  max-width: 100%;
+}
+
 .trabajo-source-note,
 .trabajo-history-note {
   margin: 0;
@@ -4950,6 +5010,49 @@ input.calificacion-input {
   color: var(--color-text-secondary);
   font-size: var(--text-xs);
   line-height: 1.5;
+}
+
+.trabajo-api-timeline {
+  margin-top: var(--space-5);
+  padding-bottom: var(--space-5);
+}
+
+.trabajo-api-timeline > p,
+.trabajo-api-timeline > .alerta-institucional,
+.trabajo-api-timeline > .estado-vacio,
+.trabajo-api-timeline > button {
+  margin: var(--space-4) var(--space-5) 0;
+}
+
+.trabajo-api-timeline-list {
+  display: grid;
+  gap: 0;
+  margin: var(--space-5);
+  padding: 0;
+  list-style: none;
+}
+
+.trabajo-api-timeline-list li {
+  display: grid;
+  grid-template-columns: minmax(150px, .7fr) minmax(210px, 1.2fr) minmax(160px, .8fr) minmax(160px, .8fr);
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.trabajo-api-timeline-list li:last-child {
+  border-bottom: 0;
+}
+
+.trabajo-api-timeline-list time,
+.trabajo-api-timeline-list span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.trabajo-api-timeline-list strong {
+  color: var(--color-text-primary);
 }
 
 .trabajo-participant-list {
@@ -5160,6 +5263,14 @@ input.calificacion-input {
   color: var(--color-text-secondary);
 }
 
+.trabajo-history-api-alert {
+  margin: var(--space-4) var(--space-5) 0;
+}
+
+.trabajo-history-load-more {
+  margin: 0 var(--space-5) var(--space-5);
+}
+
 @media (max-width: 1180px) {
   .trabajos-filter-grid {
     grid-template-columns: minmax(260px, 2fr) repeat(2, minmax(170px, 1fr));
@@ -5179,6 +5290,10 @@ input.calificacion-input {
   .trabajos-filter-grid,
   .trabajo-detail-columns,
   .trabajo-evaluator-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pagina-detalle-trabajo .trabajo-detail-columns {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -5248,6 +5363,29 @@ input.calificacion-input {
   .trabajo-detail-list {
     grid-template-columns: minmax(0, 1fr);
     padding: var(--space-3);
+  }
+
+  .pagina-detalle-trabajo .trabajo-api-stage {
+    align-items: flex-start;
+    flex-direction: column;
+    margin-right: var(--space-4);
+    margin-left: var(--space-4);
+  }
+
+  .pagina-detalle-trabajo .trabajo-api-stage span {
+    text-align: left;
+  }
+
+  .pagina-detalle-trabajo .trabajo-api-actions {
+    align-items: stretch;
+    flex-direction: column;
+    padding: var(--space-4);
+  }
+
+  .pagina-detalle-trabajo .trabajo-api-actions > .button {
+    justify-content: center;
+    width: 100%;
+    overflow-wrap: anywhere;
   }
 
   .trabajo-participant-list,
@@ -5772,6 +5910,10 @@ input.calificacion-input {
     gap: var(--space-3);
     padding: .35rem 0;
     text-align: left;
+  }
+
+  .pagina-detalle-trabajo .trabajo-progress-step-detail {
+    grid-column: 2;
   }
 
   .pagina-detalle-trabajo .tribunal-progress-grid {
@@ -7453,6 +7595,17 @@ input.calificacion-input {
   .mis-evaluaciones-page .estudiante-evaluacion-row .table-actions {
     grid-column: auto;
     width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .trabajo-api-timeline-list li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-1);
+  }
+
+  .trabajo-api-timeline-list time {
+    font-weight: 700;
   }
 }
 

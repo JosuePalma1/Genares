@@ -49,9 +49,9 @@ describe('catálogo de rúbricas', () => {
     const [prototipo] = crearFilasCatalogoRubricas([{ ...versionesApi[2], estado: 'ACTIVA' }], 'prototipo');
     expect(prototipo).toMatchObject({
       carreraId: FILTRO_NO_INFORMADA,
-      carrera: 'No disponible en prototipo',
+      carrera: 'No disponible',
       vigente: null,
-      etiquetaVigencia: 'No informada en prototipo',
+      etiquetaVigencia: 'No informada',
     });
   });
 

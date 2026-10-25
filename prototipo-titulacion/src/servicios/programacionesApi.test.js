@@ -117,6 +117,6 @@ describe('servicio API de cronogramas', () => {
   });
 
   it('rechaza respuestas inválidas y mantiene permisos/errores de la API sin convertirlos en datos simulados', () => {
-    expect(() => adaptarListadoProgramacionesApi({ elementos: [programacion], filtros: null })).toThrow(/respuesta inválida/i);
+    expect(() => adaptarListadoProgramacionesApi({ elementos: [programacion], filtros: null })).toThrow(/información recibida no es válida/i);
   });
 });

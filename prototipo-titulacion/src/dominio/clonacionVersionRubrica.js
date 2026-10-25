@@ -11,10 +11,10 @@ function centesimasCanonicas(valor) {
   return `${coincidencia[1]}.${(coincidencia[2] ?? '').padEnd(2, '0')}`;
 }
 
-/** Crea una estructura editable nueva a partir de una versión API completa. */
+/** Crea una estructura editable nueva a partir de una versión completa. */
 export function crearEstructuraEditorDesdeVersion(version) {
   if (version?.fuenteDatos !== 'api' || !Array.isArray(version.etapas) || !Array.isArray(version.categorias)) {
-    throw new TypeError('La versión base debe ser una versión completa de la API.');
+    throw new TypeError('Seleccione una versión completa como base.');
   }
 
   return [...version.etapas].sort(porOrden).map((etapa) => ({
@@ -67,7 +67,7 @@ export function estructuraEditorCoincideConVersion(etapas, version) {
 
 export function prepararClonVersionRubrica(version) {
   if (!version || version.fuenteDatos !== 'api') {
-    throw new TypeError('La clonación requiere una versión base de la API.');
+    throw new TypeError('La clonación requiere una versión base completa.');
   }
   return {
     datos: {

@@ -19,7 +19,7 @@ export async function cargarModalidadesApi({ signal, disponiblesParaFamilia = fa
 
 export async function cargarModalidadApi(id, { signal, solicitarJson = getJsonApi } = {}) {
   if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-    throw new TypeError('modalidadId debe ser un UUID v4.');
+    throw new TypeError('Seleccione una modalidad válida.');
   }
   return adaptarModalidadApi(await solicitarJson(`/modalidades/${encodeURIComponent(id)}`, { signal }));
 }
@@ -27,7 +27,7 @@ export async function cargarModalidadApi(id, { signal, solicitarJson = getJsonAp
 export async function cargarCapacidadesModalidadesApi({ signal, solicitarJson = getJsonApi } = {}) {
   const respuesta = await solicitarJson('/modalidades/capacidades', { signal });
   if (!respuesta || typeof respuesta !== 'object' || Array.isArray(respuesta)
-    || typeof respuesta.puedeAdministrar !== 'boolean') throw new Error('La API devolvió capacidades de modalidades inválidas.');
+    || typeof respuesta.puedeAdministrar !== 'boolean') throw new Error('No fue posible consultar los permisos de administración de modalidades.');
   return respuesta;
 }
 

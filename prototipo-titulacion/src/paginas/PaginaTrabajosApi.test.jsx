@@ -61,8 +61,8 @@ describe('recorrido API de trabajos', () => {
     });
     const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
     expect(html.match(/role="alert"/g)).toHaveLength(1);
-    expect(html).toContain('No se pudo consultar PostgreSQL');
-    expect(html).toContain('Confirme que NestJS esté activo');
+    expect(html).toContain('No se pudieron consultar los trabajos');
+    expect(html).toContain('No fue posible completar la consulta');
     expect(html).toContain('Reintentar');
     expect(html).not.toContain('No hay trabajos registrados');
     expect(html).not.toContain('empty-estado');
@@ -80,7 +80,7 @@ describe('recorrido API de trabajos', () => {
   it('presenta el tribunal como consulta y no como formulario de asignación', () => {
     const html = renderEnRuta(`/trabajos/${trabajoId}`, <PaginaTribunalTrabajoApi />);
     expect(html).toContain('Consulta de asignación');
-    expect(html).toContain('GENARES muestra la relación recibida del servidor');
+    expect(html).toContain('GENARES muestra la relación recibida del sistema responsable');
     expect(html).not.toContain('Confirmar asignación');
   });
 });

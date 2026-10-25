@@ -2,8 +2,8 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidatePattern('^genares_9d_test_[a-f0-9]{8}$')]
   [string] $BaseTemporal,
-  [ValidateSet('administrador-rubricas', 'jurado-evaluaciones', 'jurado-evaluaciones-escritura', 'jurado-evaluaciones-escritura-dos')]
-  [string] $Perfil = 'administrador-rubricas'
+  [ValidateSet('consulta-integrada')]
+  [string] $Perfil = 'consulta-integrada'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,7 +53,8 @@ try {
 
   $keys = @(
     'NODE_ENV', 'PORT', 'DB_HOST', 'DB_PORT', 'DB_USERNAME', 'DB_PASSWORD', 'DB_NAME', 'DB_SSL', 'DB_DISPOSABLE',
-    'LOCAL_DEV_IDENTITY_ENABLED', 'LOCAL_DEV_IDENTITY_PROFILE', 'LOCAL_DEV_WRITE_ENABLED', 'LOCAL_DEV_WRITE_ORIGINS'
+    'LOCAL_DEV_OPEN_ACCESS', 'LOCAL_DEV_IDENTITY_ENABLED', 'LOCAL_DEV_IDENTITY_PROFILE',
+    'LOCAL_DEV_9D_TEMPORAL', 'LOCAL_DEV_WRITE_ENABLED', 'LOCAL_DEV_WRITE_ORIGINS'
   )
   $previous = @{}
   foreach ($key in $keys) { $previous[$key] = [Environment]::GetEnvironmentVariable($key, 'Process') }
@@ -63,9 +64,11 @@ try {
     $env:PORT = '3005'
     $env:DB_NAME = $BaseTemporal
     $env:DB_DISPOSABLE = 'true'
+    $env:LOCAL_DEV_OPEN_ACCESS = 'false'
     $env:LOCAL_DEV_IDENTITY_ENABLED = 'true'
     $env:LOCAL_DEV_IDENTITY_PROFILE = $Perfil
-    $env:LOCAL_DEV_WRITE_ENABLED = if ($Perfil -in @('administrador-rubricas', 'jurado-evaluaciones-escritura', 'jurado-evaluaciones-escritura-dos')) { 'true' } else { 'false' }
+    $env:LOCAL_DEV_9D_TEMPORAL = 'true'
+    $env:LOCAL_DEV_WRITE_ENABLED = 'false'
     $env:LOCAL_DEV_WRITE_ORIGINS = 'http://127.0.0.1:5180'
     $env:PGPASSWORD = $appPassword
     if ($Perfil -eq 'administrador-rubricas') {

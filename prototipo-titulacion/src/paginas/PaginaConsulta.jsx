@@ -40,13 +40,12 @@ function PaginaConsultaPrototipo() {
       <EncabezadoPagina
         eyebrow="Consulta académica"
         title="Consulta e historial"
-        description="Evaluaciones generadas desde la puesta en marcha del prototipo; sin migración de datos antiguos."
+        description="Evaluaciones registradas desde la puesta en marcha del sistema; no hay datos anteriores disponibles."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Consulta' }]}
-        meta={<InsigniaEstado tono="neutral">Solo lectura</InsigniaEstado>}
       />
 
-      <AlertaInstitucional titulo="Fuente de demostración">
-        Estos datos son locales y ficticios. No existe una conexión con API institucional.
+      <AlertaInstitucional titulo="Registros de referencia">
+        Estos registros son ilustrativos y no corresponden a expedientes académicos oficiales.
       </AlertaInstitucional>
 
       <section className="consulta-search-panel" aria-labelledby="consulta-search-title">

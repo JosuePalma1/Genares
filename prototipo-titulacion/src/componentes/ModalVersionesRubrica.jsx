@@ -10,11 +10,11 @@ function fechaLegible(fecha) {
   return new Intl.DateTimeFormat('es-EC', { dateStyle: 'medium' }).format(new Date(fecha));
 }
 
-function carreraLegible(version, fuente) {
+function carreraLegible(version) {
   if (version.carreras?.length) {
     return version.carreras.map((carrera) => `${carrera.nombre} · ${carrera.vigente ? 'vigente' : 'no vigente'}`).join(', ');
   }
-  return fuente === 'api' ? 'Sin carrera asociada' : 'No disponible en prototipo';
+  return 'Sin carrera asociada';
 }
 
 export function ModalVersionesRubrica({ referencia, versiones, fuente, puedeCrearEnApi, onCerrar }) {
@@ -103,7 +103,7 @@ export function ModalVersionesRubrica({ referencia, versiones, fuente, puedeCrea
               <div className="rubricas-modal-version-info">
                 <h3>Versión {version.version}</h3>
                 <p>Creada: {fechaLegible(version.creadaEn)}</p>
-                <p>Carrera y vigencia: {carreraLegible(version, fuente)}</p>
+                <p>Carrera y vigencia: {carreraLegible(version)}</p>
               </div>
               <Link className="button button-outline" to={`/rubricas/${encodeURIComponent(version.id)}`}>
                 <Eye size={16} aria-hidden="true" /> Ver rúbrica

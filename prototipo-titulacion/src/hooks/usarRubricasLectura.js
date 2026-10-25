@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FUENTE_RUBRICAS, ESCRITURA_RUBRICAS_API_HABILITADA } from '../configuracion/rubricas';
+import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
 import { cargarCapacidadesRubricasApi, cargarRubricasApi } from '../servicios/rubricasApi';
 
 export function seleccionarVersionesRubricas({ fuente, versionesApi, versionesPrototipo }) {
@@ -36,7 +36,7 @@ export function usarRubricasLectura(versionesPrototipo) {
         ? resultadoCapacidades.value
         : { puedeAdministrar: false };
       setPuedeAdministrarServidor(capacidadesDisponibles.puedeAdministrar);
-      setPuedeAdministrar(capacidadesDisponibles.puedeAdministrar && ESCRITURA_RUBRICAS_API_HABILITADA);
+      setPuedeAdministrar(capacidadesDisponibles.puedeAdministrar);
       if (resultadoVersiones.status === 'rejected') throw resultadoVersiones.reason;
       const versiones = resultadoVersiones.value;
       setVersionesApi(versiones);

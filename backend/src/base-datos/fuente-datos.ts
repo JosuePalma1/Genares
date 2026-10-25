@@ -10,6 +10,8 @@ validarDestinoBaseDesarrollo({
   DB_HOST: process.env.DB_HOST ?? 'localhost',
   DB_PORT: process.env.DB_PORT ?? '5432',
   DB_NAME: process.env.DB_NAME ?? 'genares',
+  DB_DISPOSABLE: process.env.DB_DISPOSABLE,
+  LOCAL_DEV_9D_TEMPORAL: process.env.LOCAL_DEV_9D_TEMPORAL,
 });
 
 const ssl = process.env.DB_SSL === 'true';

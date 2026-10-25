@@ -10,6 +10,7 @@ import { EvaluacionesModule } from './evaluaciones/evaluaciones.module';
 import { ProgramacionesSustentacionModule } from './sustentaciones/programaciones-sustentacion.module';
 import { ControladorSalud } from './salud/salud.controller';
 import { validarDestinoBaseDesarrollo } from './base-datos/seguridad-entorno';
+import { TrabajosModule } from './trabajos/trabajos.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { validarDestinoBaseDesarrollo } from './base-datos/seguridad-entorno';
     RubricasModule,
     EvaluacionesModule,
     ProgramacionesSustentacionModule,
+    TrabajosModule,
     ConfigModule.forRoot({ isGlobal: true }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
@@ -29,6 +31,8 @@ import { validarDestinoBaseDesarrollo } from './base-datos/seguridad-entorno';
           DB_HOST: config.get<string>('DB_HOST', 'localhost'),
           DB_PORT: config.get<number>('DB_PORT', 5432),
           DB_NAME: config.get<string>('DB_NAME', 'genares'),
+          DB_DISPOSABLE: config.get<string>('DB_DISPOSABLE'),
+          LOCAL_DEV_9D_TEMPORAL: config.get<string>('LOCAL_DEV_9D_TEMPORAL'),
         };
         validarDestinoBaseDesarrollo(entornoDb);
         return {

@@ -109,7 +109,7 @@ function PaginaFormularioTrabajoPrototipo() {
     const sufijo = Date.now().toString(36);
     const carreraSeleccionada = CARRERAS_DEMOSTRACION.find(({ nombre }) => nombre === formulario.carrera);
     if (!carreraSeleccionada) {
-      await Swal.fire({ icon: 'error', title: 'Carrera inválida', text: 'Seleccione una de las carreras de demostración disponibles.' });
+      await Swal.fire({ icon: 'error', title: 'Carrera inválida', text: 'Seleccione una de las carreras disponibles.' });
       return;
     }
     const estudiantesCreados = estudiantes.map((estudiante, indice) => ({ ...estudiante, id: `estudiante-${sufijo}-${indice + 1}`, tipoPersona: 'ESTUDIANTE', cedula: estudiante.cedula.trim(), nombres: estudiante.nombres.trim(), apellidos: estudiante.apellidos.trim(), carrera: formulario.carrera, carreraCodigo: carreraSeleccionada.codigo }));
@@ -136,7 +136,7 @@ function PaginaFormularioTrabajoPrototipo() {
 
   return (
     <>
-      <EncabezadoPagina title="Registrar trabajo de titulación" description="La información del trabajo se registra en este sistema; no proviene de una API institucional." breadcrumbs={['Trabajos', 'Nuevo trabajo']} />
+      <EncabezadoPagina title="Registrar trabajo de titulación" description="El registro de trabajos se realiza en el sistema institucional responsable. GENARES los presenta aquí para su seguimiento." breadcrumbs={['Trabajos', 'Nuevo trabajo']} />
       <form onSubmit={enviar} noValidate>
         {entradasErrores.length > 0 && (
           <div className="form-validation-summary" role="alert" aria-labelledby="trabajo-errors-title">
@@ -202,7 +202,7 @@ function PaginaFormularioTrabajoApi() {
         actions={<BotonVolver respaldo="/trabajos">Volver a trabajos</BotonVolver>}
       />
       <AlertaInstitucional tono="info" titulo="Alta no disponible en GENARES">
-        Esta pantalla no guardará datos locales como si fueran expedientes de PostgreSQL. Cuando el sistema responsable entregue el trabajo, aparecerá en el listado conectado.
+        El registro de trabajos corresponde al proceso institucional responsable. Los expedientes estarán disponibles aquí cuando sean remitidos para seguimiento.
       </AlertaInstitucional>
     </>
   );

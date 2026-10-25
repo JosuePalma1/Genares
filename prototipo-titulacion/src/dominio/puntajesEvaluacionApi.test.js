@@ -36,7 +36,7 @@ describe('ediciÃ³n de puntajes desde API', () => {
       puntajesGuardados: [{ idIndicador: 'indicador-a', puntaje: '2.50' }],
       valores: { 'indicador-a': '', 'indicador-b': '1.00' },
     });
-    expect(estado.errores['indicador-a']).toMatch(/no admite borrar/i);
+    expect(estado.errores['indicador-a']).toMatch(/no se puede borrar/i);
     expect(estado.puedeGuardar).toBe(false);
   });
 

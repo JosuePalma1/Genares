@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Ban, CalendarDays, CheckCircle2, Clock3, FilePlus2, MapPin, Pencil, Play, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina } from '../componentes/interfaz';
-import { ESCRITURA_PROGRAMACIONES_HABILITADA, FUENTE_PROGRAMACIONES } from '../configuracion/programaciones';
 import {
   actualizarProgramacionApi,
   capacidadesProgramacionesApi,
@@ -100,7 +99,7 @@ export default function PaginaCronograma() {
   const filtrosCandidatos = useMemo(() => ({ carreraId, periodoId, buscar: buscarServidor }), [carreraId, periodoId, buscarServidor]);
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
-  const puedeEditar = Boolean(capacidad?.puedeAdministrar && ESCRITURA_PROGRAMACIONES_HABILITADA);
+  const puedeEditar = Boolean(capacidad?.puedeAdministrar);
 
   useEffect(() => {
     const temporizador = window.setTimeout(() => establecerBuscarServidor(buscar.trim()), 250);
@@ -203,7 +202,7 @@ export default function PaginaCronograma() {
       await Swal.fire({
         icon: 'success',
         title: idEdicion ? 'Programación actualizada' : 'Sustentación programada',
-        text: 'El servidor confirmó y guardó los cambios.',
+        text: 'Los cambios se guardaron correctamente.',
         timer: 1800,
         showConfirmButton: false,
       });
@@ -238,7 +237,7 @@ export default function PaginaCronograma() {
       await Swal.fire({
         icon: 'success',
         title: siguiente === 'CANCELADA' ? 'Programación cancelada' : `Estado: ${etiquetaEstado(siguiente)}`,
-        text: siguiente === 'CANCELADA' ? 'La sala ya puede asignarse a otra sustentación.' : 'El servidor registró el cambio y la hora real correspondiente.',
+        text: siguiente === 'CANCELADA' ? 'La sala ya puede asignarse a otra sustentación.' : 'Se registró el cambio y la hora real correspondiente.',
         timer: 1800,
         showConfirmButton: false,
       });
@@ -259,24 +258,13 @@ export default function PaginaCronograma() {
     }
   }
 
-  if (FUENTE_PROGRAMACIONES !== 'api') {
-    return (
-      <div className="cronograma-page">
-        <EncabezadoPagina eyebrow="Agenda académica" title="Cronograma de sustentaciones" description="Consulte y administre la programación confirmada desde el backend." breadcrumbs={['Inicio', 'Cronograma']} />
-        <AlertaInstitucional tono="info" titulo="Cronograma API no habilitado">
-          Configure <code>VITE_PROGRAMACIONES_SOURCE=api</code> en el entorno local y reinicie Vite. No se muestran trabajos de demostración como si estuvieran guardados.
-        </AlertaInstitucional>
-      </div>
-    );
-  }
-
   return (
     <div className="cronograma-page">
       <div className="cronograma-screen-only">
         <EncabezadoPagina
           eyebrow="Agenda académica"
           title="Cronograma de sustentaciones"
-          description="Organice, consulte e imprima las sustentaciones programadas desde PostgreSQL."
+          description="Organice, consulte e imprima las sustentaciones programadas."
           breadcrumbs={['Inicio', 'Seguimiento', 'Cronograma']}
           actions={(
             <div className="cronograma-header-actions">
@@ -295,19 +283,9 @@ export default function PaginaCronograma() {
           )}
         />
 
-        <AlertaInstitucional tono="info" titulo="Origen: API PostgreSQL">
-          El listado utiliza las programaciones del servidor. La impresión abre el diálogo del navegador para imprimir o guardar el documento como PDF.
-        </AlertaInstitucional>
-
         {capacidad && !capacidad.puedeAdministrar && (
           <AlertaInstitucional tono="warning" titulo="Edición no disponible">
-            El servidor dejó el cronograma en modo de consulta en este entorno.
-          </AlertaInstitucional>
-        )}
-
-        {capacidad?.puedeAdministrar && !ESCRITURA_PROGRAMACIONES_HABILITADA && (
-          <AlertaInstitucional tono="warning" titulo="Escritura deshabilitada en esta ejecución">
-            Esta instancia de Vite está configurada para solo lectura. Habilite <code>VITE_PROGRAMACIONES_WRITE_API=true</code> en desarrollo y reinicie Vite para editar.
+            Su perfil puede consultar el cronograma, pero no crear ni modificar programaciones.
           </AlertaInstitucional>
         )}
 
@@ -422,7 +400,7 @@ export default function PaginaCronograma() {
             </label>
           </div>
 
-          {cargando ? <p className="cronograma-loading" role="status">Cargando cronograma desde el servidor…</p> : null}
+          {cargando ? <p className="cronograma-loading" role="status">Cargando cronograma…</p> : null}
           {!cargando && !errorCarga && elementos.length === 0 ? (
             <div className="cronograma-empty"><CalendarDays size={30} aria-hidden="true" /><h3>No hay sustentaciones para estos filtros</h3><p>Pruebe otro período, carrera o estado, o agregue un trabajo elegible.</p></div>
           ) : null}

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpenCheck, Pencil, Plus, RefreshCw, X } from 'lucide-react';
+import { BookOpenCheck, Pencil, Plus, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstado } from '../componentes/interfaz';
 import { ModalFormularioCatalogo } from '../componentes/ModalFormularioCatalogo';
 import { TablaCatalogo } from '../componentes/TablaCatalogo';
 import { modalidades as modalidadesPrototipo } from '../datos/datosPrototipo';
-import { FUENTE_RUBRICAS, ESCRITURA_MODALIDADES_API_HABILITADA } from '../configuracion/rubricas';
+import { FUENTE_RUBRICAS } from '../configuracion/rubricas';
 import { confirmarDescarteCambiosConDialogo, usarAdvertenciaCambiosSinGuardar } from '../dominio/cambiosSinGuardar';
 import {
   actualizarModalidadApi, cambiarEstadoModalidadApi, cargarCapacidadesModalidadesApi,
@@ -18,11 +18,11 @@ import './modalidades.css';
 const FORMULARIO_VACIO = { codigo: '', nombre: '', descripcion: '', estaActivo: true };
 
 function mensajeError(error, modo) {
-  if (error instanceof ErrorApiHttp && error.status === 401) return 'El servidor no habilitó esta operación en el entorno actual.';
-  if (error instanceof ErrorApiHttp && error.status === 403) return 'La operación no está disponible en el entorno actual.';
+  if (error instanceof ErrorApiHttp && error.status === 401) return 'Su perfil no tiene permiso para realizar esta operación.';
+  if (error instanceof ErrorApiHttp && error.status === 403) return 'Su perfil no tiene permiso para realizar esta operación.';
   if (error instanceof ErrorApiHttp && error.status === 404) return 'La modalidad ya no existe. Recargue el catálogo.';
   if (error instanceof ErrorApiHttp && error.status === 409) {
-    if (modo === 'editar') return 'Otra sesión modificó esta modalidad. Sus campos siguen aquí; recargue los datos del servidor si desea sustituirlos.';
+    if (modo === 'editar') return 'Otra sesión modificó esta modalidad. Sus campos siguen aquí; vuelva a cargar la versión vigente si desea sustituirlos.';
     if (modo === 'estado') return 'Otra sesión modificó el estado de esta modalidad. Se recargaron los datos actuales.';
     return 'Ya existe una modalidad con ese código. Revise el código técnico e inténtelo de nuevo.';
   }
@@ -31,12 +31,11 @@ function mensajeError(error, modo) {
 
 export default function PaginaModalidades() {
   const esApi = FUENTE_RUBRICAS === 'api';
-  const puedeEscribir = esApi && ESCRITURA_MODALIDADES_API_HABILITADA;
+  const puedeEscribir = esApi;
   const [modalidades, setModalidades] = useState([]);
   const [puedeAdministrar, setPuedeAdministrar] = useState(!esApi);
   const puedeGestionarCatalogo = !esApi || puedeAdministrar;
   const [cargando, setCargando] = useState(esApi);
-  const [mostrarAvisoOrigen, setMostrarAvisoOrigen] = useState(true);
   const [errorLectura, setErrorLectura] = useState('');
   const [modo, setModo] = useState(null);
   const [formulario, setFormulario] = useState(FORMULARIO_VACIO);
@@ -92,7 +91,7 @@ export default function PaginaModalidades() {
         ? modalidad.familiaRubricas
           ? <span className="modalidad-familia-celda"><strong>{modalidad.familiaRubricas.nombre}</strong><small>{modalidad.familiaRubricas.cantidadVersiones} versiones</small></span>
           : <span className="tabla-catalogo-muted">Sin asociación</span>
-        : <span className="tabla-catalogo-muted">No consultable en prototipo</span>,
+        : <span className="tabla-catalogo-muted">No disponible</span>,
     },
     {
       key: 'estaActivo', label: 'Estado', sortable: true,
@@ -182,7 +181,7 @@ export default function PaginaModalidades() {
         title: listaActualizada ? titulo : `${titulo}; listado pendiente`,
         text: listaActualizada
           ? `${codigo} se guardó correctamente.`
-          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+          : 'El cambio se guardó, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
         confirmButtonText: 'Continuar',
       });
     } catch (causa) {
@@ -248,7 +247,7 @@ export default function PaginaModalidades() {
           : activar ? 'Activación confirmada; listado pendiente' : 'Desactivación confirmada; listado pendiente',
         text: listaActualizada
           ? `${modalidad.codigo} quedó ${activar ? 'activa' : 'inactiva'}. Sus rúbricas y evaluaciones existentes permanecen intactas.`
-          : 'NestJS confirmó el cambio, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
+          : 'El cambio se guardó, pero no se pudo actualizar el catálogo. Use Actualizar para consultar el estado actual.',
         confirmButtonText: 'Continuar',
       });
     } catch (causa) {
@@ -276,21 +275,6 @@ export default function PaginaModalidades() {
         {puedeAdministrar && <button className="button button-primary" type="button" onClick={abrirNuevo}><Plus size={18} aria-hidden="true" /> Nueva modalidad</button>}
       </> : null}
     />
-
-    {mostrarAvisoOrigen && <div className="modalidades-origen-alerta">
-      <AlertaInstitucional className="modalidades-origen-alerta-contenido" tono="info" titulo={esApi ? `Origen: API PostgreSQL · ${puedeAdministrar ? 'administración autorizada' : 'solo lectura'}` : 'Origen: prototipo local'}>
-        <p>{esApi
-          ? 'Los registros se consultan directamente en PostgreSQL. Los cambios se muestran después de que NestJS los confirma.'
-          : 'El catálogo simulado es de solo lectura. El modo prototipo no envía escrituras API ni modifica datos locales.'}</p>
-      </AlertaInstitucional>
-      <button
-        className="modalidades-origen-alerta-cerrar"
-        type="button"
-        aria-label="Cerrar aviso de origen"
-        title="Cerrar aviso"
-        onClick={() => setMostrarAvisoOrigen(false)}
-      ><X size={18} aria-hidden="true" /></button>
-    </div>}
 
     {(esApi || puedeGestionarCatalogo) && <section className="card modalidades-catalog" aria-labelledby="modalidades-titulo">
       <header className="modalidades-catalog-header"><div><span className="section-kicker">Catálogo institucional</span><h2 id="modalidades-titulo">Modalidades registradas</h2></div></header>

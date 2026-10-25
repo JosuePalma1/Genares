@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, FileText, LockKeyhole, Save } from 'lucide-react';
+import { AlertTriangle, FileText, LockKeyhole, Save } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
-import { ESCRITURA_EVALUACIONES_API_HABILITADA } from '../configuracion/evaluaciones';
 import { validarFormularioPuntajes } from '../dominio/puntajesEvaluacionApi';
 import {
   cerrarEvaluacionApi,
@@ -11,12 +10,12 @@ import {
 
 export function mensajeErrorEscrituraEvaluacion(error) {
   if (error?.status === 400) return error.details?.length ? error.details.join(' ') : 'Revise los puntajes y los indicadores de la rúbrica.';
-  if (error?.status === 401) return 'El servidor no habilitó esta operación en el entorno actual.';
-  if (error?.status === 403) return 'La operación no está disponible en el entorno actual.';
+  if (error?.status === 401) return 'Su perfil no tiene permiso para registrar calificaciones.';
+  if (error?.status === 403) return 'Su perfil no tiene permiso para realizar esta operación.';
   if (error?.status === 404) return 'No existe la evaluación solicitada para este trabajo.';
   if (error?.status === 409) return 'La evaluación cambió o fue cerrada desde otra lectura. Sus entradas se conservaron; recargue antes de continuar.';
-  if (error?.name === 'ErrorConexionApi') return 'No se pudo conectar con el servidor. Sus entradas permanecen en el formulario.';
-  return 'El servidor no pudo completar la operación. Sus entradas permanecen en el formulario.';
+  if (error?.name === 'ErrorConexionApi') return 'No se pudo completar la operación. Sus entradas permanecen en el formulario.';
+  return 'No se pudo completar la operación. Sus entradas permanecen en el formulario.';
 }
 
 function puntosDe(evaluacion) {
@@ -80,7 +79,7 @@ export function EditorEvaluacionApi({
     puntajesGuardados: evaluacion?.puntajes ?? [],
     valores,
   }), [evaluacion, indicadores, valores]);
-  const puedeOperar = ESCRITURA_EVALUACIONES_API_HABILITADA && contexto?.puedeCalificar === true && Boolean(idMiembroTribunal);
+  const puedeOperar = contexto?.puedeCalificar === true && Boolean(idMiembroTribunal);
 
   useEffect(() => {
     if (contexto?.idMiembroTribunal && !contexto.miembrosTribunal?.some(({ idMiembroTribunal: id }) => id === idMiembroSeleccionado)) {
@@ -126,7 +125,7 @@ export function EditorEvaluacionApi({
       if (creada.idTrabajo !== idTrabajo || creada.idEtapaRubrica !== etapa.id
         || creada.idMiembroTribunal !== idMiembroTribunal
         || creada.idEstudiante !== (esCompartida ? null : estudianteSeleccionado?.id)) {
-        throw new Error('La API devolvió una evaluación distinta de la solicitada.');
+        throw new Error('La evaluación recibida no corresponde al trabajo y etapa seleccionados.');
       }
       establecerIdEvaluacionActiva(creada.id);
       establecerEvaluacionConfirmadaLocal(creada);
@@ -134,12 +133,12 @@ export function EditorEvaluacionApi({
         await recargar();
         establecerEvaluacionConfirmadaLocal(null);
       } catch {
-        establecerEstadoGuardado('El servidor confirmó la evaluación. No se pudo refrescar la consulta; reintente la lectura.');
-        await Swal.fire({ icon: 'warning', title: 'Evaluación creada', text: 'El servidor confirmó la creación, pero no se pudo actualizar la lectura. Reintente la consulta antes de continuar.', confirmButtonText: 'Entendido' });
+        establecerEstadoGuardado('La evaluación se registró, pero no se pudo actualizar la vista. Vuelva a consultar antes de continuar.');
+        await Swal.fire({ icon: 'warning', title: 'Evaluación creada', text: 'La evaluación se registró, pero no se pudo actualizar la vista. Vuelva a consultar antes de continuar.', confirmButtonText: 'Entendido' });
         return;
       }
-      establecerEstadoGuardado(creada.estado === 'CERRADA' ? 'Esta evaluación ya fue cerrada por el servidor.' : 'Borrador creado por el servidor.');
-      await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Evaluación abierta en el servidor', showConfirmButton: false, timer: 1700 });
+      establecerEstadoGuardado(creada.estado === 'CERRADA' ? 'Esta evaluación ya está cerrada.' : 'Borrador creado.');
+      await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Evaluación iniciada', showConfirmButton: false, timer: 1700 });
     } catch (fallo) {
       establecerError(mensajeErrorEscrituraEvaluacion(fallo));
     } finally {
@@ -167,17 +166,17 @@ export function EditorEvaluacionApi({
         puntajes: validacion.puntajes,
       });
       if (guardada.id !== evaluacion.id || guardada.estado !== 'BORRADOR' || guardada.revision < evaluacion.revision) {
-        throw new Error('La API devolvió una respuesta de guardado no válida.');
+        throw new Error('No se pudo confirmar el guardado de los puntajes.');
       }
       establecerIdEvaluacionActiva(guardada.id);
       establecerEvaluacionConfirmadaLocal(guardada);
-      establecerEstadoGuardado(`Cambios guardados por el servidor · revisión ${guardada.revision}.`);
+      establecerEstadoGuardado(`Cambios guardados · revisión ${guardada.revision}.`);
       try {
         await recargar();
         establecerEvaluacionConfirmadaLocal(null);
       } catch {
-        establecerEstadoGuardado(`El servidor guardó la revisión ${guardada.revision}; no se pudo refrescar la lectura. Reintente la consulta.`);
-        await Swal.fire({ icon: 'warning', title: 'Puntajes guardados', text: 'El servidor confirmó el guardado, pero no se pudo actualizar la lectura. Reintente la consulta.', confirmButtonText: 'Entendido' });
+        establecerEstadoGuardado(`Se guardó la revisión ${guardada.revision}; no se pudo refrescar la lectura. Reintente la consulta.`);
+        await Swal.fire({ icon: 'warning', title: 'Puntajes guardados', text: 'Los puntajes se guardaron, pero no se pudo actualizar la vista. Vuelva a consultar.', confirmButtonText: 'Entendido' });
         return;
       }
       await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Evaluación guardada · revisión ${guardada.revision}`, showConfirmButton: false, timer: 1700 });
@@ -205,7 +204,7 @@ export function EditorEvaluacionApi({
       const confirmacion = await Swal.fire({
         icon: 'warning',
         title: '¿Cerrar evaluación?',
-        text: 'El cierre es irreversible según las reglas actuales. El servidor bloqueará modificaciones posteriores.',
+        text: 'El cierre es irreversible. Una vez cerrada, esta evaluación no podrá modificarse.',
         showCancelButton: true,
         confirmButtonText: 'Cerrar evaluación',
         cancelButtonText: 'Seguir revisando',
@@ -215,20 +214,20 @@ export function EditorEvaluacionApi({
       establecerError('');
       const cerrada = await cerrarEvaluacionApi(evaluacion.id, { revision: evaluacion.revision, idMiembroTribunal });
       if (cerrada.id !== evaluacion.id || cerrada.estado !== 'CERRADA') {
-        throw new Error('El servidor no confirmó el cierre de esta evaluación.');
+        throw new Error('No se pudo confirmar el cierre de la evaluación.');
       }
       establecerIdEvaluacionActiva(cerrada.id);
       establecerEvaluacionConfirmadaLocal(cerrada);
-      establecerEstadoGuardado('El servidor confirmó el cierre. Actualizando evaluaciones, traspasos y consolidación.');
+      establecerEstadoGuardado('Evaluación cerrada. Actualizando evaluaciones, traspasos y resultados.');
       try {
         await recargar();
         establecerEvaluacionConfirmadaLocal(null);
       } catch {
-        establecerEstadoGuardado('El servidor confirmó el cierre. No se pudo refrescar la lectura de traspasos y resultados; reintente la consulta.');
-        await Swal.fire({ icon: 'warning', title: 'Cierre confirmado', text: 'El servidor cerró la evaluación, pero no se pudo actualizar la consulta de traspasos y resultados. Reintente la lectura.', confirmButtonText: 'Entendido' });
+        establecerEstadoGuardado('La evaluación se cerró, pero no se pudieron actualizar los traspasos y resultados. Vuelva a consultar.');
+        await Swal.fire({ icon: 'warning', title: 'Cierre confirmado', text: 'La evaluación se cerró, pero no se pudieron actualizar los traspasos y resultados. Vuelva a consultar.', confirmButtonText: 'Entendido' });
         return;
       }
-      await Swal.fire({ icon: 'success', title: 'Evaluación cerrada', text: 'El servidor confirmó el cierre. La vista ya consultó los datos actualizados.', confirmButtonText: 'Continuar' });
+      await Swal.fire({ icon: 'success', title: 'Evaluación cerrada', text: 'La evaluación se cerró y los datos están actualizados.', confirmButtonText: 'Continuar' });
     } catch (fallo) {
       establecerError(mensajeErrorEscrituraEvaluacion(fallo));
       if (fallo?.status === 409) establecerHayConflicto(true);
@@ -244,7 +243,7 @@ export function EditorEvaluacionApi({
       const confirmacion = await Swal.fire({
         icon: 'warning',
         title: '¿Recargar la evaluación?',
-        text: 'Se reemplazarán las entradas actuales por los puntajes persistidos en el servidor.',
+        text: 'Se reemplazarán las entradas actuales por los últimos puntajes guardados.',
         showCancelButton: true,
         confirmButtonText: 'Recargar datos',
         cancelButtonText: 'Conservar entradas',
@@ -260,7 +259,7 @@ export function EditorEvaluacionApi({
       establecerEvaluacionConfirmadaLocal(null);
       establecerError('');
       establecerHayConflicto(false);
-      establecerEstadoGuardado('Se recargaron los datos persistidos por el servidor.');
+      establecerEstadoGuardado('Se cargaron los últimos datos guardados.');
     } catch (fallo) {
       establecerError(mensajeErrorEscrituraEvaluacion(fallo));
     } finally {
@@ -280,13 +279,9 @@ export function EditorEvaluacionApi({
           <h2 id="evaluacion-registro-title">Registro de evaluación</h2>
           <p>Se conserva una revisión por evaluación y se registra el miembro del tribunal seleccionado.</p>
         </div>
-        {puedeOperar && (!evaluacion || evaluacion.estado !== 'CERRADA')
-          ? <span className="evaluaciones-api-write-badge"><CheckCircle2 size={15} /> Escritura autorizada</span>
-          : <span className="evaluaciones-api-read-badge"><LockKeyhole size={15} /> Solo lectura</span>}
       </div>
 
-      {!contexto?.puedeCalificar && <div className="evaluaciones-api-write-notice" role="status">El servidor dejó esta vista en modo de consulta. No se muestran controles para calificar.</div>}
-      {contexto?.puedeCalificar && !ESCRITURA_EVALUACIONES_API_HABILITADA && <div className="evaluaciones-api-write-notice" role="status">Este cliente está configurado para lectura. No se muestran controles operativos de guardado o cierre.</div>}
+      {!contexto?.puedeCalificar && <div className="evaluaciones-api-write-notice" role="status">Su perfil puede consultar esta evaluación, pero no registrar calificaciones.</div>}
 
       <div className="evaluaciones-api-write-selectors">
         <label htmlFor="evaluacion-api-miembro">Miembro del tribunal</label>
@@ -337,13 +332,13 @@ export function EditorEvaluacionApi({
           <div className="evaluaciones-api-editor-heading">
             <div><strong>{evaluacion.etapaRubrica?.nombre ?? etapa?.nombre}</strong><span>{esCompartida ? 'Evaluación del trabajo' : nombreEstudiante(estudianteSeleccionado)}</span></div>
             <span className={evaluacion.estado === 'CERRADA' ? 'evaluaciones-api-read-badge' : 'evaluaciones-api-write-badge'}>
-              {evaluacion.estado === 'CERRADA' ? 'Cerrada · solo lectura' : `Borrador · revisión ${evaluacion.revision}`}
+              {evaluacion.estado === 'CERRADA' ? 'Cerrada' : `Borrador · revisión ${evaluacion.revision}`}
             </span>
           </div>
 
           {evaluacion.estado === 'CERRADA' ? (
             <>
-              <div className="evaluaciones-api-write-notice" role="status"><LockKeyhole size={16} /> El servidor cerró esta evaluación; no se puede editar.</div>
+              <div className="evaluaciones-api-write-notice" role="status"><LockKeyhole size={16} /> Esta evaluación está cerrada y no admite cambios.</div>
               {esCompartida && estudiantes.length > 1 && <div className="evaluaciones-api-print-target">
                 <label htmlFor="evaluacion-api-rubrica-estudiante">Estudiante destinatario de la rúbrica</label>
                 <select id="evaluacion-api-rubrica-estudiante" value={idEstudiante} onChange={(evento) => establecerIdEstudiante(evento.target.value)}>
@@ -359,7 +354,7 @@ export function EditorEvaluacionApi({
           ) : (
             <>
               {indicadores.length === 0
-                ? <p className="evaluaciones-api-write-notice" role="alert">La instantánea devuelta por la API no contiene indicadores de esta etapa. No se habilita el cierre.</p>
+                ? <p className="evaluaciones-api-write-notice" role="alert">La rúbrica de esta etapa no contiene indicadores. No es posible cerrar la evaluación.</p>
                 : <div className="evaluaciones-api-indicator-table" role="group" aria-label="Puntajes por indicador">
                   <div className="evaluaciones-api-indicator-table-head"><span>Categoría e indicador</span><span>Máximo</span><span>Puntaje</span></div>
                   {(evaluacion.instantaneaRubrica.categories ?? []).filter((categoria) => categoria.stageId === evaluacion.idEtapaRubrica).map((categoria) => (
@@ -394,11 +389,11 @@ export function EditorEvaluacionApi({
                 </div>}
 
               <p className="evaluaciones-api-save-state" role="status">
-                {ocupado ? 'Esperando confirmación del servidor…' : estadoGuardado || (validacion.tieneCambios ? 'Hay cambios sin guardar.' : `Puntajes persistidos: ${evaluacion.puntajes.length} de ${indicadores.length}.`)}
+                {ocupado ? 'Guardando cambios…' : estadoGuardado || (validacion.tieneCambios ? 'Hay cambios sin guardar.' : `Puntajes guardados: ${evaluacion.puntajes.length} de ${indicadores.length}.`)}
               </p>
               {error && <div className="evaluaciones-api-write-error" role="alert"><AlertTriangle size={17} /> <span>{error}</span></div>}
-              {errorRecarga && <div className="evaluaciones-api-write-error" role="alert"><span>No se pudieron refrescar los datos desde la API. Puede reintentar la lectura.</span><button className="button button-outline" type="button" onClick={recargarTrasConflicto} disabled={ocupado}>Reintentar lectura desde la API</button></div>}
-              {hayConflicto && <button className="button button-outline" type="button" onClick={recargarTrasConflicto} disabled={ocupado}>Recargar datos del servidor</button>}
+              {errorRecarga && <div className="evaluaciones-api-write-error" role="alert"><span>No se pudieron actualizar los datos. Puede volver a consultar.</span><button className="button button-outline" type="button" onClick={recargarTrasConflicto} disabled={ocupado}>Volver a consultar</button></div>}
+              {hayConflicto && <button className="button button-outline" type="button" onClick={recargarTrasConflicto} disabled={ocupado}>Recargar evaluación</button>}
               {puedeOperar && <div className="evaluaciones-api-write-actions">
                 <button className="button button-secondary" type="button" onClick={guardar} disabled={ocupado || hayConflicto || !validacion.puedeGuardar}>
                   <Save size={16} /> {ocupado ? 'Guardando…' : 'Guardar cambios'}
@@ -407,7 +402,7 @@ export function EditorEvaluacionApi({
                   {ocupado ? 'Procesando…' : 'Cerrar evaluación'}
                 </button>
               </div>}
-              {puedeOperar && <p className="evaluaciones-api-close-hint">Guardar conserva un borrador editable. El cierre es una acción separada y requiere puntajes completos ya persistidos.</p>}
+              {puedeOperar && <p className="evaluaciones-api-close-hint">Guardar conserva un borrador editable. El cierre es una acción separada y requiere todos los puntajes completos y guardados.</p>}
             </>
           )}
         </div>

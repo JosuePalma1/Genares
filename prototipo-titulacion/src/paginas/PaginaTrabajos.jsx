@@ -112,7 +112,7 @@ function PaginaTrabajosPrototipo() {
               <span className="section-kicker">Expedientes visibles</span>
               <h2 id="trabajos-results-title">Seguimiento de trabajos</h2>
             </div>
-            <p>Los estados reflejan el avance registrado actualmente en el prototipo.</p>
+            <p>Los estados reflejan el avance registrado actualmente.</p>
           </div>
           <div className="trabajos-card-grid">
             {filas.map((trabajo) => {

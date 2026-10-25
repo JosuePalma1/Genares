@@ -35,12 +35,12 @@ export function prepararVersionApiParaGuardar(version, etapas, categorias) {
 }
 
 export function mensajeErrorEscrituraRubrica(error) {
-  if (error?.status === 400) return error.message || 'La API rechazó los datos. Revise los campos e intente guardar.';
-  if (error?.status === 401) return 'La API no reconoce una identidad autorizada para guardar.';
-  if (error?.status === 403) return 'El servidor no autorizó la edición de este borrador.';
+  if (error?.status === 400) return error.message || 'Los datos no son válidos. Revise los campos e intente guardar.';
+  if (error?.status === 401) return 'La sesión no tiene una identidad validada para guardar.';
+  if (error?.status === 403) return 'Su perfil no tiene permiso para editar este borrador.';
   if (error?.status === 404) return 'La rúbrica o versión ya no existe. Recargue el catálogo para comprobarlo.';
   if (error?.status === 409) return 'El borrador cambió o dejó de ser editable. Recargue la versión antes de continuar.';
-  if (error?.status >= 500) return 'El servidor no pudo guardar el borrador. Sus cambios locales siguen disponibles.';
-  if (error?.name === 'ErrorConexionApi') return 'No fue posible conectar con la API. Sus cambios locales siguen disponibles.';
+  if (error?.status >= 500) return 'No fue posible guardar el borrador. Sus cambios siguen disponibles en el editor.';
+  if (error?.name === 'ErrorConexionApi') return 'No fue posible guardar la rúbrica. Sus cambios siguen disponibles en el editor.';
   return error?.message || 'No fue posible guardar el borrador. Sus cambios locales siguen disponibles.';
 }

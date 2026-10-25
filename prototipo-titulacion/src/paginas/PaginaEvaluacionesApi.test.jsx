@@ -119,7 +119,7 @@ describe('presentación de consulta API de evaluaciones', () => {
       consolidacion: workConsolidation(),
     }));
     expect(markup.match(/Evaluación compartida del trabajo/g)).toHaveLength(1);
-    expect(markup).toContain('Esta evaluación original no se duplica');
+    expect(markup).toContain('La evaluación original no se duplica');
     expect(markup).toContain(ids.studentA);
     expect(markup).toContain(ids.studentB);
   });
@@ -177,11 +177,11 @@ describe('presentación de consulta API de evaluaciones', () => {
     expect(mensajeSeguroEvaluaciones({ status: 403 })).toBe(mensajeSeguroEvaluaciones({ status: 404 }));
     expect(mensajeSeguroEvaluaciones({ status: 404 })).not.toContain('No existe');
     const cargando = html(createElement(EstadoConsultaEvaluacionesApi, { estado: 'cargando' }));
-    expect(cargando).toContain('Consultando al servidor');
+    expect(cargando).toContain('Cargando evaluaciones');
     const desconectado = html(createElement(EstadoConsultaEvaluacionesApi, { estado: 'error', error: new ErrorConexionApi(), alReintentar: vi.fn() }));
     expect(desconectado.match(/role="alert"/g)).toHaveLength(1);
-    expect(desconectado).toContain('No se pudo consultar la API de evaluaciones');
-    expect(desconectado).toContain('Confirme que NestJS esté activo');
+    expect(desconectado).toContain('No se pudieron consultar las evaluaciones');
+    expect(desconectado).toContain('No fue posible completar la consulta');
     expect(desconectado).toContain('Reintentar');
     expect(desconectado).not.toContain('empty-estado');
 

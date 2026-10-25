@@ -57,6 +57,30 @@ describe('servicio API de trabajos', () => {
     expect(getJson).not.toHaveBeenCalled();
   });
 
+  it('consulta la trazabilidad persistida y valida su cobertura', async () => {
+    const respuesta = {
+      trabajoId: idTrabajo,
+      elementos: [{
+        id: 'aa000000-0000-4000-8000-000000000001',
+        ocurridoEn: '2026-10-24T10:00:00.000Z',
+        tipo: 'EVALUACION_CERRADA',
+        actor: { disponible: false },
+        origen: 'EVALUACION',
+        evidencia: 'DIRECTA',
+      }],
+      siguienteCursor: null,
+      metadatos: { completa: false, nota: 'Historial parcial.' },
+    };
+    const getJson = vi.fn().mockResolvedValue(respuesta);
+    const servicio = crearServicioTrabajosApi({ getJson });
+
+    await expect(servicio.trazabilidad(idTrabajo, { cursor: 'abc' })).resolves.toEqual(respuesta);
+    expect(getJson).toHaveBeenCalledWith(`/trabajos/${idTrabajo}/trazabilidad?cursor=abc`, { signal: undefined });
+
+    const servicioInvalido = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue({ ...respuesta, trabajoId: idEstudiante }) });
+    await expect(servicioInvalido.trazabilidad(idTrabajo)).rejects.toBeInstanceOf(ErrorRespuestaApi);
+  });
+
   it('no sustituye respuestas inválidas o una fuente desconectada por datos locales', async () => {
     const servicioInvalido = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue({ elementos: [{ ...trabajo, id: 'trabajo-184' }] }) });
     await expect(servicioInvalido.listar()).rejects.toBeInstanceOf(ErrorRespuestaApi);
