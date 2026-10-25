@@ -72,6 +72,15 @@ function iniciar(nombre, ejecutable, argumentos, cwd, env) {
   return proceso;
 }
 
+async function esperarArchivo(ruta, nombre) {
+  const limite = Date.now() + 60000;
+  while (Date.now() < limite) {
+    if (existsSync(ruta)) return;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 250));
+  }
+  throw new Error(`${nombre} no generó ${ruta} dentro del tiempo esperado.`);
+}
+
 async function esperarDisponible(url, nombre, proceso) {
   const limite = Date.now() + 60000;
   let ultimoError = 'sin respuesta';
@@ -101,7 +110,12 @@ async function main() {
   const procesoApi = soloFrontend ? null : iniciar('NestJS', nest, ['start', '--watch'], backend, process.env);
 
   const comprobaciones = [];
-  if (procesoApi) comprobaciones.push(esperarDisponible('http://127.0.0.1:3001/api/salud', 'NestJS', procesoApi));
+  if (procesoApi) {
+    comprobaciones.push(
+      esperarArchivo(resolve(backend, 'dist', 'main.js'), 'NestJS')
+        .then(() => esperarDisponible('http://127.0.0.1:3001/api/salud', 'NestJS', procesoApi)),
+    );
+  }
   if (procesoWeb) comprobaciones.push(esperarDisponible('http://127.0.0.1:5173/', 'Vite', procesoWeb));
   await Promise.all(comprobaciones);
 
