@@ -6,4 +6,3 @@ coverage/
 .tmp-postgres-validation/
 .local-postgres-dev/
 .local-postgres-9d-desechable/
-.env.9d.local

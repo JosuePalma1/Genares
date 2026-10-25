@@ -4,12 +4,7 @@ import { IdentidadApi, SolicitudConIdentidad } from './identidad-api';
 export interface EntornoAccesoDesarrollo {
   NODE_ENV?: string;
   LOCAL_DEV_OPEN_ACCESS?: string;
-  LOCAL_DEV_IDENTITY_ENABLED?: string;
-  LOCAL_DEV_IDENTITY_PROFILE?: string;
-  LOCAL_DEV_9D_TEMPORAL?: string;
-  LOCAL_DEV_WRITE_ENABLED?: string;
   LOCAL_DEV_WRITE_ORIGINS?: string;
-  DB_DISPOSABLE?: string;
   DB_HOST?: string;
   DB_PORT?: string;
   DB_NAME?: string;
@@ -44,19 +39,6 @@ export const CAPACIDADES_DESARROLLO_LOCAL = Object.freeze([
   'configuracion-academica:administrar', 'documentos:emitir',
 ]);
 
-const BASE_DESARROLLO = Object.freeze({
-  host: '127.0.0.1', puerto: 55442, nombre: 'genares_dev_10_9', marca: 'GENARES:10.9B:DEVELOPMENT',
-});
-const PERFIL_9D_CONSULTA_INTEGRADA = 'consulta-integrada';
-const CAPACIDADES_9D_CONSULTA_INTEGRADA = Object.freeze([
-  'rubricas:leer', 'modalidades:leer', 'carreras:leer', 'programaciones:leer',
-  'evaluaciones:leer', 'evaluaciones:leer-demostracion',
-]);
-
-function esIntegracionTemporal9D(entorno: EntornoAccesoDesarrollo): boolean {
-  return entorno.LOCAL_DEV_IDENTITY_ENABLED === 'true' || entorno.LOCAL_DEV_9D_TEMPORAL === 'true';
-}
-
 export function direccionEsLoopback(direccion?: string): boolean {
   if (!direccion) return false;
   const normalizada = direccion.toLowerCase().replace(/^::ffff:/, '');
@@ -68,28 +50,16 @@ export function validarConfiguracionAccesoDesarrollo(entorno: EntornoAccesoDesar
     throw new Error('La identidad de desarrollo solo puede habilitarse con NODE_ENV=development.');
   }
 
-  if (esIntegracionTemporal9D(entorno)) {
-    if (entorno.LOCAL_DEV_IDENTITY_ENABLED !== 'true'
-      || entorno.LOCAL_DEV_9D_TEMPORAL !== 'true'
-      || entorno.DB_DISPOSABLE !== 'true'
-      || entorno.DB_HOST !== '127.0.0.1'
-      || Number(entorno.DB_PORT) !== 55441
-      || !/^genares_9d_test_[a-f0-9]{8}$/.test(entorno.DB_NAME ?? '')
-      || entorno.LOCAL_DEV_IDENTITY_PROFILE !== PERFIL_9D_CONSULTA_INTEGRADA
-      || entorno.LOCAL_DEV_WRITE_ENABLED !== 'false'
-      || entorno.LOCAL_DEV_WRITE_ORIGINS !== 'http://127.0.0.1:5180') {
-      throw new Error('El acceso integrado 9D requiere una base UUID desechable y el perfil fijo de consulta sin escritura.');
-    }
-    return;
-  }
-
   if (entorno.LOCAL_DEV_OPEN_ACCESS !== 'true') {
     throw new Error('El acceso abierto requiere NODE_ENV=development y LOCAL_DEV_OPEN_ACCESS=true.');
   }
-  if (entorno.DB_HOST !== BASE_DESARROLLO.host
-    || Number(entorno.DB_PORT) !== BASE_DESARROLLO.puerto
-    || entorno.DB_NAME !== BASE_DESARROLLO.nombre) {
-    throw new Error('El acceso abierto solo puede habilitarse contra PostgreSQL local 10.9B en 127.0.0.1:55442/genares_dev_10_9.');
+  if (!entorno.DB_HOST
+    || !['localhost', '127.0.0.1', '::1'].includes(entorno.DB_HOST.toLowerCase())
+    || !entorno.DB_NAME
+    || !Number.isInteger(Number(entorno.DB_PORT))
+    || Number(entorno.DB_PORT) < 1
+    || Number(entorno.DB_PORT) > 65535) {
+    throw new Error('El acceso abierto requiere una conexión PostgreSQL completa en backend/.env.');
   }
 }
 
@@ -98,21 +68,10 @@ export function validarBaseDesarrolloActiva(
   base: VerificacionBaseDesarrollo,
 ): void {
   validarConfiguracionAccesoDesarrollo(entorno);
-  if (esIntegracionTemporal9D(entorno)) {
-    if (base.nombre !== entorno.DB_NAME
-      || !/^genares_9d_test_[a-f0-9]{8}$/.test(base.nombre)
-      || !direccionEsLoopback(base.direccion ?? undefined)
-      || base.puerto !== 55441
-      || base.marca !== 'GENARES:9D:DISPOSABLE') {
-      throw new Error('La conexión PostgreSQL activa no corresponde a la base temporal 9D marcada como desechable.');
-    }
-    return;
-  }
-  if (base.nombre !== BASE_DESARROLLO.nombre
+  if (base.nombre !== entorno.DB_NAME
     || !direccionEsLoopback(base.direccion ?? undefined)
-    || base.puerto !== BASE_DESARROLLO.puerto
-    || base.marca !== BASE_DESARROLLO.marca) {
-    throw new Error('La conexión PostgreSQL activa no corresponde a la base local marcada 10.9B.');
+    || base.puerto !== Number(entorno.DB_PORT)) {
+    throw new Error('La conexión PostgreSQL activa no corresponde a la base definida en backend/.env.');
   }
 }
 
@@ -163,13 +122,6 @@ export function crearMiddlewareAccesoDesarrolloLocal(capacidades = CAPACIDADES_D
   };
 }
 
-export function crearMiddlewareSoloLecturaDesarrolloLocal() {
-  return (solicitud: SolicitudLocalApi, respuesta: RespuestaLocalApi, continuar: () => void): void => {
-    if (['GET', 'HEAD', 'OPTIONS'].includes((solicitud.method ?? '').toUpperCase())) return continuar();
-    rechazar(respuesta, 403, 'LOCAL_DEVELOPMENT_READ_ONLY', 'El perfil integrado 9D solo permite consultas.');
-  };
-}
-
 export function crearMiddlewareProteccionEscrituraLocal(origenesPermitidos: string[]) {
   const permitidos = new Set(origenesPermitidos);
   return (
@@ -195,20 +147,12 @@ export async function instalarIdentidadDesarrolloLocal(
   entorno: EntornoAccesoDesarrollo = process.env,
   verificarBase?: () => Promise<VerificacionBaseDesarrollo>,
 ): Promise<boolean> {
-  const habilitado9D = entorno.NODE_ENV === 'development'
-    && entorno.LOCAL_DEV_IDENTITY_ENABLED === 'true'
-    && entorno.LOCAL_DEV_9D_TEMPORAL === 'true';
-  const habilitado10_9B = entorno.NODE_ENV === 'development' && entorno.LOCAL_DEV_OPEN_ACCESS === 'true';
-  if (!habilitado9D && !habilitado10_9B) return false;
+  const habilitado = entorno.NODE_ENV === 'development' && entorno.LOCAL_DEV_OPEN_ACCESS === 'true';
+  if (!habilitado) return false;
   validarConfiguracionAccesoDesarrollo(entorno);
   if (!verificarBase) throw new Error('No se pudo verificar PostgreSQL antes de habilitar el acceso local.');
   validarBaseDesarrolloActiva(entorno, await verificarBase());
-  if (habilitado9D) {
-    aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(CAPACIDADES_9D_CONSULTA_INTEGRADA));
-    aplicacion.use(crearMiddlewareSoloLecturaDesarrolloLocal());
-  } else {
-    aplicacion.use(crearMiddlewareAccesoDesarrolloLocal());
-    aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));
-  }
+  aplicacion.use(crearMiddlewareAccesoDesarrolloLocal());
+  aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));
   return true;
 }

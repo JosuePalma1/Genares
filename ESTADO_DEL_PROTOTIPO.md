@@ -86,10 +86,9 @@ Los métodos de la API de rúbricas también se usan desde sus pantallas cuando 
 
 ## Entorno de desarrollo y seguridad
 
-- La fuente de datos del frontend predeterminada es `prototipo`; `VITE_RUBRICAS_SOURCE=api` habilita consultas API en Vite de desarrollo.
-- Las escrituras desde el frontend requieren la opción correspondiente (`VITE_RUBRICAS_WRITE_API`, `VITE_MODALIDADES_WRITE_API` o `VITE_CARRERAS_WRITE_API`) y la capacidad habilitada en el servidor local.
+- La fuente de datos del frontend predeterminada es la demostración local; la API se consulta desde el backend configurado en `backend/.env`.
+- Las escrituras desde el frontend requieren la capacidad habilitada y las protecciones de origen del servidor local.
 - La identidad local es fija en el servidor y está desactivada por defecto. No se debe publicar, exponer por túnel o usar en equipos compartidos.
-- Para pruebas PostgreSQL se debe usar el clúster desechable 9D, con su puerto, nombre y marca verificados por los scripts del backend. No usar el puerto 5432 ni la base persistente 8E y no borrar bases temporales anteriores.
 - Los `.env` locales, credenciales y bases de desarrollo se excluyen de Git.
 - No hay conexión con DIT, SGA, Microsoft 365 ni envío real de correos.
 
@@ -116,17 +115,16 @@ No están aprobadas reglas nuevas de ausencias, suplentes, ponderaciones entre e
 
 ## Validación
 
-Hay pruebas unitarias de reglas y cliente, y pruebas PostgreSQL aisladas para migraciones, rúbricas, carreras, evaluaciones, consolidación, auditoría, concurrencia y compatibilidad histórica. Los comandos para ejecutarlas y compilar son:
+Hay pruebas unitarias de reglas y cliente. Los comandos para ejecutarlas y compilar son:
 
 ```powershell
-# Desde prototipo-titulacion
+# Desde frontend
 npm run test
 npm run build
 
 # Desde backend
 npm test
 npm run build
-.\scripts\pruebas-postgres-9d.ps1
 ```
 
-La suite PostgreSQL protegida verifica la identidad y el carácter desechable de la base antes de escribir. Para el estado más reciente de las pruebas, revisar la salida de cada ejecución; las pruebas usan bases y fixtures controlados, no representan una validación de calificaciones históricas reales.
+Las pruebas unitarias no crean bases ni modifican PostgreSQL.

@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DocumentosModule } from './documentos/documentos.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { resolve } from 'node:path';
 import { ModuloApi } from './comun/api/modulo-api';
 import { ModalidadesModule } from './modalidades/modalidades.module';
 import { CarrerasModule } from './carreras/carreras.module';
@@ -24,28 +25,25 @@ import { TrabajosModule } from './trabajos/trabajos.module';
     TrabajosModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test'
-        ? '.env'
-        : '.env.10.9',
+      envFilePath: resolve(__dirname, '../.env'),
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const entornoDb = {
-          NODE_ENV: config.get<string>('NODE_ENV'),
-          DB_HOST: config.get<string>('DB_HOST', 'localhost'),
-          DB_PORT: config.get<number>('DB_PORT', 5432),
-          DB_NAME: config.get<string>('DB_NAME', 'genares'),
-          DB_DISPOSABLE: config.get<string>('DB_DISPOSABLE'),
-          LOCAL_DEV_9D_TEMPORAL: config.get<string>('LOCAL_DEV_9D_TEMPORAL'),
+          DB_HOST: config.get<string>('DB_HOST'),
+          DB_PORT: config.get<string>('DB_PORT'),
+          DB_USERNAME: config.get<string>('DB_USERNAME'),
+          DB_PASSWORD: config.get<string>('DB_PASSWORD'),
+          DB_NAME: config.get<string>('DB_NAME'),
         };
         validarDestinoBaseDesarrollo(entornoDb);
         return {
           type: 'postgres' as const,
           host: entornoDb.DB_HOST,
           port: Number(entornoDb.DB_PORT),
-          username: config.get<string>('DB_USERNAME', 'genares'),
-          password: config.get<string>('DB_PASSWORD', 'genares_local'),
+          username: entornoDb.DB_USERNAME,
+          password: entornoDb.DB_PASSWORD,
           database: entornoDb.DB_NAME,
           autoLoadEntities: true,
           entities: [__dirname + '/**/*.entity{.ts,.js}'],

@@ -2,10 +2,9 @@ node_modules/
 dist/
 coverage/
 .env
-/backend/.env.10.9
-/.local-postgres-10.9/
 *.local
 *.log
+/.local-postgres-10.9/
 .DS_Store
 Thumbs.db
-/prototipo-titulacion.zip
+/frontend.zip

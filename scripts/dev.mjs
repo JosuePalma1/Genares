@@ -2,23 +2,14 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  detenerProcesoPostgres,
-  entornoBackendDesarrollo,
-  iniciarClusterDesarrollo,
-  verificarBaseLista,
-} from './postgres-dev.mjs';
-
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const soloFrontend = process.argv.includes('--frontend-only');
 const soloBackend = process.argv.includes('--backend-only');
 const combinados = !soloFrontend && !soloBackend;
 const procesos = new Set();
 let apagando = false;
-let postgresIniciadoAqui = false;
-let procesoPostgres = null;
 
-const web = resolve(raiz, 'prototipo-titulacion');
+const web = resolve(raiz, 'frontend');
 const backend = resolve(raiz, 'backend');
 const vite = resolve(web, 'node_modules/vite/bin/vite.js');
 const nest = resolve(backend, 'node_modules/@nestjs/cli/bin/nest.js');
@@ -40,20 +31,16 @@ function terminarArbol(proceso) {
   });
 }
 
-async function detener(codigo = 0, forzarPostgres = false) {
+async function detener(codigo = 0) {
   if (apagando) return;
   apagando = true;
   await Promise.all([...procesos].map(terminarArbol));
   procesos.clear();
-  if (postgresIniciadoAqui && procesoPostgres) {
-    try { await detenerProcesoPostgres(procesoPostgres, forzarPostgres); }
-    catch (error) { console.error(`No se pudo detener el PostgreSQL local: ${error.message}`); codigo = 1; }
-  }
   process.exitCode = codigo;
 }
 
-process.on('SIGINT', () => { void detener(0, false); });
-process.on('SIGTERM', () => { void detener(0, true); });
+process.on('SIGINT', () => { void detener(0); });
+process.on('SIGTERM', () => { void detener(0); });
 
 function iniciar(nombre, ejecutable, argumentos, cwd, env) {
   if (!existsSync(ejecutable)) {
@@ -105,36 +92,24 @@ async function esperarDisponible(url, nombre, proceso) {
 }
 
 async function main() {
-  let entornoApi;
-  if (!soloFrontend) {
-    entornoApi = entornoBackendDesarrollo();
-    const cluster = await iniciarClusterDesarrollo(entornoApi);
-    procesoPostgres = cluster.hijo;
-    postgresIniciadoAqui = cluster.iniciadoPorEstaLlamada;
-    await verificarBaseLista(entornoApi);
-  }
-
   const entornoWeb = {
     ...process.env,
     VITE_API_BASE_URL: '/api/v1',
-    VITE_API_PROXY_TARGET: `http://127.0.0.1:${entornoApi?.PORT ?? '3001'}`,
   };
 
   const procesoWeb = soloBackend ? null : iniciar('Vite', vite, ['--strictPort'], web, entornoWeb);
-  const procesoApi = soloFrontend ? null : iniciar('NestJS', nest, ['start', '--watch'], backend, entornoApi);
+  const procesoApi = soloFrontend ? null : iniciar('NestJS', nest, ['start', '--watch'], backend, process.env);
 
   const comprobaciones = [];
-  if (procesoApi) comprobaciones.push(esperarDisponible(`http://127.0.0.1:${entornoApi.PORT}/api/salud`, 'NestJS', procesoApi));
+  if (procesoApi) comprobaciones.push(esperarDisponible('http://127.0.0.1:3001/api/salud', 'NestJS', procesoApi));
   if (procesoWeb) comprobaciones.push(esperarDisponible('http://127.0.0.1:5173/', 'Vite', procesoWeb));
   await Promise.all(comprobaciones);
 
   if (combinados) {
     console.log('Frontend: http://127.0.0.1:5173/');
-    console.log(`API: http://127.0.0.1:${entornoApi.PORT}/api/v1`);
-    console.log('Base local: 127.0.0.1:55442/genares_dev_10_9');
+    console.log('API: http://127.0.0.1:3001/api/v1');
   } else if (soloBackend) {
-    console.log(`API: http://127.0.0.1:${entornoApi.PORT}/api/v1`);
-    console.log('Base local: 127.0.0.1:55442/genares_dev_10_9');
+    console.log('API: http://127.0.0.1:3001/api/v1');
   } else {
     console.log('Frontend de demostración: http://127.0.0.1:5173/');
   }
@@ -143,5 +118,5 @@ async function main() {
 
 main().catch(async (error) => {
   console.error(error instanceof Error ? error.message : String(error));
-  await detener(1, true);
+  await detener(1);
 });
