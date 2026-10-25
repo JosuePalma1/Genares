@@ -21,7 +21,9 @@ import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../c
 
 export default function PaginaProgramacionSustentacion() {
   const { idTrabajo } = useParams();
-  if (FUENTE_PROGRAMACIONES === 'api') return <Navigate replace to="/cronograma" />;
+  if (FUENTE_PROGRAMACIONES === 'api') {
+    return <Navigate replace to={idTrabajo ? `/cronograma?trabajoId=${encodeURIComponent(idTrabajo)}&nueva=1` : '/cronograma'} />;
+  }
   const { estado, despachar } = usarPrototipo();
   const navegar = useNavigate();
   const trabajo = estado.trabajos.find((elemento) => elemento.id === idTrabajo);

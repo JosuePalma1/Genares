@@ -44,11 +44,31 @@ export function EditorEvaluacionApi({
   contexto,
   recargar,
   errorRecarga,
+  idEstudianteInicial = null,
+  tipoEtapaInicial = null,
 }) {
   const etapas = etapaDelEstudiante(consolidacion);
   const estudiantes = consolidacion.estudiantes.map(({ estudiante }) => estudiante);
-  const [idEtapa, establecerIdEtapa] = useState(etapas[0]?.id ?? '');
-  const [idEstudiante, establecerIdEstudiante] = useState(estudiantes[0]?.id ?? '');
+
+  const etapaPredeterminada = useMemo(() => {
+    if (tipoEtapaInicial === 'ORAL') {
+      const etapaOral = etapas.find(
+        (e) => e.tipo === 'ORAL' || e.codigo === 'ORAL' || e.alcance === 'ESTUDIANTE_INDIVIDUAL',
+      );
+      if (etapaOral) return etapaOral.id;
+    }
+    return etapas[0]?.id ?? '';
+  }, [etapas, tipoEtapaInicial]);
+
+  const estudiantePredeterminado = useMemo(() => {
+    if (idEstudianteInicial && estudiantes.some((e) => e.id.toLowerCase() === idEstudianteInicial.toLowerCase())) {
+      return estudiantes.find((e) => e.id.toLowerCase() === idEstudianteInicial.toLowerCase()).id;
+    }
+    return estudiantes[0]?.id ?? '';
+  }, [estudiantes, idEstudianteInicial]);
+
+  const [idEtapa, establecerIdEtapa] = useState(etapaPredeterminada);
+  const [idEstudiante, establecerIdEstudiante] = useState(estudiantePredeterminado);
   const [idMiembroSeleccionado, establecerIdMiembroSeleccionado] = useState(null);
   const [idEvaluacionActiva, establecerIdEvaluacionActiva] = useState(null);
   const [evaluacionConfirmadaLocal, establecerEvaluacionConfirmadaLocal] = useState(null);
@@ -86,6 +106,11 @@ export function EditorEvaluacionApi({
       establecerIdMiembroSeleccionado(contexto.idMiembroTribunal);
     }
   }, [contexto?.idMiembroTribunal, contexto?.miembrosTribunal, idMiembroSeleccionado]);
+
+  useEffect(() => {
+    if (etapaPredeterminada) establecerIdEtapa(etapaPredeterminada);
+    if (estudiantePredeterminado) establecerIdEstudiante(estudiantePredeterminado);
+  }, [etapaPredeterminada, estudiantePredeterminado]);
 
   useEffect(() => {
     establecerValores(puntosDe(evaluacion));

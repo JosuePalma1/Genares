@@ -5,6 +5,17 @@ import { usarSeguimientoApi } from '../hooks/usarSeguimientoApi';
 import { CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi } from './SeguimientoApi';
 
 vi.mock('../hooks/usarSeguimientoApi', () => ({ usarSeguimientoApi: vi.fn() }));
+vi.mock('../hooks/usarCarrerasApi', () => ({
+  usarCarrerasApi: () => ({
+    estado: 'listo',
+    carreras: [
+      { id: 'c-ti', codigo: 'TI', nombre: 'Tecnologías de la Información', estaActivo: true },
+      { id: 'c-soft', codigo: 'SOFT', nombre: 'Ingeniería en Software', estaActivo: true },
+    ],
+    error: null,
+    recargar: vi.fn(),
+  }),
+}));
 
 const ids = {
   ti: '11111111-1111-4111-8111-111111111111',

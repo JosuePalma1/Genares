@@ -27,7 +27,7 @@ export default function PaginaMisEvaluaciones() {
         meta={`${trabajos.length} trabajo(s)`}
       />
       {trabajos.length === 0 ? (
-        <EstadoVacio icon={FileText} title="Sin trabajos registrados" description="Los trabajos con tribunal aparecerán aquí." />
+        <EstadoVacio className="card" icon={FileText} title="Sin trabajos registrados" description="Los trabajos con tribunal aparecerán aquí." />
       ) : (
         <div className="evaluaciones-api-sections">
           {trabajos.map((trabajo) => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../componentes/interfaz';
 import { listarTrabajosEvaluacionApi } from '../servicios/evaluacionesApi';
@@ -66,7 +66,7 @@ export function PaginaMisEvaluacionesApi() {
       />
       {estado === 'cargando' && <EstadoConsultaEvaluacionesApi estado="cargando" />}
       {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void cargar(); }} />}
-      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando estén disponibles para su perfil." />}
+      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio className="card" icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando estén disponibles para su perfil." />}
       {estado === 'listo' && trabajos.length > 0 && <div className="evaluaciones-api-sections">
         {trabajos.map((trabajo) => (
           <article className="evaluaciones-api-card" key={trabajo.id}>
@@ -82,6 +82,7 @@ export function PaginaMisEvaluacionesApi() {
             <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignación'}</p>
             <div className="form-actions">
               {trabajo.miembrosTribunal.length > 0 && <Link className="button button-primary" to={'/evaluaciones/' + trabajo.id + '/escrita'}><ClipboardCheck size={16} /> Consultar y evaluar</Link>}
+              {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}><BookOpenCheck size={16} /> Evaluar oral | {estudiante.nombres} {estudiante.apellidos}</Link>)}
               {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={estudiante.id} to={'/resultados/' + trabajo.id + '/' + estudiante.id}><BookOpenCheck size={16} /> Resultado | {estudiante.nombres} {estudiante.apellidos}</Link>)}
             </div>
           </article>
@@ -280,7 +281,9 @@ export function PanelResultadoIndividualApi({ resultado }) {
 }
 
 export function PaginaEvaluacionTrabajoApi() {
-  const { idTrabajo } = useParams();
+  const { idTrabajo, idEstudiante } = useParams();
+  const ubicacion = useLocation();
+  const esOral = ubicacion.pathname.includes('/oral/');
   const consulta = usarEvaluacionesTrabajoApi(idTrabajo, { incluirContexto: true });
   const reintentar = () => window.location.reload();
 
@@ -309,6 +312,8 @@ export function PaginaEvaluacionTrabajoApi() {
         contexto={consulta.contexto}
         recargar={consulta.recargar}
         errorRecarga={consulta.errorRecarga}
+        idEstudianteInicial={idEstudiante}
+        tipoEtapaInicial={esOral ? 'ORAL' : 'ESCRITA'}
       />
       <PanelEvaluacionesTrabajoApi evaluaciones={evaluaciones} consolidacion={consolidacion} />
     </div>

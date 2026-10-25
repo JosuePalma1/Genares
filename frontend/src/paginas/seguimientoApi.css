@@ -5,7 +5,8 @@
 }
 
 .seguimiento-api-page > .alerta-institucional,
-.seguimiento-api-section {
+.seguimiento-api-section,
+.seguimiento-api-page > .empty-estado {
   border: 1px solid var(--border-color, #d8e1eb);
   border-radius: 1rem;
   background: var(--surface, #fff);

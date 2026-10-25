@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Ban, CalendarDays, CheckCircle2, Clock3, FilePlus2, MapPin, Pencil, Play, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../componentes/dialogos';
 import { AlertaInstitucional, EncabezadoPagina } from '../componentes/interfaz';
@@ -75,20 +75,25 @@ function codigoPeriodo(filtros, id) {
 }
 
 export default function PaginaCronograma() {
+  const [parametrosUrl] = useSearchParams();
+  const trabajoIdUrl = parametrosUrl.get('trabajoId') || '';
+  const buscarUrl = parametrosUrl.get('buscar') || '';
+  const nuevaUrl = parametrosUrl.get('nueva') === '1';
+
   const [estado, establecerEstado] = useState('PROGRAMADA');
   const [carreraId, establecerCarreraId] = useState('');
   const [periodoId, establecerPeriodoId] = useState('');
-  const [buscar, establecerBuscar] = useState('');
-  const [buscarServidor, establecerBuscarServidor] = useState('');
+  const [buscar, establecerBuscar] = useState(buscarUrl);
+  const [buscarServidor, establecerBuscarServidor] = useState(buscarUrl);
   const [elementos, establecerElementos] = useState([]);
   const [catalogos, establecerCatalogos] = useState(FILTROS_VACIOS);
   const [capacidad, establecerCapacidad] = useState(null);
   const [cargando, establecerCargando] = useState(true);
   const [errorCarga, establecerErrorCarga] = useState(null);
-  const [mostrarFormulario, establecerMostrarFormulario] = useState(false);
+  const [mostrarFormulario, establecerMostrarFormulario] = useState(Boolean(trabajoIdUrl || nuevaUrl));
   const [trabajosDisponibles, establecerTrabajosDisponibles] = useState([]);
   const [cargandoTrabajos, establecerCargandoTrabajos] = useState(false);
-  const [idTrabajo, establecerIdTrabajo] = useState('');
+  const [idTrabajo, establecerIdTrabajo] = useState(trabajoIdUrl);
   const [idEdicion, establecerIdEdicion] = useState(null);
   const [formulario, establecerFormulario] = useState({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60 });
   const [guardando, establecerGuardando] = useState(false);
@@ -96,10 +101,31 @@ export default function PaginaCronograma() {
   const [impresion, establecerImpresion] = useState(null);
 
   const filtros = useMemo(() => ({ carreraId, periodoId, estado, buscar: buscarServidor }), [carreraId, periodoId, estado, buscarServidor]);
-  const filtrosCandidatos = useMemo(() => ({ carreraId, periodoId, buscar: buscarServidor }), [carreraId, periodoId, buscarServidor]);
+  const filtrosCandidatos = useMemo(() => {
+    if (idTrabajo) {
+      return {};
+    }
+    return { carreraId, periodoId, buscar: buscarServidor };
+  }, [idTrabajo, carreraId, periodoId, buscarServidor]);
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
   const puedeEditar = Boolean(capacidad?.puedeAdministrar);
+
+  useEffect(() => {
+    const tid = parametrosUrl.get('trabajoId');
+    const nva = parametrosUrl.get('nueva') === '1';
+    const bsc = parametrosUrl.get('buscar');
+    if (tid) {
+      establecerIdTrabajo(tid);
+      establecerMostrarFormulario(true);
+    } else if (nva) {
+      establecerMostrarFormulario(true);
+    }
+    if (bsc !== null) {
+      establecerBuscar(bsc);
+      establecerBuscarServidor(bsc);
+    }
+  }, [parametrosUrl]);
 
   useEffect(() => {
     const temporizador = window.setTimeout(() => establecerBuscarServidor(buscar.trim()), 250);

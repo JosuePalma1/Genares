@@ -393,7 +393,7 @@ export function PaginaTrabajosApi() {
 
       <EstadoCarga estado={consultaApi.estado} error={consultaApi.error} reintentar={consultaApi.recargar} />
       {consultaApi.estado === 'listo' && filas.length === 0 && (
-        <EstadoVacio icon={FileSearch} title={consultaApi.trabajos.length ? 'No hay coincidencias' : 'No hay trabajos registrados'} description={consultaApi.trabajos.length ? 'Cambie la búsqueda o los filtros.' : 'No hay expedientes para mostrar.'} accion={filtrosActivos ? <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button> : null} />
+        <EstadoVacio className="trabajos-empty card" icon={FileSearch} title={consultaApi.trabajos.length ? 'No hay coincidencias' : 'No hay trabajos registrados'} description={consultaApi.trabajos.length ? 'Cambie la búsqueda o los filtros.' : 'No hay expedientes para mostrar.'} accion={filtrosActivos ? <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button> : null} />
       )}
       {consultaApi.estado === 'listo' && filas.length > 0 && (
         <section className="trabajos-results" aria-labelledby="trabajos-api-listado">
@@ -455,6 +455,14 @@ export function PaginaDetalleTrabajoApi() {
   );
   const tutoresActivos = trabajo.tutores.filter(({ finalizadoEn }) => finalizadoEn === null);
   const tutoresAnteriores = trabajo.tutores.filter(({ finalizadoEn }) => finalizadoEn !== null);
+
+  const etapasConsolidadas = consultaEvaluaciones.estado === 'listo'
+    ? (consultaEvaluaciones.consolidacion.estudiantes[0]?.etapas ?? [])
+    : [];
+  const etapaEscrita = etapasConsolidadas.find(
+    (e) => e.alcance === 'TRABAJO_COMPARTIDO' || e.tipo === 'ESCRITA' || e.codigo === 'ESC' || e.nombre.toLowerCase().includes('escrit'),
+  );
+  const revisionEscritaCompleta = Boolean(puedeConsultarEvaluaciones && etapaEscrita?.estado === 'COMPLETA');
 
   return (
     <div className="pagina-detalle-trabajo trabajo-detail-page">
@@ -528,12 +536,32 @@ export function PaginaDetalleTrabajoApi() {
 
       <section className="trabajo-detail-card" aria-labelledby="trabajo-api-programacion">
         <header><div><span className="section-kicker">Cronograma</span><h2 id="trabajo-api-programacion">Programación de sustentación</h2></div><CalendarClock size={22} aria-hidden="true" /></header>
-        {trabajo.programacion ? <dl className="trabajo-detail-list">
-          <div><dt>Estado</dt><dd>{trabajo.programacion.estado}</dd></div><div><dt>Fecha y hora</dt><dd>{trabajo.programacion.fechaProgramada} · {trabajo.programacion.horaProgramada}</dd></div>
-          <div><dt>Sala</dt><dd>{trabajo.programacion.sala}</dd></div><div><dt>Duración estimada</dt><dd>{trabajo.programacion.duracionEstimadaMinutos} minutos</dd></div>
-        </dl> : <p>No hay una programación asociada a este trabajo.</p>}
+        {trabajo.programacion ? (
+          <dl className="trabajo-detail-list">
+            <div><dt>Estado</dt><dd>{trabajo.programacion.estado}</dd></div><div><dt>Fecha y hora</dt><dd>{trabajo.programacion.fechaProgramada} · {trabajo.programacion.horaProgramada}</dd></div>
+            <div><dt>Sala</dt><dd>{trabajo.programacion.sala}</dd></div><div><dt>Duración estimada</dt><dd>{trabajo.programacion.duracionEstimadaMinutos} minutos</dd></div>
+          </dl>
+        ) : (
+          <div>
+            <p>No hay una programación asociada a este trabajo.</p>
+            {!revisionEscritaCompleta && (
+              <p className="trabajo-api-description">
+                La programación de sustentación requiere que ambos evaluadores del tribunal confirmado hayan cerrado su evaluación escrita.
+              </p>
+            )}
+          </div>
+        )}
         <div className="trabajo-api-actions">
-          <Link className="button button-sm button-outline" to="/cronograma">Consultar cronograma</Link>
+          {trabajo.programacion ? (
+            <Link className="button button-primary" to={`/cronograma?buscar=${encodeURIComponent(trabajo.codigo)}`}>
+              <CalendarClock size={16} aria-hidden="true" /> Ver en cronograma
+            </Link>
+          ) : revisionEscritaCompleta ? (
+            <Link className="button button-primary" to={`/cronograma?trabajoId=${trabajo.id}&nueva=1`}>
+              <CalendarClock size={16} aria-hidden="true" /> Programar sustentación
+            </Link>
+          ) : null}
+          <Link className="button button-sm button-outline" to="/cronograma">Consultar cronograma general</Link>
         </div>
       </section>
 
@@ -545,7 +573,12 @@ export function PaginaDetalleTrabajoApi() {
             <div className="trabajo-api-stage" key={etapa.id}><strong>{etapa.orden}. {etapa.nombre}</strong><span>{etapa.alcance} · {etapa.estado}</span></div>
           ))}
           <div className="trabajo-api-actions">
-            <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}>Abrir evaluaciones</Link>
+            <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}>Abrir evaluaciones escritas</Link>
+            {trabajo.estudiantes.map((estudiante) => (
+              <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}>
+                Evaluar oral · {nombre(estudiante)}
+              </Link>
+            ))}
             {trabajo.estudiantes.filter(({ id }) => estudiantesConResultado.has(id)).map((estudiante) => <Link className="button button-outline" key={estudiante.id} to={`/resultados/${trabajo.id}/${estudiante.id}`}>Resultado · {nombre(estudiante)}</Link>)}
           </div>
         </section>
