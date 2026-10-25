@@ -4,7 +4,9 @@ Base NestJS + TypeORM + PostgreSQL para el flujo de evaluación. No implementa a
 
 ## Inicio local
 
-Desde la raíz, ejecuta `npm run db:prepare` una vez. El comando prepara únicamente el clúster PostgreSQL local de 10.9B, aplica las migraciones actuales, carga el fixture sintético y detiene el clúster que inició. Después, `npm run dev` inicia PostgreSQL, NestJS y Vite juntos. `npm run dev:web` inicia solo Vite sin base de datos; `npm run dev:api` inicia solo NestJS y la base local. Detén los servicios con `Ctrl+C`.
+No se requiere Docker. El entorno de desarrollo usa PostgreSQL 18 local en `127.0.0.1:55442`; no uses el puerto 5432 ni la base persistente 8E.
+
+Desde la raíz, ejecuta `npm run db:prepare` una vez. El comando prepara únicamente el clúster PostgreSQL local de 10.9B, aplica las migraciones actuales, carga el fixture sintético y detiene el clúster que inició. Después, `npm run dev` inicia PostgreSQL, NestJS y Vite juntos. Para recorrer solo la demo web sin base de datos, ejecuta `npm --prefix .\prototipo-titulacion run dev`; `npm run dev:api` inicia solo NestJS y la base local. Detén los servicios con `Ctrl+C`.
 
 La base exclusiva es `127.0.0.1:55442/genares_dev_10_9`, con datos en `.local-postgres-10.9/`. `npm run db:prepare` genera una configuración separada `backend/.env.10.9` con claves aleatorias, la ignora Git y no sobrescribe `backend/.env`. Antes de cualquier conexión, los scripts comprueban el host, puerto, base, propietario y marcador del clúster. NestJS usa `synchronize: false` y `migrationsRun: false`; las migraciones se ejecutan explícitamente solo contra esa base aprobada. El arranque diario falla de forma cerrada si el puerto está ocupado por otro proceso o la identidad de PostgreSQL no coincide.
 

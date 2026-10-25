@@ -14,21 +14,28 @@ El repositorio combina una demostración React y un backend NestJS con PostgreSQ
 
 ## Frontend React
 
-En Windows se requiere Node/npm, las dependencias de ambos paquetes y PostgreSQL 18 instalado en `C:\Program Files\PostgreSQL\18\bin`. Los scripts no instalan PostgreSQL por su cuenta.
+No se requiere Docker: la demo React funciona sin base de datos. Para la API, usa PostgreSQL 18 local en Windows; los scripts esperan que esté instalado en `C:\Program Files\PostgreSQL\18\bin` y no lo instalan por su cuenta.
 
 ```powershell
-# Instala una vez si faltan dependencias
-npm --prefix .\prototipo-titulacion install
-npm --prefix .\backend install
+# Instala las dependencias fijadas por los lockfiles
+npm --prefix .\prototipo-titulacion ci
+npm --prefix .\backend ci
+```
 
-# Primera preparación de la base local de desarrollo
+Para recorrer solo la demo React, sin base de datos:
+
+```powershell
+npm --prefix .\prototipo-titulacion run dev
+```
+
+Para usar la API y la base local en Windows, prepara la base una vez y luego inicia los servicios:
+
+```powershell
 npm run db:prepare
-
-# Uso diario: inicia PostgreSQL local, NestJS y Vite
 npm run dev
 ```
 
-`npm run db:prepare` prepara únicamente la base local aprobada, aplica las migraciones actuales y carga datos sintéticos de TI/SOFT. Al terminar, detiene el PostgreSQL que inició y conserva los datos. Luego `npm run dev` inicia PostgreSQL, NestJS y Vite juntos; detén el entorno con `Ctrl+C`. `npm run dev:web` permite recorrer la demostración de React sin PostgreSQL. `npm run dev:api` inicia solo NestJS y la base local preparada.
+`npm run db:prepare` prepara únicamente la base local aprobada, aplica las migraciones actuales y carga datos sintéticos de TI/SOFT. Al terminar, detiene el PostgreSQL que inició y conserva los datos. Luego `npm run dev` inicia PostgreSQL, NestJS y Vite juntos; detén el entorno con `Ctrl+C`. `npm run dev:api` inicia solo NestJS y la base local preparada.
 
 La demostración de React usa TI y SOFT; los perfiles se cambian desde el selector de la cabecera, sin autenticación. En el modo API, el servidor usa una identidad local fija de solo lectura y el cliente no puede elegir permisos. El selector de React no autentica ni cambia esa identidad. Los datos propios de la demostración local del navegador quedan en `localStorage`.
 
@@ -75,7 +82,3 @@ Las rutas requieren las capacidades definidas por el backend. La identidad local
 - Secretaría y Coordinación no modifican calificaciones en el prototipo.
 
 Consulta [ESTADO_DEL_PROTOTIPO.md](ESTADO_DEL_PROTOTIPO.md) para el detalle de lo implementado y lo pendiente.
-
-## Referencias del prototipo inicial
-
-Los archivos HTML antiguos se conservan como referencia visual. La aplicación React se inicia desde `prototipo-titulacion/index.html`.
