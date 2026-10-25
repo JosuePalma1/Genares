@@ -22,7 +22,12 @@ import { TrabajosModule } from './trabajos/trabajos.module';
     EvaluacionesModule,
     ProgramacionesSustentacionModule,
     TrabajosModule,
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test'
+        ? '.env'
+        : '.env.10.9',
+    }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {

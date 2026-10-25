@@ -3,7 +3,11 @@ import { config } from 'dotenv';
 import { DataSource } from 'typeorm';
 import { validarDestinoBaseDesarrollo } from './seguridad-entorno';
 
-config();
+config({
+  path: process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'test'
+    ? '.env'
+    : '.env.10.9',
+});
 
 validarDestinoBaseDesarrollo({
   NODE_ENV: process.env.NODE_ENV,
