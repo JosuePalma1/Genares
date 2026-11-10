@@ -46,7 +46,7 @@ export interface RubricaListadoDto {
 export interface IndicadorRubricaDto {
   id: string;
   label: string;
-  descripcion: string;
+  descripcion: string | null;
   calificacionMaxima: string;
   orden: number;
 }

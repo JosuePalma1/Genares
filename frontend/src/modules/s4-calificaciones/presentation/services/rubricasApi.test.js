@@ -79,6 +79,35 @@ describe('lectura HTTP de rúbricas', () => {
     }
   });
 
+  it('acepta indicadores sin descripción y usa su etiqueta como texto visible', async () => {
+    const detalleConDescripcionOpcional = structuredClone(detalle);
+    detalleConDescripcionOpcional.versiones[0].etapas[0].categorias.push({
+      id: 'fb811c9d-9a6a-4aa3-b107-65201ac44500',
+      codigo: 'A',
+      nombre: 'Contenido',
+      calificacionMaxima: '5.00',
+      orden: 1,
+      indicadores: [{
+        id: 'a77af0c0-6fce-45dc-bd78-61b2301bdb41',
+        label: 'Problema y objetivos',
+        descripcion: null,
+        calificacionMaxima: '5.00',
+        orden: 1,
+      }],
+    });
+    const solicitarJson = vi.fn()
+      .mockResolvedValueOnce(listado)
+      .mockResolvedValueOnce(detalleConDescripcionOpcional);
+
+    const rubricas = await cargarRubricasApi({ solicitarJson });
+
+    expect(rubricas[0].categorias[0].indicadores[0]).toMatchObject({
+      label: 'Problema y objetivos',
+      etiqueta: 'Problema y objetivos',
+      descripcion: null,
+    });
+  });
+
   it('propaga la falta de autorización sin pedir detalles ni devolver datos alternativos', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('{}', { status: 401 }));
     const cliente = crearClienteHttp({ baseUrl: '/api/v1', habilitado: true });

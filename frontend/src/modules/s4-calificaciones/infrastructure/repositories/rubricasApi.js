@@ -101,7 +101,9 @@ function validarDetalle(etapa) {
     const indicadores = categoria.indicadores.map((indicador) => {
       if (!objeto(indicador)) throw new ErrorDtoRubricas();
       validarUuid(indicador.id);
-      if (!texto(indicador.label) || !texto(indicador.descripcion) || !Number.isInteger(indicador.orden) || indicador.orden < 1) {
+      if (!texto(indicador.label)
+        || !(indicador.descripcion === null || texto(indicador.descripcion))
+        || !Number.isInteger(indicador.orden) || indicador.orden < 1) {
         throw new ErrorDtoRubricas();
       }
       const maximoIndicador = validarDecimal(indicador.calificacionMaxima);
@@ -109,7 +111,7 @@ function validarDetalle(etapa) {
         id: indicador.id,
         codigo: indicador.label,
         label: indicador.label,
-        etiqueta: indicador.descripcion,
+        etiqueta: indicador.descripcion ?? indicador.label,
         descripcion: indicador.descripcion,
         maximo: maximoIndicador.numero,
         maximoDecimal: maximoIndicador.texto,
