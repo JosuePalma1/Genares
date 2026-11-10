@@ -1,0 +1,61 @@
+.evaluaciones-mer-page{max-width:1180px;margin:0 auto;padding-bottom:52px}
+.evaluaciones-mer-page .card{padding:22px;margin:18px 0}
+.em-ficha{display:flex;justify-content:space-between;align-items:flex-start;gap:22px}
+.em-ficha h2{font-size:1.35rem;margin:8px 0}
+.em-ficha dl{display:grid;grid-template-columns:repeat(2,minmax(100px,1fr));gap:12px;min-width:min(420px,100%);margin:0}
+.em-ficha dl div{border:1px solid var(--border,#e2e8f0);padding:10px;border-radius:8px}
+.em-ficha dt{font-size:.78rem;color:var(--text-muted,#64748b)}
+.em-ficha dd{margin:4px 0 0;font-weight:700}
+.em-seccion h2{display:flex;align-items:center;gap:9px;font-size:1.13rem;margin:0 0 15px}
+.em-etapa{border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:15px;margin-bottom:12px}
+.em-etapa>strong{display:block;margin-bottom:10px}
+.em-etapa>strong small{color:var(--text-muted,#64748b);font-weight:normal}
+.em-categoria{padding:9px 0;border-top:1px solid var(--border,#e2e8f0)}
+.em-categoria ul{margin:7px 0 0;padding-left:20px}
+.em-categoria li{padding:3px 0}
+.em-categoria li small{color:var(--text-muted,#64748b);margin-left:7px}
+.em-lista{display:grid;gap:9px}
+.em-fila{display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;padding:11px 13px;border:1px solid var(--border,#e2e8f0);border-radius:8px}
+.em-fila>span:last-child{color:var(--text-muted,#64748b)}
+.em-ayuda{font-size:.88rem;color:var(--text-muted,#64748b);line-height:1.5}
+.em-selectores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px;margin:15px 0 20px}
+.em-campo-categoria{border:1px solid var(--border,#e2e8f0);border-radius:10px;padding:18px;margin:0 0 16px;min-width:0}
+.em-campo-categoria legend{font-weight:700;padding:0 8px}
+.em-indicador{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(140px,.65fr) minmax(0,1.2fr);gap:15px;align-items:start;padding:12px 0;border-bottom:1px solid var(--border,#e2e8f0)}
+.em-indicador:last-child{border-bottom:none}
+.em-indicador .field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.em-indicador textarea{width:100%;resize:vertical}
+.em-acciones{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:20px}
+.em-acciones .button{display:flex;align-items:center;gap:8px}
+.em-botones{display:flex;flex-wrap:wrap;gap:8px}
+.em-pendiente{color:#a16207;font-weight:600}
+.em-error{padding:12px;border-radius:8px;border:1px solid #fca5a5;color:#991b1b;background:#fef2f2}
+.em-exito{padding:12px;border-radius:8px;border:1px solid #86efac;color:#166534;background:#f0fdf4}
+.em-volver{margin:24px 0}
+@media(max-width:850px){.em-ficha{flex-direction:column}.em-selectores{grid-template-columns:1fr}.em-indicador{grid-template-columns:1fr}.em-ficha dl{min-width:0;width:100%}}
+
+/* Etapa 4: el mismo formulario institucional de Genares sobre las etapas del MER. */
+.evaluaciones-mer-page .em-rubrica-formulario{min-width:0}
+.evaluaciones-mer-page .em-rubrica-formulario .rubrica-form-heading{margin-bottom:16px}
+.evaluaciones-mer-page .em-rubrica-formulario .rubrica-categoria{margin-bottom:0}
+.evaluaciones-mer-page .em-rubrica-formulario .rubrica-indicador{align-items:start}
+.evaluaciones-mer-page .em-rubrica-formulario .rubrica-live-summary{
+  position:sticky;bottom:10px;z-index:3;margin-top:18px;
+  grid-template-columns:minmax(0,1fr);
+  gap:12px;
+  box-shadow:0 8px 22px rgba(0,0,0,.18)
+}
+.em-rubrica-formulario .rubrica-summary-heading{flex-wrap:wrap;gap:8px 20px}
+.em-rubrica-formulario .rubrica-summary-categorias .calificacion-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px
+}
+.em-rubrica-formulario .rubrica-summary-categorias .calificacion-row span{overflow-wrap:anywhere}
+.em-rubrica-formulario .rubrica-summary-categorias .calificacion-row strong{text-align:right}
+.em-abrir-rubrica,.em-rubrica-vista{margin-top:16px}
+.evaluaciones-mer-page .em-rubrica-vista .rubrica-live-summary{position:static}
+.em-hint-save{display:block;font-size:.8rem;color:var(--text-muted,#64748b);margin-top:6px}
+@media(max-width:850px){
+  .evaluaciones-mer-page .em-rubrica-formulario .rubrica-indicador{grid-template-columns:1fr}
+  .evaluaciones-mer-page .em-rubrica-formulario .rubrica-live-summary{position:static;padding:16px}
+  .em-rubrica-formulario .rubrica-summary-categorias{grid-template-columns:minmax(0,1fr)}
+}

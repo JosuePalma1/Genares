@@ -1,0 +1,10 @@
+.carreras-page .carrera-row { grid-template-columns: minmax(0, 1fr) auto auto; }
+.carreras-page .carreras-form-help { margin: .9rem 0 0; color: var(--text-secondary, #536273); font-size: .85rem; }
+@media (max-width: 720px) {
+  .carreras-page .carrera-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .carreras-page .carrera-row .modalidad-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .carreras-page .carrera-row { grid-template-columns: minmax(0, 1fr); }
+  .carreras-page .carrera-row > .estado-badge { grid-column: 1; grid-row: auto; }
+}

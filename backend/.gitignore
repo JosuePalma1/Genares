@@ -1,0 +1,8 @@
+node_modules/
+dist/
+coverage/
+.env
+*.log
+.tmp-postgres-validation/
+.local-postgres-dev/
+.local-postgres-9d-desechable/
