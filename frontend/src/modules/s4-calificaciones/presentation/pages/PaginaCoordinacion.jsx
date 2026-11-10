@@ -12,7 +12,7 @@ import {
   nombreCompleto,
   tonoEstado,
 } from '../../domain/flujoTrabajo';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { FUENTE_TRABAJOS } from '../../infrastructure/config/trabajos';
 import { CoordinacionSeguimientoApi } from './SeguimientoApi';
 

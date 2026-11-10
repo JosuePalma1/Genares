@@ -2,7 +2,7 @@
   "name": "genares-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "Backend base para el prototipo de evaluación de trabajos de titulación.",
+  "description": "API del subsistema S4 sobre el MER PostgreSQL compartido.",
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
@@ -10,10 +10,7 @@
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
     "test": "jest --runInBand",
-    "test:watch": "jest --watch",
-    "typeorm": "typeorm-ts-node-commonjs -d src/base-datos/fuente-datos.ts",
-    "migration:run": "npm run typeorm -- migration:run",
-    "migration:revert": "npm run typeorm -- migration:revert"
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
@@ -39,7 +36,6 @@
     "jest": "^29.7.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
-    "typeorm-ts-node-commonjs": "^0.3.20",
     "typescript": "^5.9.2"
   }
 }

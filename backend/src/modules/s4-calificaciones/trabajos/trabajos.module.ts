@@ -1,4 +1,3 @@
-import { IntegracionDevController } from './integracion-dev.controller';
 import { Module } from '@nestjs/common';
 import { TrabajosController } from './trabajos.controller';
 import { TrabajosService } from './trabajos.service';
@@ -6,7 +5,7 @@ import { TrazabilidadTrabajosController } from './trazabilidad-trabajos.controll
 import { TrazabilidadTrabajosService } from './trazabilidad-trabajos.service';
 
 @Module({
-  controllers: [TrabajosController, TrazabilidadTrabajosController, IntegracionDevController],
+  controllers: [TrabajosController, TrazabilidadTrabajosController],
   providers: [TrabajosService, TrazabilidadTrabajosService],
   exports: [TrabajosService, TrazabilidadTrabajosService],
 })

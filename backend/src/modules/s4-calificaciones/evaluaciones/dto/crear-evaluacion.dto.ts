@@ -1,5 +1,5 @@
 import { IsOptional, Matches } from 'class-validator';
-import { UUID_POSTGRES_PATTERN } from '../../../../comun/uuid-postgres';
+import { UUID_POSTGRES_PATTERN } from '../../../../common/utils/uuid-postgres';
 
 export class CrearEvaluacionDto {
   @Matches(UUID_POSTGRES_PATTERN)

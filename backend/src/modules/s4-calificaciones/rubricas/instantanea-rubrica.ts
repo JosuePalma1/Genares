@@ -1,4 +1,4 @@
-import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../../comun/enums-dominio';
+import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../../common/domain/enums-dominio';
 
 export interface InstantaneaIndicadorRubrica {
   id: string;

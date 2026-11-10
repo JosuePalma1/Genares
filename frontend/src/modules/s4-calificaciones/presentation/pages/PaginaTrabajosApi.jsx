@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowRight, BookOpenCheck, CalendarClock, Check, CheckCircle2, FileClock, FileSearch, GraduationCap,
-  UserRound, UsersRound,
+  RefreshCw, UserRound, UsersRound,
 } from 'lucide-react';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import { usarTrazabilidadTrabajoApi } from '../hooks/usarTrazabilidadTrabajoApi';
+import { filtrarTrabajosApi } from '../../domain/filtrarTrabajosApi';
 
 const ETIQUETAS_ESTADO = Object.freeze({
   REGISTRADO: 'Registrado',
@@ -27,10 +28,6 @@ function estadoLegible(estado) {
 
 function nombre(persona) {
   return [persona?.nombres, persona?.apellidos].filter(Boolean).join(' ') || 'Sin relación registrada';
-}
-
-function normalizarBusqueda(valor) {
-  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
 }
 
 function textoError(error) {
@@ -331,26 +328,21 @@ export function PaginaTrabajosApi() {
   const [busqueda, establecerBusqueda] = useState('');
   const [estadoFiltro, establecerEstadoFiltro] = useState('Todos');
   const [periodoFiltro, establecerPeriodoFiltro] = useState('Todos');
+  const [tribunalFiltro, establecerTribunalFiltro] = useState('Todos');
 
   const estados = useMemo(() => [...new Set(consultaApi.trabajos.map(({ estado }) => estado))], [consultaApi.trabajos]);
   const periodos = useMemo(() => [...new Set(consultaApi.trabajos.map(({ periodo }) => periodo))], [consultaApi.trabajos]);
-  const filas = useMemo(() => {
-    const busquedaNormalizada = normalizarBusqueda(busqueda.trim());
-    return consultaApi.trabajos.filter((trabajo) => {
-      const estudiantes = trabajo.estudiantes.map(nombre).join(' ');
-      const tutorActual = trabajo.tutores.find(({ finalizadoEn }) => finalizadoEn === null);
-      const texto = normalizarBusqueda([
-        trabajo.codigo, trabajo.titulo, trabajo.carrera, trabajo.modalidad,
-        trabajo.periodo, estudiantes, tutorActual ? nombre(tutorActual) : '',
-      ].join(' '));
-      return texto.includes(busquedaNormalizada)
-        && (estadoFiltro === 'Todos' || trabajo.estado === estadoFiltro)
-        && (periodoFiltro === 'Todos' || trabajo.periodo === periodoFiltro);
-    });
-  }, [consultaApi.trabajos, busqueda, estadoFiltro, periodoFiltro]);
+  const filas = useMemo(() => filtrarTrabajosApi(consultaApi.trabajos, {
+    busqueda, estado: estadoFiltro, periodo: periodoFiltro, tribunal: tribunalFiltro,
+  }), [consultaApi.trabajos, busqueda, estadoFiltro, periodoFiltro, tribunalFiltro]);
 
-  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== 'Todos');
-  const limpiar = () => { establecerBusqueda(''); establecerEstadoFiltro('Todos'); establecerPeriodoFiltro('Todos'); };
+  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== 'Todos' || tribunalFiltro !== 'Todos');
+  const limpiar = () => {
+    establecerBusqueda('');
+    establecerEstadoFiltro('Todos');
+    establecerPeriodoFiltro('Todos');
+    establecerTribunalFiltro('Todos');
+  };
 
   return (
     <div className="trabajos-page">
@@ -359,6 +351,7 @@ export function PaginaTrabajosApi() {
         title="Trabajos de titulación"
         description="Consulte los expedientes y sus relaciones académicas registradas."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Trabajos' }]}
+        actions={<button className="button button-outline" type="button" onClick={consultaApi.recargar}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>}
       />
 
       <AlertaInstitucional titulo="Alcance institucional">
@@ -372,7 +365,7 @@ export function PaginaTrabajosApi() {
         </header>
         <div className="trabajos-filter-grid">
           <div className="field trabajos-search-field">
-            <label htmlFor="trabajos-api-busqueda">Buscar trabajo, estudiante o tutor</label>
+            <label htmlFor="trabajos-api-busqueda">Buscar trabajo, estudiante, tutor o evaluador</label>
             <input id="trabajos-api-busqueda" className="input" type="search" value={busqueda} onChange={(evento) => establecerBusqueda(evento.target.value)} placeholder="Código, título, carrera o nombre" />
           </div>
           <div className="field">
@@ -385,6 +378,14 @@ export function PaginaTrabajosApi() {
             <label htmlFor="trabajos-api-estado">Estado registrado</label>
             <select id="trabajos-api-estado" className="select" value={estadoFiltro} onChange={(evento) => establecerEstadoFiltro(evento.target.value)}>
               <option>Todos</option>{estados.map((estado) => <option key={estado} value={estado}>{estadoLegible(estado)}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-tribunal">Tribunal de S3</label>
+            <select id="trabajos-api-tribunal" className="select" value={tribunalFiltro} onChange={(evento) => establecerTribunalFiltro(evento.target.value)}>
+              <option value="Todos">Todos</option>
+              <option value="con-tribunal">Con integrantes asignados</option>
+              <option value="sin-tribunal">Sin integrantes asignados</option>
             </select>
           </div>
           {filtrosActivos && <button className="button button-outline trabajos-clear-filters" type="button" onClick={limpiar}>Limpiar filtros</button>}
@@ -416,6 +417,7 @@ export function PaginaTrabajosApi() {
                       <span><strong>Progreso verificado: {progreso.porcentaje}%</strong> · {progreso.confirmados} de {progreso.total} hitos</span>
                       <progress value={progreso.porcentaje} max="100" aria-label={`Progreso verificado ${progreso.porcentaje}%`} title="El avance cuenta únicamente los hitos respaldados por estados registrados." />
                       <span><strong>Rúbrica:</strong> {trabajo.rubrica ? `${trabajo.rubrica} · ${trabajo.versionRubrica ?? 'versión no indicada'}` : 'Sin versión asociada'}</span>
+                      <span>Evaluaciones escritas cerradas: <strong>{trabajo.escritasCerradas}</strong> · Sesiones: <strong>{trabajo.sesiones.length}</strong></span>
                     </div>
                     <Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Ver expediente <ArrowRight size={17} /></Link>
                   </footer>

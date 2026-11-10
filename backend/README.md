@@ -1,52 +1,29 @@
-# Backend GENARES
+# Backend de Genares
 
-Backend NestJS con TypeORM y PostgreSQL para trabajos de titulación, tribunales, rúbricas, programación, evaluaciones, notas y actas internas.
+API NestJS del subsistema S4 sobre el MER PostgreSQL compartido.
 
-## Configuración
+## Configuración local
 
-El backend carga exclusivamente [`backend/.env`](.env). Usa [`backend/.env.example`](.env.example) como plantilla sin credenciales.
+Desde la raíz del repositorio instala dependencias con `npm --prefix .\backend ci`. Copia `backend/.env.example` a `backend/.env` y configura las credenciales de la base local `genares_integrado_dev`.
 
-Variables principales:
-
-```dotenv
-NODE_ENV=development
-PORT=3001
-DB_HOST=localhost
-DB_PORT=5432
-DB_USERNAME=genares
-DB_PASSWORD=REEMPLAZAR_LOCALMENTE
-DB_NAME=genares
-DB_SSL=false
-```
-
-No se crean bases automáticamente. El destino debe existir antes de iniciar la API.
+El backend escucha en `127.0.0.1:3001` en desarrollo. No habilites el acceso abierto local en un servidor compartido o accesible desde Internet.
 
 ## Comandos
 
-Desde la raíz:
-
 ```powershell
-npm run dev:api
-npm run db:migrate
+npm --prefix .\backend run start:dev
+npm --prefix .\backend run build
+npm --prefix .\backend test
 ```
 
-Desde `backend`:
+El comando de desarrollo se puede iniciar junto con Vite desde la raíz usando `npm run dev`.
 
-```powershell
-npm run start:dev
-npm run build
-npm test
-npm run migration:run
-npm run migration:revert
-```
+## Organización
 
-Las migraciones son el único mecanismo para crear o actualizar tablas. TypeORM mantiene `synchronize: false` y `migrationsRun: false`.
+- `src/common`: API versionada, controles de identidad/capacidades y endpoint de salud.
+- `src/config`: conexión PostgreSQL y controles de entorno.
+- `src/modules/s4-calificaciones`: expedientes de consulta, rúbricas, evaluaciones, sustentaciones, resultados y documentos.
+- `src/modules/s1-requisitos`, `s2-temas` y `s3-documentos`: espacios reservados a los módulos de sus respectivos equipos.
+- `fixtures`: SQL local de prueba y permisos. Los archivos requieren ejecución manual y no son migraciones.
 
-## API local
-
-- Estado: `GET /api/salud`
-- API versionada: `/api/v1`
-- La identidad local solo funciona en desarrollo y permanece protegida por defecto.
-- Las escrituras requieren la configuración explícita de origen y las protecciones del backend.
-
-Las entidades están organizadas por módulo en `src/`; las migraciones están en `src/base-datos/migraciones/`.
+TypeORM usa `synchronize: false` y `migrationsRun: false`. El backend no contiene comandos para aplicar el esquema antiguo. S4 no administra los registros de S1, S2 ni S3.

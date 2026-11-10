@@ -9,7 +9,7 @@ import { DataSource, In, QueryFailedError, Repository } from 'typeorm';
 import { Modalidad } from '../catalogo/entidades/modalidad.entity';
 import { PeriodoAcademico } from '../catalogo/entidades/periodo-academico.entity';
 import { Carrera } from '../catalogo/entidades/carrera.entity';
-import { AlcanceEtapaRubrica, EstadoVersionRubrica, EtapaEvaluacion } from '../../../comun/enums-dominio';
+import { AlcanceEtapaRubrica, EstadoVersionRubrica, EtapaEvaluacion } from '../../../common/domain/enums-dominio';
 import { CategoriaRubrica } from './entidades/categoria-rubrica.entity';
 import { EtapaRubrica } from './entidades/etapa-rubrica.entity';
 import { EventoAuditoriaRubrica } from './entidades/evento-auditoria-rubrica.entity';

@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ArrowRight, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { FUENTE_TRABAJOS } from '../../infrastructure/config/trabajos';
 import { ConsultaSeguimientoApi } from './SeguimientoApi';
 import {

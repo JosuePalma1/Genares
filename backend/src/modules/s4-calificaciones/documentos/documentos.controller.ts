@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Put, Query, Req, StreamableFile } from '@nestjs/common';
-import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { ActualizarNotaMinimaDto, BuscarActasDto, FormatoActaDto } from './documentos.dto';
 import { DocumentosService } from './documentos.service';
 

@@ -48,36 +48,6 @@ export class EvaluacionesMerService {
     }
   }
 
-  async obtenerCatalogoRubricas() {
-    const rubricas = await this.db.query(`
-      SELECT r.id, r.nombre, r.descripcion,
-             m.nombre AS modalidad, vr.id AS "versionId", vr.version, vr.estado,
-             COUNT(DISTINCT p.id)::integer AS "procesosAsignados",
-             COUNT(DISTINCT e.id)::integer AS "numeroEtapas",
-             COUNT(DISTINCT c.id)::integer AS "numeroCategorias",
-             COUNT(DISTINCT i.id)::integer AS "numeroIndicadores"
-      FROM s4.rubricas r
-      JOIN gen.modalidad m ON m.id = r.id_modalidad
-      JOIN s4.versiones_rubrica vr ON vr.id_rubrica = r.id
-      LEFT JOIN s4.procesos_evaluacion p ON p.id_version_rubrica = vr.id
-      LEFT JOIN s4.etapas_rubrica e ON e.id_version_rubrica = vr.id
-      LEFT JOIN s4.categorias_rubrica c ON c.id_etapa_rubrica = e.id
-      LEFT JOIN s4.indicadores_rubrica i ON i.id_categoria = c.id
-      GROUP BY r.id, r.nombre, r.descripcion, m.nombre,
-               vr.id, vr.version, vr.estado
-      ORDER BY m.nombre, r.nombre, vr.version
-    `);
-    return { rubricas, soloLectura: true, origen: 'PostgreSQL · S4' };
-  }
-
-  async obtenerVersionRubrica(versionId: string) {
-    const [version] = await this.db.query(
-      'SELECT version FROM s4.versiones_rubrica WHERE id = $1', [versionId],
-    );
-    if (!version) throw new NotFoundException('No existe esa versión de rúbrica.');
-    return { ...version, etapas: await this.obtenerEtapas(versionId) };
-  }
-
   private async obtenerEtapas(versionId: string, db: Pick<DataSource, 'query'> = this.db) {
     const [etapas, categorias, indicadores] = await Promise.all([
       db.query<EtapaMer[]>(`SELECT id, kind, scope, codigo, nombre, descripcion, orden, porcentaje,

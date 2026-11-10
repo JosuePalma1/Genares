@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { AlcanceEtapaRubrica } from '../../../comun/enums-dominio';
+import { AlcanceEtapaRubrica } from '../../../common/domain/enums-dominio';
 import { EtapaRubricaCompletaDto } from './dto/estructura-rubrica-completa.dto';
 
 export interface CategoriaRubricaNormalizada {

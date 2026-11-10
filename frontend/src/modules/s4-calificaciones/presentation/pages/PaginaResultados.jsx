@@ -23,7 +23,7 @@ import {
   tonoEstado,
   formatearFecha,
 } from '../../domain/flujoTrabajo';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../components/interfaz';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { PaginaResultadoApi } from './PaginaEvaluacionesApi';

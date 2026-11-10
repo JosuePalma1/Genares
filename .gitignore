@@ -8,3 +8,4 @@ coverage/
 .DS_Store
 Thumbs.db
 /frontend.zip
+/frontend/src/assets/hero.png

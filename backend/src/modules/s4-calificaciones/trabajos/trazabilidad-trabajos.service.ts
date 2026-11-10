@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { esUuidPostgres } from '../../../comun/uuid-postgres';
+import { esUuidPostgres } from '../../../common/utils/uuid-postgres';
 
 const LIMITE_PAGINA = 100;
 

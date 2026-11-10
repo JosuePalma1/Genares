@@ -11,7 +11,7 @@ import {
   nombreCompleto,
   obtenerEtapasRubrica,
 } from '../../domain/flujoTrabajo';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { BotonVolver, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { DOCUMENTOS_API_HABILITADA } from '../services/documentosApi';
 import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';

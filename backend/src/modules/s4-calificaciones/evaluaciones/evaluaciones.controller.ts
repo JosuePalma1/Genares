@@ -7,8 +7,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { EvaluacionesService } from './evaluaciones.service';
 
 @Controller({ path: 'evaluaciones', version: '1' })

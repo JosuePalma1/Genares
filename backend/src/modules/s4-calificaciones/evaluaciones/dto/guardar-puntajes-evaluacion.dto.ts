@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
-import { UUID_POSTGRES_PATTERN } from '../../../../comun/uuid-postgres';
+import { UUID_POSTGRES_PATTERN } from '../../../../common/utils/uuid-postgres';
 
 const puntajeDecimal = /^(?:0|[1-9]\d{0,1})(?:\.\d{1,2})?$/;
 

@@ -1,6 +1,6 @@
 import { Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
-import { actorValidadoDe, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
+import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { TrazabilidadTrabajosService } from './trazabilidad-trabajos.service';
 
 @Controller({ path: 'trabajos/:trabajoId/trazabilidad', version: '1' })

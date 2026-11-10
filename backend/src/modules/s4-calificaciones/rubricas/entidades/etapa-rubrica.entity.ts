@@ -6,7 +6,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
-import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../../../comun/enums-dominio';
+import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../../../common/domain/enums-dominio';
 import { VersionRubrica } from './version-rubrica.entity';
 
 @Entity({ schema: 's4', name: 'etapas_rubrica' })

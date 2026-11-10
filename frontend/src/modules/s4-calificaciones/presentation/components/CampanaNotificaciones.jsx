@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bell, Check, CheckCheck, ExternalLink, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { EstadoVacio } from './interfaz';
 
 const notificationDate = new Intl.DateTimeFormat('es-EC', {

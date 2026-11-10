@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseUUIDPipe } from '@nestjs/common';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { CarrerasService } from './carreras.service';
 
 @Controller({ path: 'carreras', version: '1' })

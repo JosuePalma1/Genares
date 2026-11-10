@@ -9,7 +9,7 @@ import {
   Unique,
 } from 'typeorm';
 import { PeriodoAcademico } from '../../catalogo/entidades/periodo-academico.entity';
-import { EstadoVersionRubrica } from '../../../../comun/enums-dominio';
+import { EstadoVersionRubrica } from '../../../../common/domain/enums-dominio';
 import { Rubrica } from './rubrica.entity';
 
 @Entity({ schema: 's4', name: 'versiones_rubrica' })

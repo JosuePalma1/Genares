@@ -10,7 +10,7 @@ import {
   Users,
 } from 'lucide-react';
 import { EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../components/interfaz';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { FUENTE_TRABAJOS } from '../../infrastructure/config/trabajos';
 import { DashboardSeguimientoApi } from './SeguimientoApi';
 import { ESTADO_EVALUACION } from '../../infrastructure/datos/datosPrototipo';

@@ -13,7 +13,7 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../../comun/enums-dominio';
+import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../../common/domain/enums-dominio';
 
 const decimalText = ({ value }: { value: unknown }): unknown => {
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);

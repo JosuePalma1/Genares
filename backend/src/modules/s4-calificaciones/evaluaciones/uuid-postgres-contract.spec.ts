@@ -4,7 +4,7 @@ import { validate } from 'class-validator';
 import { CerrarEvaluacionDto } from './dto/cerrar-evaluacion.dto';
 import { CrearEvaluacionDto } from './dto/crear-evaluacion.dto';
 import { GuardarPuntajesEvaluacionDto } from './dto/guardar-puntajes-evaluacion.dto';
-import { esUuidPostgres } from '../../../comun/uuid-postgres';
+import { esUuidPostgres } from '../../../common/utils/uuid-postgres';
 
 const uuidPostgres = '10000000-0000-0000-0000-000000000001';
 const uuidV4 = '11000000-0000-4000-8000-000000000001';

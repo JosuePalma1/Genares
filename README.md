@@ -1,75 +1,88 @@
-# Genares — Etapa 4: formulario completo conectado al MER unificado
+# Genares · Subsistema S4
 
-**Empieza por `ETAPA_4_FORMULARIO_COMPLETO_MER.md`.** Esta entrega parte de la etapa 3 que ya probaste, conserva PostgreSQL local sin Docker y adapta el formulario institucional de evaluación oral.
+Genares contiene el subsistema S4 de calificaciones, rúbricas, evaluaciones, resultados, sustentaciones y documentos. Consulta los datos académicos administrados por S1, S2 y S3 en el MER compartido; no crea estudiantes, temas, tutores ni tribunales.
 
----
+## Estructura
 
-> **ETAPA 3 — Rúbricas y borradores orales del MER:** comienza por [ETAPA_3_RUBRICAS_Y_BORRADORES_MER.md](./ETAPA_3_RUBRICAS_Y_BORRADORES_MER.md). La base unificada YA EXISTE: NO ejecutes las migraciones antiguas en `genares_integrado_dev`.
+```text
+backend/src/
+  common/                    API, identidad y salud
+  config/                    PostgreSQL y configuración segura
+  modules/
+    s1-requisitos/            espacio del subsistema S1
+    s2-temas/                 espacio del subsistema S2
+    s3-documentos/            espacio del subsistema S3
+    s4-calificaciones/        funcionalidades de Genares
 
-> **Etapa 2 disponible:** consulta [ETAPA_2_TRABAJOS_INTEGRADOS.md](./ETAPA_2_TRABAJOS_INTEGRADOS.md) para abrir la pantalla **Trabajos de titulación** con datos S2/S3/S4 del MER unificado, sin Docker y sin migraciones.
+frontend/src/
+  shared/                    contexto y estilos compartidos
+  modules/
+    s1-requisitos/
+    s2-temas/
+    s3-documentos/
+    s4-calificaciones/        rutas, páginas y componentes de Genares
 
-# GENARES
+backend/fixtures/             SQL de prueba y permisos del MER
+docs/s4/                      instalación e historial de las etapas
+```
 
-GENARES gestiona el flujo académico de trabajos de titulación: trabajos, tribunales, rúbricas, programación, evaluaciones, notas y actas internas. No reemplaza el SGA ni la autenticación institucional.
+Los espacios S1–S3 reservan la estructura común. Sus funciones siguen siendo propiedad de esos subsistemas.
 
-## Desarrollo local
+## Requisitos
 
-La configuración activa del backend está únicamente en [`backend/.env`](backend/.env). La plantilla sin credenciales está en [`backend/.env.example`](backend/.env.example). PostgreSQL debe estar disponible según esos valores; no se crean bases automáticamente.
+- Node.js y npm.
+- PostgreSQL local con la base unificada `genares_integrado_dev` preparada por el proyecto común.
+- El rol de PostgreSQL `genares` con los permisos S4 correspondientes.
 
-Instala dependencias:
+Este repositorio no crea la base ni ejecuta migraciones. No ejecutes migraciones del prototipo: S4 consume `s2.asignacion_tema`, `s3.asignacion_tribunal` y las tablas de `s4` existentes.
+
+## Instalación local en Windows
+
+El procedimiento extendido, incluida la verificación de puertos y permisos, está en [Ejecutar Genares localmente](docs/s4/instalacion/local.md).
+
+Desde PowerShell, en la carpeta raíz del repositorio:
 
 ```powershell
 npm --prefix .\backend ci
 npm --prefix .\frontend ci
+Copy-Item .\backend\.env.example .\backend\.env
 ```
 
-Inicia backend y frontend:
+Edita `backend/.env` con las credenciales locales de PostgreSQL. Conserva `DB_NAME=genares_integrado_dev`, `NODE_ENV=development` y el puerto local `3001`. El archivo `.env` está excluido de Git; no publiques la contraseña.
+
+Para las pruebas locales del MER, el ejemplo activa `LOCAL_DEV_OPEN_ACCESS=true` y `ENABLE_INTEGRACION_DEV=true`. Úsalos únicamente en este equipo: backend y frontend enlazan a loopback y rechazan conexiones remotas.
+
+Inicia ambos servicios desde la raíz:
 
 ```powershell
 npm run dev
 ```
 
-Inicia solo la API:
+Abre `http://127.0.0.1:5173/trabajos`. El API local usa `http://127.0.0.1:3001/api/v1`. Detén los servicios con `Ctrl+C`.
+
+También puedes iniciarlos en dos ventanas de PowerShell:
 
 ```powershell
-npm run dev:api
+npm --prefix .\backend run start:dev
 ```
-
-**Solo para el prototipo antiguo y con una base distinta**: sus migraciones están documentadas aquí, pero NO deben ejecutarse en `genares_integrado_dev`:
-
-```powershell
-npm run db:migrate
-```
-
-TypeORM mantiene `synchronize: false` y `migrationsRun: false`; el esquema se modifica únicamente mediante migraciones explícitas.
-
-Para usar solo la demostración web:
 
 ```powershell
 npm --prefix .\frontend run dev
 ```
 
-La API está disponible en `http://127.0.0.1:3001/api/v1` y su estado en `/api/salud`.
-
-## Validación
+## Compilación y pruebas
 
 ```powershell
 npm --prefix .\backend run build
 npm --prefix .\backend test
-npm --prefix .\frontend run test
 npm --prefix .\frontend run build
+npm --prefix .\frontend test
 ```
 
-Las pruebas automatizadas actuales son unitarias y no requieren crear bases temporales.
+## Datos de prueba
 
-## Estructura
+Los archivos de `backend/fixtures` son operaciones manuales para la base local. No se ejecutan durante el arranque. Las evaluaciones existentes se conservan; el fixture de rúbrica de etapa 5 agrega estructura de prueba sin sustituir `DEV-1`.
 
-- [`backend/`](backend/) — NestJS, TypeORM, entidades y migraciones.
-- [`frontend/`](frontend/) — aplicación React y Vite.
-- [`backend/src/base-datos/migraciones/`](backend/src/base-datos/migraciones/) — evolución versionada del esquema.
+## Documentación de S4
 
-No agregues credenciales al repositorio ni modifiques bases fuera del destino definido en `backend/.env`.
-
-## Vista de integración S2/S3 para PostgreSQL local
-
-Consulta [INTEGRACION_LOCAL_SIN_DOCKER.md](INTEGRACION_LOCAL_SIN_DOCKER.md) para usar la nueva vista de **solo lectura** sobre el MER de 80 tablas, sin ejecutar las migraciones antiguas.
+Las instrucciones locales y el material histórico de las etapas 2–4 están en [`docs/s4`](docs/s4). El historial documenta entregas previas; el código vigente vive bajo `backend/src/modules/s4-calificaciones` y `frontend/src/modules/s4-calificaciones`.

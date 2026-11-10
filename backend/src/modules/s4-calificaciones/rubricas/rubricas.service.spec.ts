@@ -1,4 +1,4 @@
-import { EstadoVersionRubrica } from '../../../comun/enums-dominio';
+import { EstadoVersionRubrica } from '../../../common/domain/enums-dominio';
 import { Modalidad } from '../catalogo/entidades/modalidad.entity';
 import { PeriodoAcademico } from '../catalogo/entidades/periodo-academico.entity';
 import { Rubrica } from './entidades/rubrica.entity';

@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const raiz = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -100,7 +101,32 @@ async function esperarDisponible(url, nombre, proceso) {
   throw new Error(`${nombre} no respondió en ${url}: ${ultimoError}`);
 }
 
+function puertoLibre(host, puerto) {
+  return new Promise((resolvePromise) => {
+    const servidor = createServer();
+    servidor.once('error', () => resolvePromise(false));
+    servidor.listen(puerto, host, () => servidor.close(() => resolvePromise(true)));
+  });
+}
+
+async function verificarPuertosDisponibles() {
+  const servicios = [
+    ...(!soloFrontend ? [{ nombre: 'NestJS', puerto: 3001 }] : []),
+    ...(!soloBackend ? [{ nombre: 'Vite', puerto: 5173 }] : []),
+  ];
+
+  for (const servicio of servicios) {
+    if (!(await puertoLibre('127.0.0.1', servicio.puerto))) {
+      throw new Error(
+        `${servicio.nombre} no puede iniciar: el puerto ${servicio.puerto} ya está ocupado. Detén la instancia anterior con Ctrl+C e inténtalo de nuevo.`,
+      );
+    }
+  }
+}
+
 async function main() {
+  await verificarPuertosDisponibles();
+
   const entornoWeb = {
     ...process.env,
     VITE_API_BASE_URL: '/api/v1',

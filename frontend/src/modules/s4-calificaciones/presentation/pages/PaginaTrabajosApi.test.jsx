@@ -5,6 +5,7 @@ import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } 
 import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { ErrorConexionApi } from '../services/clienteHttp';
+import { filtrarTrabajosApi } from '../../domain/filtrarTrabajosApi';
 
 vi.mock('../hooks/usarTrabajosApi', () => ({
   usarTrabajosApi: vi.fn(),
@@ -25,6 +26,10 @@ const trabajo = {
   estudiantes: [{ id: estudianteId, nombres: 'Andrea', apellidos: 'Vera', ordenAutoria: 1 }],
   tutores: [], estadoTribunal: 'CONFIRMADO', tribunalConfirmadoEn: '2026-01-02T00:00:00.000Z',
   miembrosTribunal: [{ idMiembroTribunal: '77000000-0000-4000-8000-000000000001', posicion: 1, nombres: 'Jurado', apellidos: 'Uno' }],
+  escritasCerradas: 2,
+  sesiones: [
+    { id: '88000000-0000-4000-8000-000000000001', fecha: '2026-12-15', inicio: '09:00', fin: '10:00', sala: 'DEV-AULA-101', duracionEstimadaMinutos: 60, creadoEn: '2026-11-01T09:00:00.000Z', actualizadoEn: '2026-11-01T09:00:00.000Z', inicioRealEn: null, finalizacionRealEn: null, participantes: [estudianteId], tipo: 'CONJUNTA', estado: 'PROGRAMADA', cantidadParticipantes: 1 },
+  ],
   programacion: null,
 };
 
@@ -53,6 +58,23 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain('Andrea Vera');
     expect(html).not.toContain('trabajo-184');
     expect(html).toContain(`/trabajos/${trabajoId}`);
+  });
+
+  it('conserva los filtros por evaluador y asignación de tribunal en la página definitiva', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
+    expect(html).toContain('Buscar trabajo, estudiante, tutor o evaluador');
+    expect(html).toContain('id="trabajos-api-tribunal"');
+    expect(html).toContain('Actualizar');
+    expect(html).toContain('Evaluaciones escritas cerradas');
+    expect(html).toContain('Sesiones');
+  });
+
+  it('busca evaluadores y filtra por existencia de tribunal', () => {
+    const sinTribunal = { ...trabajo, id: '11000000-0000-4000-8000-000000000002', miembrosTribunal: [] };
+    expect(filtrarTrabajosApi([trabajo, sinTribunal], { busqueda: 'Jurado Uno', tribunal: 'con-tribunal' }))
+      .toEqual([trabajo]);
+    expect(filtrarTrabajosApi([trabajo, sinTribunal], { tribunal: 'sin-tribunal' }))
+      .toEqual([sinTribunal]);
   });
 
   it('presenta el fallo API como error recuperable sin un estado vacío de trabajos', () => {

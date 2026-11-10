@@ -1,11 +1,11 @@
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
-import { ModuloAplicacion } from './aplicacion.module';
-import { configurarAplicacionApi } from './comun/api/configurar-api';
-import { instalarIdentidadDesarrolloLocal } from './comun/api/identidad-desarrollo-local';
+import { AppModule } from './app.module';
+import { configurarAplicacionApi } from './common/api/configurar-api';
+import { instalarIdentidadDesarrolloLocal } from './common/api/identidad-desarrollo-local';
 
 async function iniciarAplicacion(): Promise<void> {
-  const aplicacion = await NestFactory.create(ModuloAplicacion);
+  const aplicacion = await NestFactory.create(AppModule);
   aplicacion.enableShutdownHooks();
   configurarAplicacionApi(aplicacion);
   await instalarIdentidadDesarrolloLocal(aplicacion, process.env, async () => {

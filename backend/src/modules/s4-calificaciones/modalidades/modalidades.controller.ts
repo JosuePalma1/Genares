@@ -1,5 +1,5 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { ConsultarModalidadesDto } from './dto/consultar-modalidades.dto';
 import { ModalidadesService } from './modalidades.service';
 

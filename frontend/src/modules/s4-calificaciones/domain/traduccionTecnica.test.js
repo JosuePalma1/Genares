@@ -20,7 +20,7 @@ describe('contratos técnicos después de la traducción', () => {
   });
 
   it('mantiene alineadas las clases principales entre JSX y CSS', () => {
-    const estilos = `${leer('../../../../css/styles.css')}\n${leer('../../../../css/responsive.css')}\n${leer('../../../estilos/aplicacion.css')}`;
+    const estilos = `${leer('../../../shared/presentation/styles/styles.css')}\n${leer('../../../shared/presentation/styles/responsive.css')}\n${leer('../../../shared/presentation/styles/aplicacion.css')}`;
     const clases = [
       'movil-nav',
       'app-movil-nav',
@@ -52,9 +52,15 @@ describe('contratos técnicos después de la traducción', () => {
 
   it('mantiene la evaluación en rutas académicas abiertas y delega la selección al tribunal del trabajo', () => {
     const rutas = leer('../routes.jsx');
-    const detalle = leer('../presentation/pages/PaginaTrabajosIntegradosDev.jsx');
+    const detalle = leer('../presentation/pages/PaginaTrabajosApi.jsx');
     const evaluaciones = leer('../presentation/pages/PaginaMisEvaluaciones.jsx');
 
+    expect(rutas).toContain('path="/trabajos" element={<PaginaTrabajosApi />}');
+    expect(rutas).toContain('path="/rubricas" element={<PaginaRubricas />}');
+    expect(rutas).toContain('path="/trabajos/:idTrabajo/sustentacion" element={<RedirigirProgramacionLegacy />}');
+    expect(rutas).not.toContain('PaginaProgramacionSustentacion');
+    expect(rutas).not.toContain('PaginaTrabajosIntegradosDev');
+    expect(rutas).not.toContain('PaginaRubricasIntegradasDev');
     expect(rutas).toContain('path="/evaluaciones/:asignacionId/escrita"');
     expect(rutas).toContain('path="/evaluaciones/:asignacionId/oral/:idEstudiante"');
     expect(detalle).not.toContain('personaActual');

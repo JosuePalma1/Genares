@@ -10,7 +10,7 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
   useParams: () => ({ idRubrica: 'version-utf8' }),
 }));
-vi.mock('../../../../estado/ContextoPrototipo', () => ({
+vi.mock('../../../../shared/infrastructure/ContextoPrototipo', () => ({
   usarPrototipo: () => escenario.contexto,
 }));
 vi.mock('../hooks/usarRubricasLectura', () => ({

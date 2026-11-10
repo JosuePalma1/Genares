@@ -10,8 +10,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { actorValidadoDe, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { ActualizarProgramacionDto } from './dto/actualizar-programacion.dto';
 import { CambiarEstadoProgramacionDto } from './dto/cambiar-estado-programacion.dto';
 import { ConsultarProgramacionesDto } from './dto/consultar-programaciones.dto';

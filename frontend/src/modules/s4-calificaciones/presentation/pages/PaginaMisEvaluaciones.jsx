@@ -3,7 +3,7 @@ import { BookOpenCheck, ClipboardCheck, FileText, UsersRound } from 'lucide-reac
 import { EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { ESTADO_EVALUACION } from '../../infrastructure/datos/datosPrototipo';
 import { estanCerradasRevisionesEscritas, nombreCompleto } from '../../domain/flujoTrabajo';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { PaginaMisEvaluacionesApi } from './PaginaEvaluacionesApi';
 

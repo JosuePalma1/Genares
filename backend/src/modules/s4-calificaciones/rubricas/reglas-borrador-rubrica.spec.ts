@@ -1,4 +1,4 @@
-import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../comun/enums-dominio';
+import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../common/domain/enums-dominio';
 import { ActualizarVersionRubricaDto, EtapaBorradorRubricaDto } from './dto/actualizar-version-rubrica.dto';
 import {
   validarEstructuraActivableRubrica,

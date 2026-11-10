@@ -54,6 +54,19 @@ export function adaptarTrabajoApi(trabajo) {
       && esUuidPostgres(miembro.idMiembroTribunal) && Number.isInteger(miembro.posicion) && miembro.posicion > 0
       && typeof miembro.nombres === 'string' && typeof miembro.apellidos === 'string')
     && (trabajo.estadoTribunal === 'CONFIRMADO' || trabajo.miembrosTribunal.length === 0)
+    && Number.isInteger(trabajo.escritasCerradas) && trabajo.escritasCerradas >= 0
+    && Array.isArray(trabajo.sesiones)
+    && trabajo.sesiones.every((sesion) => objeto(sesion)
+      && esUuidPostgres(sesion.id)
+      && typeof sesion.fecha === 'string' && typeof sesion.inicio === 'string' && typeof sesion.fin === 'string'
+      && (sesion.sala === null || typeof sesion.sala === 'string')
+      && Number.isInteger(sesion.duracionEstimadaMinutos)
+      && typeof sesion.creadoEn === 'string' && typeof sesion.actualizadoEn === 'string'
+      && esFechaOpcional(sesion.inicioRealEn) && esFechaOpcional(sesion.finalizacionRealEn)
+      && Array.isArray(sesion.participantes) && sesion.participantes.every(esUuidPostgres)
+      && (sesion.tipo === null || typeof sesion.tipo === 'string')
+      && (sesion.estado === null || ESTADOS_SUSTENTACION.has(sesion.estado))
+      && Number.isInteger(sesion.cantidadParticipantes) && sesion.cantidadParticipantes >= 0)
     && (trabajo.programacion === null || (objeto(trabajo.programacion)
       && esUuidPostgres(trabajo.programacion.id)
       && typeof trabajo.programacion.fechaProgramada === 'string'

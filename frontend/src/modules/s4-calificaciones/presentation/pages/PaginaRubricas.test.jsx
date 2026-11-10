@@ -9,7 +9,7 @@ vi.mock('react-router-dom', () => ({
   Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>,
 }));
 vi.mock('react-dom', () => ({ createPortal: (children) => children }));
-vi.mock('../../../../estado/ContextoPrototipo', () => ({
+vi.mock('../../../../shared/infrastructure/ContextoPrototipo', () => ({
   usarPrototipo: () => escenario.contexto,
 }));
 vi.mock('../hooks/usarRubricasLectura', () => ({

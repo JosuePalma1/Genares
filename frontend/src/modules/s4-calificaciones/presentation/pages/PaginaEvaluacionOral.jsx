@@ -24,7 +24,7 @@ import {
   marcarFormulariosOralesGuardados,
 } from '../../domain/evaluacionOralSimultanea';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { FormularioRubrica } from '../components/FormularioRubrica';
 import { FormularioRubricaComparativa } from '../components/FormularioRubricaComparativa';

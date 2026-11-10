@@ -13,8 +13,8 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { actorValidadoDe, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
-import { RequiereCapacidades } from '../../../comun/api/metadatos-api';
+import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { ActualizarVersionRubricaDto } from './dto/actualizar-version-rubrica.dto';
 import { ActivarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
 import { ConsultarRubricasDto } from './dto/consultar-rubricas.dto';

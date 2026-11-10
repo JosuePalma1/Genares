@@ -2,7 +2,7 @@ import {
   AlcanceEtapaRubrica,
   EstadoVersionRubrica,
   EtapaEvaluacion,
-} from '../../../../comun/enums-dominio';
+} from '../../../../common/domain/enums-dominio';
 
 export interface ModalidadRubricaDto {
   id: string;

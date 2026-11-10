@@ -11,6 +11,7 @@ const idEstudiante = '66000000-0000-4000-8000-000000000001';
 const idTutor = '77000000-0000-4000-8000-000000000001';
 const idAsignacionTutor = '88000000-0000-4000-8000-000000000001';
 const idMiembroTribunal = '99000000-0000-4000-8000-000000000001';
+const idSesion = 'aa000000-0000-4000-8000-000000000001';
 
 const trabajo = {
   id: idTrabajo,
@@ -34,6 +35,13 @@ const trabajo = {
   estadoTribunal: 'CONFIRMADO',
   tribunalConfirmadoEn: '2026-01-02T00:00:00.000Z',
   miembrosTribunal: [{ idMiembroTribunal, posicion: 1, nombres: 'Jurado', apellidos: 'Uno' }],
+  escritasCerradas: 2,
+  sesiones: [{
+    id: idSesion, fecha: '2026-12-15', inicio: '09:00', fin: '10:00', sala: 'DEV-AULA-101',
+    duracionEstimadaMinutos: 60, creadoEn: '2026-11-01T09:00:00.000Z', actualizadoEn: '2026-11-01T09:00:00.000Z',
+    inicioRealEn: null, finalizacionRealEn: null, participantes: [idEstudiante], tipo: 'CONJUNTA',
+    estado: 'PROGRAMADA', cantidadParticipantes: 1,
+  }],
   programacion: null,
 };
 
@@ -55,6 +63,14 @@ describe('servicio API de trabajos', () => {
 
     await expect(servicio.detalle('trabajo-184')).rejects.toThrow('UUID');
     expect(getJson).not.toHaveBeenCalled();
+  });
+
+  it('exige los conteos de evaluaciones cerradas y sesiones que alimentan el expediente', async () => {
+    const sinConteo = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue({ elementos: [{ ...trabajo, escritasCerradas: undefined }] }) });
+    const sinSesiones = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue({ elementos: [{ ...trabajo, sesiones: undefined }] }) });
+
+    await expect(sinConteo.listar()).rejects.toBeInstanceOf(ErrorRespuestaApi);
+    await expect(sinSesiones.listar()).rejects.toBeInstanceOf(ErrorRespuestaApi);
   });
 
   it('consulta la trazabilidad persistida y valida su cobertura', async () => {

@@ -15,7 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, InsigniaEstado, EstadoVacio } from '../components/interfaz';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../../domain/flujoTrabajo';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
 import { usarRubricasLectura } from '../hooks/usarRubricasLectura';

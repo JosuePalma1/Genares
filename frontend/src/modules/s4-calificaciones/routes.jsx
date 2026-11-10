@@ -2,7 +2,6 @@ import { PaginaResultadoApi } from './presentation/pages/PaginaEvaluacionesApi';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { EstructuraAplicacion } from './presentation/layouts/EstructuraAplicacion';
 import DashboardPage from './presentation/pages/DashboardPage';
-import PaginaProgramacionSustentacion from './presentation/pages/PaginaProgramacionSustentacion';
 import PaginaMisEvaluaciones from './presentation/pages/PaginaMisEvaluaciones';
 import PaginaImpresionRubrica from './presentation/pages/PaginaImpresionRubrica';
 import PaginaConsulta from './presentation/pages/PaginaConsulta';
@@ -17,8 +16,12 @@ import PaginaCarreras from './presentation/pages/PaginaCarreras';
 import PaginaCronograma from './presentation/pages/PaginaCronograma';
 import PaginaDocumentos from './presentation/pages/PaginaDocumentos';
 import PaginaEvaluacionesIntegradasDev from './presentation/pages/PaginaEvaluacionesIntegradasDev';
-import PaginaRubricasIntegradasDev from './presentation/pages/PaginaRubricasIntegradasDev';
-import { PaginaTrabajosIntegradosDev, PaginaDetalleTrabajoIntegradoDev, PaginaTribunalTrabajoIntegradoDev } from './presentation/pages/PaginaTrabajosIntegradosDev';
+import PaginaRubricas from './presentation/pages/PaginaRubricas';
+import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './presentation/pages/PaginaTrabajosApi';
+
+function RedirigirProgramacionLegacy() {
+  return <Navigate replace to="/cronograma" />;
+}
 
 export default function Aplicacion() {
   return (
@@ -26,11 +29,11 @@ export default function Aplicacion() {
       <Route path="/" element={<Navigate replace to="/dashboard" />} />
       <Route element={<EstructuraAplicacion />}>
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/trabajos" element={<PaginaTrabajosIntegradosDev />} />
+        <Route path="/trabajos" element={<PaginaTrabajosApi />} />
         <Route path="/trabajos/nuevo" element={<Navigate replace to="/trabajos" />} />
-        <Route path="/trabajos/:idTrabajo" element={<PaginaDetalleTrabajoIntegradoDev />} />
-        <Route path="/trabajos/:idTrabajo/tribunal" element={<PaginaTribunalTrabajoIntegradoDev />} />
-        <Route path="/trabajos/:idTrabajo/sustentacion" element={<PaginaProgramacionSustentacion />} />
+        <Route path="/trabajos/:idTrabajo" element={<PaginaDetalleTrabajoApi />} />
+        <Route path="/trabajos/:idTrabajo/tribunal" element={<PaginaTribunalTrabajoApi />} />
+        <Route path="/trabajos/:idTrabajo/sustentacion" element={<RedirigirProgramacionLegacy />} />
         <Route path="/cronograma" element={<PaginaCronograma />} />
         <Route path="/integracion-dev" element={<Navigate replace to="/trabajos" />} />
         <Route path="/evaluaciones/:asignacionId" element={<PaginaEvaluacionesIntegradasDev />} />
@@ -42,7 +45,7 @@ export default function Aplicacion() {
         <Route path="/rubrica/:idTrabajo/:idEstudiante/:idMiembro" element={<PaginaImpresionRubrica />} />
         <Route path="/consulta" element={<PaginaConsulta />} />
         <Route path="/documentos" element={<PaginaDocumentos />} />
-        <Route path="/rubricas" element={<PaginaRubricasIntegradasDev />} />
+        <Route path="/rubricas" element={<PaginaRubricas />} />
         <Route path="/rubricas/nueva" element={<PaginaNuevaRubrica />} />
         <Route path="/rubricas/:idRubrica/nueva-version/:idVersion" element={<PaginaNuevaRubrica />} />
         <Route path="/rubricas/:idRubrica" element={<PaginaDetalleRubrica />} />

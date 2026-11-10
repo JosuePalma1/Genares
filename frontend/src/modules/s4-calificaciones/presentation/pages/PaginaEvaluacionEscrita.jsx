@@ -12,7 +12,7 @@ import {
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { ESTADO_EVALUACION } from '../../infrastructure/datos/datosPrototipo';
 import { limitarCalificacion, nombreCompleto, obtenerDefinicionEtapa, obtenerIndicadoresEtapa, estaCompletaEtapa, maximoEtapa, calificacionEtapa } from '../../domain/flujoTrabajo';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { FormularioRubrica } from '../components/FormularioRubrica';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';

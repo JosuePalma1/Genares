@@ -1,5 +1,5 @@
 import { IsIn } from 'class-validator';
-import { EstadoSustentacion } from '../../../../comun/enums-dominio';
+import { EstadoSustentacion } from '../../../../common/domain/enums-dominio';
 
 export class CambiarEstadoProgramacionDto {
   @IsIn([

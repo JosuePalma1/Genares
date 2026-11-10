@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { tonoEstado } from '../../domain/flujoTrabajo';
 import { confirmarDescarteCambiosConDialogo } from '../../domain/cambiosSinGuardar';
 import { obtenerRutaAnteriorInterna, resolverNavegacionRetorno } from '../../domain/navegacionRetorno';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 
 const ETIQUETAS_ESTADO = {
   ACTIVA: 'Activa',

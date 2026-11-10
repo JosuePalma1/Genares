@@ -1,8 +1,8 @@
 import { INestApplication, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { ModuloApi } from '../../../comun/api/modulo-api';
-import { configurarAplicacionApi } from '../../../comun/api/configurar-api';
-import { IdentidadApi, SolicitudConIdentidad } from '../../../comun/api/identidad-api';
+import { ModuloApi } from '../../../common/api/modulo-api';
+import { configurarAplicacionApi } from '../../../common/api/configurar-api';
+import { IdentidadApi, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { ProgramacionesSustentacionController } from './programaciones-sustentacion.controller';
 import { ProgramacionesSustentacionService } from './programaciones-sustentacion.service';
 

@@ -1,5 +1,5 @@
 import { IsEnum, IsOptional, IsUUID } from 'class-validator';
-import { EstadoVersionRubrica } from '../../../../comun/enums-dominio';
+import { EstadoVersionRubrica } from '../../../../common/domain/enums-dominio';
 
 export class ConsultarRubricasDto {
   @IsOptional()

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowDownUp, ArrowUp, Eye, History, Plus } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
 import { ModalVersionesRubrica } from '../components/ModalVersionesRubrica';
-import { usarPrototipo } from '../../../../estado/ContextoPrototipo';
+import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { crearFilasCatalogoRubricas, filtrarRubricasCatalogo, FILTRO_NO_INFORMADA, FILTRO_SIN_ASOCIACION, ordenarRubricasCatalogo } from '../../domain/catalogoRubricas';
 import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
 import './rubricasCatalogo.css';

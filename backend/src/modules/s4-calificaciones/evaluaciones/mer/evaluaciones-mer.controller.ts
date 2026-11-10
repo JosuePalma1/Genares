@@ -1,10 +1,10 @@
 import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
-import { Publica, RequiereCapacidades } from '../../../../comun/api/metadatos-api';
-import { actorValidadoDe, SolicitudConIdentidad } from '../../../../comun/api/identidad-api';
+import { Publica, RequiereCapacidades } from '../../../../common/api/metadatos-api';
+import { actorValidadoDe, SolicitudConIdentidad } from '../../../../common/api/identidad-api';
 import { GuardarBorradorOralDto } from './borrador-oral.dto';
 import { EvaluacionesMerService } from './evaluaciones-mer.service';
 
-@Controller(['evaluaciones/mer', 'integracion-dev/evaluaciones'])
+@Controller('evaluaciones/mer')
 export class EvaluacionesMerController {
   constructor(private readonly servicio: EvaluacionesMerService) {}
 
@@ -13,20 +13,6 @@ export class EvaluacionesMerController {
       || process.env.DB_NAME !== 'genares_integrado_dev') {
       throw new ForbiddenException('Esta funcionalidad de integración no está disponible en producción.');
     }
-  }
-
-  @Publica()
-  @Get('catalogo-rubricas')
-  catalogo() {
-    this.verificarDemostracion();
-    return this.servicio.obtenerCatalogoRubricas();
-  }
-
-  @Publica()
-  @Get('rubricas/:versionId')
-  version(@Param('versionId', new ParseUUIDPipe()) versionId: string) {
-    this.verificarDemostracion();
-    return this.servicio.obtenerVersionRubrica(versionId);
   }
 
   @Publica()

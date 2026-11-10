@@ -1,4 +1,4 @@
-import { EstadoEvaluacion } from '../../../comun/enums-dominio';
+import { EstadoEvaluacion } from '../../../common/domain/enums-dominio';
 import { ErrorReglaDominio } from './error-regla-dominio';
 
 export interface EstadoRevisionEscrita {

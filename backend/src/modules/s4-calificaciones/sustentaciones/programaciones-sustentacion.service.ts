@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
 import { TrabajoMer, TrabajosService } from '../trabajos/trabajos.service';
-import { EstadoSustentacion } from '../../../comun/enums-dominio';
+import { EstadoSustentacion } from '../../../common/domain/enums-dominio';
 import { ActualizarProgramacionDto } from './dto/actualizar-programacion.dto';
 import { CambiarEstadoProgramacionDto } from './dto/cambiar-estado-programacion.dto';
 import { ConsultarProgramacionesDto } from './dto/consultar-programaciones.dto';
