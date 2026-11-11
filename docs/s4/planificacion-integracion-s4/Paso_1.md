@@ -11,11 +11,11 @@ Evaluación y consolidación de trabajos de titulación
 
 **VERSIÓN**
 
-**1.1 — Integración S3/S4 confirmada**
+**1.2 — Ajustes a decisiones posteriores**
 
 **FECHA**
 
-2 de noviembre de 2026
+11 de noviembre de 2026 (versión 1.1: 2 de noviembre de 2026)
 
 **ÁMBITO**
 
@@ -70,7 +70,7 @@ Los estudiantes existen como entidades académicas de consulta y destinatarios d
 | **3. Revisión escrita pendiente** | Versión de rúbrica aplicada y escrita exigible aún sin cerrar. | Al menos una escrita requerida no confirmada. |
 | **4. Revisión escrita completada** | Todas las escritas aplicables cerradas por todos los evaluadores requeridos. | Sin pendientes. |
 | **5. Sustentación programada** | El estudiante ya tiene una fecha y hora asignadas para sustentar, pero todavía no ha comenzado su sustentación. | Sesión y participantes válidos. |
-| **6. Sustentación pendiente** | La sustentación ya comenzó, pero uno o más integrantes del tribunal todavía no han finalizado su evaluación oral. | La oral no está cerrada para ese estudiante. |
+| **6. Sustentación pendiente** | Llegó la fecha y hora programadas de la sesión y uno o más integrantes del tribunal todavía no cierran su evaluación oral. El sistema no registra el inicio ni el fin real de la defensa. | Fecha y hora programadas alcanzadas; la oral no está cerrada para ese estudiante. |
 | **7. Evaluación completada** | Todos los integrantes del tribunal han finalizado sus evaluaciones obligatorias y el servidor ha confirmado las calificaciones. | Sin evaluaciones ni sincronizaciones pendientes. |
 | **8. Finalizado** | Todos los estudiantes completados; PDFs requeridos generados/archivados y cierre autorizado del trabajo. | Operación de cierre del trabajo confirmada por servidor. |
 
@@ -95,7 +95,7 @@ El resultado se calcula primero por evaluador y por componente comparable; luego
 
 Para el instrumento documentado: Revisión escrita máximo 5 puntos + sustentación oral máximo 5 puntos = resultado final máximo 10. Si el acta presenta cada componente sobre 10, se expresa «nota del componente sobre 5 × 2» y la calificación final conserva la suma original de sus aportes sobre 5. Ejemplo: escrita 4,20/5 → 8,40/10 en acta; oral 4,50/5 → 9,00/10; final 8,70/10.
 
-Regla de presentación de dos decimales: se inspecciona el tercer decimal de la magnitud exacta; si es mayor que 5 se suma una centésima, en otro caso se conservan las centésimas. Casos obligatorios: 9,445 → 9,45; 9,446 → 9,45; 9,444 → 9,44.
+Regla de presentación de dos decimales (HALF\_UP): se inspecciona el tercer decimal de la magnitud exacta; si es mayor o igual que 5 se suma una centésima, en otro caso se conservan las centésimas. Casos obligatorios: 9,445 → 9,45; 9,446 → 9,45; 9,444 → 9,44.
 
 # 4. Requisitos funcionales — 48 RF
 
@@ -263,19 +263,19 @@ Este apartado fija responsabilidades y relaciones esperadas a partir de las estr
 | **PROPÓSITO** | **ENTIDADES / TABLAS** | **REGLA DE INTEGRACIÓN** |
 | --- | --- | --- |
 | **Identidades y ámbito** | gen.persona; gen.estudiante; gen.docente; gen.carrera; gen.periodo\_academico | Se consultan como datos maestros compartidos. |
-| **Trabajos, estudiantes y tutores** | s4.trabajos\_titulacion; s4.estudiantes\_trabajo; s4.asignaciones\_tutor\_trabajo | El trabajo agrupa 1 o 2 estudiantes; no se crean clones de persona. |
-| **Tribunales** | s4.asignaciones\_tribunal; s4.miembros\_tribunal | S3 registra y administra tribunales e integrantes; S4 los consulta en modo solo lectura desde la base de datos unificada, sin duplicarlos. Los nombres físicos se respetan según el MER. |
-| **Programación** | s4.programaciones\_sustentacion; s4.eventos\_trazabilidad\_trabajo | S4 administra sesiones, reprograma manteniendo ID y registra historial. |
+| **Trabajos, estudiantes y tutores** | s2.asignacion\_tema; gen.tema; s2.grupo\_integrante (consultados desde S2); s4.procesos\_evaluacion | El trabajo agrupa 1 o 2 estudiantes; no se crean clones de persona. El proceso de evaluación de S4 se enlaza con la asignación de S2 y la versión de rúbrica. |
+| **Tribunales** | s3.asignacion\_tribunal; s3.miembros\_tribunal | S3 registra y administra tribunales e integrantes; S4 los consulta en modo solo lectura desde la base de datos unificada, sin duplicarlos. Los nombres físicos se respetan según el MER. |
+| **Programación** | s4.programaciones\_sustentacion; s4.programacion\_estudiante; s4.eventos\_trazabilidad\_trabajo | S4 administra sesiones y sus participantes, reprograma manteniendo ID y registra historial con motivo. |
 | **Rúbricas** | s4.rubricas; s4.versiones\_rubrica; s4.etapas\_rubrica; s4.categorias\_rubrica; s4.indicadores\_rubrica | Versiones utilizadas inmutables; etapa y tipo individual/compartido explícitos. |
-| **Evaluación y notas** | s4.evaluaciones; s4.calificaciones\_evaluacion | Escrita compartida única; oral referida a sesión, estudiante y evaluador. |
+| **Evaluación y notas** | s4.evaluaciones; s4.calificaciones\_evaluacion | Escrita compartida única; oral referida a sesión (s4.evaluaciones.id\_programacion\_sustentacion), estudiante y evaluador. |
 | **Auditoría y PDFs** | s4.eventos\_auditoria\_evaluacion; s4.actas\_archivadas | Eventos confirmados y archivos asociados a versión/estudiante/trabajo. |
 
 ## 7.1. Restricciones relacionales obligatorias
 
 * La programación de sustentación admite varias sesiones para un trabajo. No debe existir una restricción UNIQUE(id\_trabajo) que imposibilite sesiones distintas.
-* La tabla s4.programaciones\_sustentacion no incluirá la restricción UNIQUE(id\_trabajo), permitiendo registrar múltiples sesiones por trabajo si fuera necesario. A nivel de interfaz, el sistema ofrecerá la opción unificada de "Reprogramar sustentación" para la bina. En el modelo relacional, los participantes se vincularán formalmente a través de la tabla asociativa s4.estudiantes\_sesion\_sustentacion (id\_sesion, id\_estudiante), asegurando el soporte técnico tanto para defensas conjuntas como para sesiones separadas.
+* La tabla s4.programaciones\_sustentacion no incluirá la restricción UNIQUE(id\_trabajo), permitiendo registrar múltiples sesiones por trabajo si fuera necesario. A nivel de interfaz, el sistema ofrecerá la opción unificada de "Reprogramar sustentación" para la bina. En el modelo relacional, los participantes se vinculan formalmente a través de la tabla asociativa s4.programacion\_estudiante (programacion\_sustentacion\_id, id\_estudiante), asegurando el soporte técnico tanto para defensas conjuntas como para sesiones separadas.
 * Cada sesión deberá identificar a sus estudiantes participantes mediante una relación consistente; si aún no existe, incorporar una asociación estudiante–sesión. La misma sesión puede incluir a los dos estudiantes y un estudiante puede tener su sesión propia.
-* s4.evaluaciones incorporará una referencia opcional a s4.programaciones\_sustentacion para evaluación oral; debe ser obligatoria cuando el tipo de etapa sea oral e inexistente cuando se trate de escrita compartida.
+* s4.evaluaciones incorpora la referencia s4.evaluaciones.id\_programacion\_sustentacion a s4.programaciones\_sustentacion para evaluación oral; es obligatoria cuando el tipo de etapa es oral e inexistente cuando se trata de escrita compartida. La sesión debe pertenecer al mismo proceso y el estudiante debe ser participante de ella.
 * Las restricciones de unicidad deberán distinguir evaluación por trabajo/evaluador/etapa (compartida) de evaluación por estudiante/evaluador/etapa/sesión (individual oral). Una misma operación de sincronización incluirá un identificador único idempotente y versión base.
 * Las reprogramaciones actualizarán fecha/hora de la programación conservando el identificador; cada actualización aceptada emitirá evento de trazabilidad con antes/después, actor y motivo.
 * La cola de cambios offline reside en la tablet (almacenamiento persistente de la aplicación); el servidor almacena los datos confirmados, el identificador de operación y la versión del registro para garantizar idempotencia y concurrencia.
@@ -331,3 +331,10 @@ Ambos PDFs son de salida controlada, se generan desde evaluaciones confirmadas, 
 La implementación se considera conforme cuando: (1) todos los RF tienen verificación satisfactoria; (2) los RNF se comprueban con su criterio de aceptación; (3) ninguna operación contradice las 30 reglas de negocio; (4) los escenarios PA-01 a PA-18 pasan; y (5) los documentos generados conservan las escalas y datos originales.
 
 Las decisiones de construcción de esta línea base son explícitas y prevalecen frente a interpretaciones anteriores que las contradigan. Cualquier futura modificación requerirá control de versiones del documento y actualización coordinada de diseño, datos y pruebas, sin alterar silenciosamente esta versión.
+
+# 11. Control de cambios
+
+| **VERSIÓN** | **FECHA** | **CAMBIOS** |
+| --- | --- | --- |
+| **1.1** | 2 de noviembre de 2026 | Integración S3/S4 confirmada. |
+| **1.2** | 11 de noviembre de 2026 | §3.1: el estado 6 se determina por la fecha y hora programadas, sin registrar el inicio ni el fin real de la defensa. §3.3: la regla de presentación usa «mayor o igual que 5» (HALF\_UP), igual que RF-40 y RN-19. §7 y §7.1: nombres de tablas según el MER vigente (s2.asignacion\_tema, s3.asignacion\_tribunal, s4.procesos\_evaluacion, s4.programacion\_estudiante) y referencia s4.evaluaciones.id\_programacion\_sustentacion. No cambian RF, RNF ni RN. |
