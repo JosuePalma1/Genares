@@ -34,12 +34,13 @@ const trabajo = {
   evaluadoresAsignados: 2,
   evaluadores: [],
   escritasCerradas: 2,
-  estudiantes: [],
+  estudiantes: [{ id: '55555555-5555-4555-8555-555555555551', nombre: 'Estudiante A' }],
   sesiones: [],
 } as unknown as TrabajoMer;
 
 interface Escenario {
-  candidatos?: string[];
+  /** Trabajos candidatos; por defecto todos sus estudiantes están pendientes de programar. */
+  candidatos?: Array<string | { id: string; pendientes: string[] }>;
   filas?: Array<{ id: string; idTrabajo: string }>;
   total?: number;
   trabajos?: TrabajoMer[];
@@ -48,7 +49,11 @@ interface Escenario {
 function preparar({ candidatos = [], filas = [], total, trabajos = [trabajo] }: Escenario = {}) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const query = jest.fn(async (sql: string, _parametros?: unknown[]) => {
-    if (sql === CONSULTA_TRABAJOS_DISPONIBLES) return candidatos.map((id) => ({ id }));
+    if (sql === CONSULTA_TRABAJOS_DISPONIBLES) {
+      return candidatos.map((candidato) => (typeof candidato === 'string'
+        ? { id: candidato, pendientes: trabajos.find((t) => t.id === candidato)?.estudiantes.map((e) => e.id) ?? [] }
+        : candidato));
+    }
     if (sql === CONSULTA_PROGRAMACIONES) return [{ total: total ?? filas.length, filas }];
     if (sql.includes('WHERE activo')) return [{ id: PERIODO_ACTIVO }];
     return [];
@@ -60,8 +65,12 @@ function preparar({ candidatos = [], filas = [], total, trabajos = [trabajo] }: 
 }
 
 describe('disponibilidad de trabajos para una nueva programación', () => {
-  it('descarta en SQL los trabajos con programación, incluso oculta, y sin tribunal completo', () => {
+  it('descarta en SQL los trabajos con todos sus estudiantes programados, incluso en sesiones ocultas, y sin tribunal completo', () => {
     expect(CONSULTA_TRABAJOS_DISPONIBLES).toContain('NOT EXISTS');
+    expect(CONSULTA_TRABAJOS_DISPONIBLES).toContain('s4.programacion_estudiante');
+    expect(CONSULTA_TRABAJOS_DISPONIBLES).toContain("gi.estado = 'ACTIVO'");
+    // Programado en cualquier sesión del proceso: sin filtrar estado ni estado_registro.
+    expect(CONSULTA_TRABAJOS_DISPONIBLES).not.toMatch(/ps_prev\.(estado|estado_registro)/);
     expect(CONSULTA_TRABAJOS_DISPONIBLES).toContain('s3.asignacion_tribunal');
     expect(CONSULTA_TRABAJOS_DISPONIBLES).toContain("a.estado = 'VIGENTE'");
   });
@@ -75,6 +84,27 @@ describe('disponibilidad de trabajos para una nueva programación', () => {
     expect(consultar).toHaveBeenCalledWith(null, [trabajo.id, pendiente.id]);
     expect((resultado.elementos as Array<{ idTrabajo: string }>).map(({ idTrabajo }) => idTrabajo)).toEqual([trabajo.id]);
     expect(parametros(CONSULTA_TRABAJOS_DISPONIBLES)).toEqual([null, null, 'bina']);
+  });
+
+  it('una bina con un estudiante ya programado ofrece solo al otro para una sesión separada (RN-28)', async () => {
+    const [a, b] = ['55555555-5555-4555-8555-555555555551', '55555555-5555-4555-8555-555555555552'];
+    const bina = {
+      ...trabajo,
+      estudiantes: [{ id: a, nombre: 'Estudiante A' }, { id: b, nombre: 'Estudiante B' }],
+      sesiones: [{ ...sesion('aaaaaaaa-0000-4000-8000-000000000009'), participantes: [a] }],
+    } as unknown as TrabajoMer;
+    const { service } = preparar({ candidatos: [{ id: bina.id, pendientes: [b] }], trabajos: [bina] });
+
+    const { elementos } = await service.trabajosDisponibles({}) as { elementos: Array<{ estudiantes: unknown[]; estudiantesPendientes: Array<{ id: string }> }> };
+
+    expect(elementos).toHaveLength(1);
+    expect(elementos[0].estudiantes).toHaveLength(2);
+    expect(elementos[0].estudiantesPendientes.map(({ id }) => id)).toEqual([b]);
+  });
+
+  it('descarta el candidato si ninguno de sus estudiantes del detalle sigue pendiente', async () => {
+    const { service } = preparar({ candidatos: [{ id: trabajo.id, pendientes: [] }] });
+    await expect(service.trabajosDisponibles({})).resolves.toMatchObject({ elementos: [] });
   });
 
   it('no consulta detalles cuando no hay candidatos', async () => {

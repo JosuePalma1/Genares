@@ -75,7 +75,11 @@ function adaptarTrabajoDisponible(valor) {
     validarPersona(miembro);
     exigir(Number.isInteger(miembro.posicion) && miembro.posicion >= 1);
   });
-  return valor;
+  // RN-28: estudiantes que aún pueden entrar en una sesión nueva. Sin el dato, todos (respuesta anterior).
+  const estudiantesPendientes = valor.estudiantesPendientes ?? valor.estudiantes;
+  exigir(Array.isArray(estudiantesPendientes) && estudiantesPendientes.length > 0
+    && estudiantesPendientes.every((pendiente) => valor.estudiantes.some(({ id }) => id === pendiente?.id)));
+  return { ...valor, estudiantesPendientes };
 }
 
 function adaptarCatalogos(valor) {
@@ -127,13 +131,18 @@ export function mapearCrearProgramacion(datos) {
     && typeof datos.sala === 'string'
     && (datos.duracionEstimadaMinutos === undefined
       || (Number.isInteger(datos.duracionEstimadaMinutos)
-        && datos.duracionEstimadaMinutos >= 1 && datos.duracionEstimadaMinutos <= 240)));
+        && datos.duracionEstimadaMinutos >= 1 && datos.duracionEstimadaMinutos <= 240))
+    && (datos.idEstudiantes === undefined
+      || (Array.isArray(datos.idEstudiantes) && datos.idEstudiantes.length > 0
+        && new Set(datos.idEstudiantes).size === datos.idEstudiantes.length
+        && datos.idEstudiantes.every((id) => esUuidPostgres(id ?? '')))));
   return {
     idTrabajo: datos.idTrabajo,
     fechaProgramada: datos.fechaProgramada,
     horaProgramada: datos.horaProgramada,
     sala: datos.sala.trim(),
     ...(datos.duracionEstimadaMinutos === undefined ? {} : { duracionEstimadaMinutos: datos.duracionEstimadaMinutos }),
+    ...(datos.idEstudiantes === undefined ? {} : { idEstudiantes: [...datos.idEstudiantes] }),
   };
 }
 
@@ -145,7 +154,9 @@ export function mapearActualizacionProgramacion(datos) {
     && typeof datos.sala === 'string'
     && (datos.duracionEstimadaMinutos === undefined
       || (Number.isInteger(datos.duracionEstimadaMinutos)
-        && datos.duracionEstimadaMinutos >= 1 && datos.duracionEstimadaMinutos <= 240)));
+        && datos.duracionEstimadaMinutos >= 1 && datos.duracionEstimadaMinutos <= 240))
+    // RN-27: toda reprogramación declara su motivo.
+    && typeof datos.motivo === 'string' && datos.motivo.trim().length > 0 && datos.motivo.trim().length <= 500);
   return {
     id: datos.id,
     dto: {
@@ -153,6 +164,7 @@ export function mapearActualizacionProgramacion(datos) {
       horaProgramada: datos.horaProgramada,
       sala: datos.sala.trim(),
       ...(datos.duracionEstimadaMinutos === undefined ? {} : { duracionEstimadaMinutos: datos.duracionEstimadaMinutos }),
+      motivo: datos.motivo.trim(),
     },
   };
 }

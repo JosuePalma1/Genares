@@ -18,4 +18,10 @@ export class ActualizarProgramacionDto {
   @Min(1)
   @Max(240)
   duracionEstimadaMinutos?: number;
+
+  /** Motivo de la reprogramación (RN-27); queda en s4.eventos_trazabilidad_trabajo. */
+  @IsString()
+  @Matches(/\S/, { message: 'Indique el motivo de la reprogramación.' })
+  @MaxLength(500)
+  motivo!: string;
 }

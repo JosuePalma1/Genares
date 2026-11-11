@@ -218,16 +218,22 @@ export class EvaluacionesMerService {
         if (pertenencia?.pertenece !== true) throw new BadRequestException('El estudiante no pertenece a la asignación de S2.');
 
       }
+      // RF-46/RN-26: la oral queda ligada a la sesión en la que participa el estudiante.
+      let idSesion: string | null = null;
       if (etapa.kind === 'ORAL') {
-        const [sesion] = await manager.query(`
-        SELECT 1 FROM s4.programaciones_sustentacion ps
+        const sesiones = await manager.query(`
+        SELECT ps.id FROM s4.programaciones_sustentacion ps
         JOIN s4.programacion_estudiante pe ON pe.programacion_sustentacion_id = ps.id
         WHERE ps.id_proceso_evaluacion = $1 AND pe.id_estudiante = $2
           AND ps.estado_registro = 1 AND pe.estado_registro = 1
           AND ps.estado NOT IN ('CANCELADA')
-        LIMIT 1
-        `, [proceso.id, idEstudiante]);
-        if (!sesion) throw new ConflictException('El estudiante no tiene sustentación programada en S4.');
+        LIMIT 2
+        `, [proceso.id, idEstudiante]) as Array<{ id: string }>;
+        if (!sesiones.length) throw new ConflictException('El estudiante no tiene sustentación programada en S4.');
+        if (sesiones.length > 1) {
+          throw new ConflictException('El estudiante tiene más de una sustentación vigente. Cancele la que no corresponda.');
+        }
+        idSesion = sesiones[0].id;
       }
 
       const indicadores = await manager.query(`
@@ -261,7 +267,8 @@ export class EvaluacionesMerService {
       }
 
       let [evaluacion] = await manager.query(`
-        SELECT id, estado, COALESCE(revision,0) AS revision
+        SELECT id, estado, COALESCE(revision,0) AS revision,
+          id_programacion_sustentacion AS "idSesion"
         FROM s4.evaluaciones
         WHERE id_proceso_evaluacion = $1 AND id_etapa_rubrica = $2
           AND id_asignacion_tribunal = $3 AND id_estudiante IS NOT DISTINCT FROM $4::uuid
@@ -270,6 +277,9 @@ export class EvaluacionesMerService {
       `, [proceso.id, dto.idEtapaRubrica, dto.idAsignacionTribunal, idEstudiante]);
       if (evaluacion && evaluacion.estado !== 'BORRADOR') {
         throw new ConflictException('La evaluación ya está cerrada. No se modificó ninguna nota.');
+      }
+      if (evaluacion && (evaluacion.idSesion ?? null) !== idSesion) {
+        throw new ConflictException('La evaluación oral pertenece a otra sesión de sustentación. No se modificó ninguna nota.');
       }
       if (evaluacion && !actorCierre && dto.idOperacion) {
         const [confirmada] = await manager.query(`
@@ -308,11 +318,12 @@ export class EvaluacionesMerService {
         [evaluacion] = await manager.query(`
           INSERT INTO s4.evaluaciones
             (id_proceso_evaluacion, id_asignacion_tribunal, id_version_rubrica,
-             id_etapa_rubrica, id_estudiante, etapa, estado, revision, instantanea_rubrica)
-          VALUES ($1, $2, $3, $4, $5, $7, 'BORRADOR', 0, $6::jsonb)
+             id_etapa_rubrica, id_estudiante, etapa, estado, revision, instantanea_rubrica,
+             id_programacion_sustentacion)
+          VALUES ($1, $2, $3, $4, $5, $7, 'BORRADOR', 0, $6::jsonb, $8)
           RETURNING id, estado, revision
         `, [proceso.id, dto.idAsignacionTribunal, proceso.versionId,
-          dto.idEtapaRubrica, idEstudiante, instantanea, etapa.kind]);
+          dto.idEtapaRubrica, idEstudiante, instantanea, etapa.kind, idSesion]);
       }
       for (const item of dto.puntajes) {
         const [actualizados] = await manager.query(`
@@ -370,6 +381,7 @@ export class EvaluacionesMerService {
       `, [evaluacion.id, actorCierre ?? 'GENARES:LOCAL_DEVELOPMENT',
         actorCierre ? `EVALUACION_${tipo}_CERRADA` : `BORRADOR_${tipo}_GUARDADO`, JSON.stringify({
         revision: guardada.revision, etapa: etapa.kind, modo: 'DESARROLLO_LOCAL',
+        ...(idSesion && { idProgramacionSustentacion: idSesion }),
         ...(!actorCierre && dto.idOperacion && { idOperacion: dto.idOperacion }),
         ...(actorCierre && {
           idDocente: asignacionTribunal.idDocente,

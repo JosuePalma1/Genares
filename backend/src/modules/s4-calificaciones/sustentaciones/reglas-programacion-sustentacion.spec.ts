@@ -6,6 +6,8 @@ import {
   validarFechaProgramada,
   validarHoraProgramada,
   validarSalaProgramada,
+  elegirParticipantesSesion,
+  validarMotivoReprogramacion,
 } from './reglas-programacion-sustentacion';
 
 describe('reglas de programación de sustentaciones', () => {
@@ -62,5 +64,42 @@ describe('reglas de programación de sustentaciones', () => {
   it('escapa comodines SQL y trata búsqueda vacía como ausencia de filtro', () => {
     expect(patronBusquedaProgramacion('  TT%_\\01  ')).toBe('%TT\\%\\_\\\\01%');
     expect(patronBusquedaProgramacion('  ')).toBeNull();
+  });
+});
+
+describe('participantes de una sesión nueva (RN-28)', () => {
+  const a = '55555555-5555-4555-8555-555555555551';
+  const b = '55555555-5555-4555-8555-555555555552';
+
+  it('sin selección incluye a todos los pendientes: bina conjunta', () => {
+    expect(elegirParticipantesSesion([{ id: a, programado: false }, { id: b, programado: false }])).toEqual([a, b]);
+  });
+
+  it('sin selección deja fuera al estudiante ya programado', () => {
+    expect(elegirParticipantesSesion([{ id: a, programado: true }, { id: b, programado: false }])).toEqual([b]);
+  });
+
+  it('con selección crea una sesión separada solo para ese estudiante', () => {
+    expect(elegirParticipantesSesion([{ id: a, programado: false }, { id: b, programado: false }], [b.toUpperCase()])).toEqual([b]);
+  });
+
+  it('rechaza un trabajo sin estudiantes o ya programado por completo', () => {
+    expect(() => elegirParticipantesSesion([])).toThrow('no tiene estudiantes');
+    expect(() => elegirParticipantesSesion([{ id: a, programado: true }])).toThrow('ya tiene una programación');
+  });
+
+  it('rechaza estudiantes ajenos al trabajo o ya programados', () => {
+    const estudiantes = [{ id: a, programado: true }, { id: b, programado: false }];
+    expect(() => elegirParticipantesSesion(estudiantes, ['55555555-5555-4555-8555-555555555559'])).toThrow('no pertenece al trabajo');
+    expect(() => elegirParticipantesSesion(estudiantes, [a, b])).toThrow('ya tiene una programación');
+  });
+});
+
+describe('motivo de reprogramación (RN-27)', () => {
+  it('lo exige y lo normaliza', () => {
+    expect(validarMotivoReprogramacion('  Cambio de aula por mantenimiento ')).toBe('Cambio de aula por mantenimiento');
+    expect(() => validarMotivoReprogramacion('   ')).toThrow('motivo');
+    expect(() => validarMotivoReprogramacion(undefined)).toThrow('motivo');
+    expect(() => validarMotivoReprogramacion('x'.repeat(501))).toThrow('500');
   });
 });

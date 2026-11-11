@@ -5,6 +5,9 @@ import {
   adaptarListadoProgramacionesApi,
   crearQueryProgramacion,
   crearServicioProgramacionesApi,
+  adaptarTrabajosDisponiblesApi,
+  mapearActualizacionProgramacion,
+  mapearCrearProgramacion,
 } from './programacionesApi';
 import { periodoEfectivoCronograma } from '../pages/PaginaCronograma';
 
@@ -67,7 +70,7 @@ describe('servicio API de cronogramas', () => {
     const servicio = crearServicioProgramacionesApi(cliente);
 
     await servicio.crear({ idTrabajo: ids.work, fechaProgramada: '2026-10-24', horaProgramada: '09:30', sala: ' Sala 1 ' });
-    const actualizada = await servicio.actualizar({ id: ids.schedule, fechaProgramada: '2026-10-25', horaProgramada: '09:30', sala: 'Sala 1' });
+    const actualizada = await servicio.actualizar({ id: ids.schedule, fechaProgramada: '2026-10-25', horaProgramada: '09:30', sala: 'Sala 1', motivo: ' Cambio de aula ' });
     const impresion = await servicio.impresion({ estado: 'PROGRAMADA' });
 
     expect(actualizada.fechaProgramada).toBe('2026-10-25');
@@ -80,6 +83,34 @@ describe('servicio API de cronogramas', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({
       idTrabajo: ids.work, fechaProgramada: '2026-10-24', horaProgramada: '09:30', sala: 'Sala 1',
     });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({
+      fechaProgramada: '2026-10-25', horaProgramada: '09:30', sala: 'Sala 1', motivo: 'Cambio de aula',
+    });
+  });
+
+  it('no envía una reprogramación sin motivo (RN-27)', () => {
+    const base = { id: ids.schedule, fechaProgramada: '2026-10-25', horaProgramada: '09:30', sala: 'Sala 1' };
+    expect(() => mapearActualizacionProgramacion(base)).toThrow();
+    expect(() => mapearActualizacionProgramacion({ ...base, motivo: '   ' })).toThrow();
+    expect(() => mapearActualizacionProgramacion({ ...base, motivo: 'x'.repeat(501) })).toThrow();
+  });
+
+  it('envía los participantes elegidos para una sesión separada (RN-28)', () => {
+    const base = { idTrabajo: ids.work, fechaProgramada: '2026-10-24', horaProgramada: '09:30', sala: 'Sala 1' };
+    expect(mapearCrearProgramacion({ ...base, idEstudiantes: [ids.student] })).toMatchObject({ idEstudiantes: [ids.student] });
+    expect(mapearCrearProgramacion(base)).not.toHaveProperty('idEstudiantes');
+    expect(() => mapearCrearProgramacion({ ...base, idEstudiantes: [] })).toThrow();
+    expect(() => mapearCrearProgramacion({ ...base, idEstudiantes: [ids.student, ids.student] })).toThrow();
+  });
+
+  it('adapta los estudiantes pendientes de cada trabajo disponible', () => {
+    const otro = { id: '55555555-5555-4555-8555-555555555556', nombres: 'Luis', apellidos: 'Mora' };
+    const disponible = { ...programacion, idTrabajo: ids.work, estudiantes: [...programacion.estudiantes, otro] };
+    const conPendiente = adaptarTrabajosDisponiblesApi({ filtros, elementos: [{ ...disponible, estudiantesPendientes: [otro] }] });
+    expect(conPendiente.elementos[0].estudiantesPendientes).toEqual([otro]);
+    // Respuesta anterior, sin el dato: todos los estudiantes están pendientes.
+    expect(adaptarTrabajosDisponiblesApi({ filtros, elementos: [disponible] }).elementos[0].estudiantesPendientes).toHaveLength(2);
+    expect(() => adaptarTrabajosDisponiblesApi({ filtros, elementos: [{ ...disponible, estudiantesPendientes: [{ id: ids.member }] }] })).toThrow();
   });
 
   it('preserva duraciones personalizadas, estado operativo e inicio/final reales', async () => {

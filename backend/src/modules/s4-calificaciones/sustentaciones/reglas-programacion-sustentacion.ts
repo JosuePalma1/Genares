@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 
 export const DURACION_ESTIMADA_MINIMA_MINUTOS = 1;
 export const DURACION_ESTIMADA_MAXIMA_MINUTOS = 240;
@@ -27,6 +27,44 @@ export function validarSalaProgramada(sala: string): string {
   if (!normalizada) throw new BadRequestException('La sala es obligatoria.');
   if (normalizada.length > 160) throw new BadRequestException('La sala no puede superar 160 caracteres.');
   return normalizada;
+}
+
+export function validarMotivoReprogramacion(motivo: unknown): string {
+  const normalizado = typeof motivo === 'string' ? motivo.trim() : '';
+  if (!normalizado) throw new BadRequestException('Indique el motivo de la reprogramación.');
+  if (normalizado.length > 500) throw new BadRequestException('El motivo no puede superar 500 caracteres.');
+  return normalizado;
+}
+
+export interface EstudianteProgramable {
+  id: string;
+  /** Ya figura en alguna programación del proceso, en cualquier estado o visibilidad. */
+  programado: boolean;
+}
+
+/**
+ * Participantes de una nueva sesión (RN-28): sin selección, todos los que aún no tienen
+ * programación; con selección, solo esos, que deben pertenecer al trabajo y no estar programados.
+ */
+export function elegirParticipantesSesion(estudiantes: EstudianteProgramable[], solicitados?: string[]): string[] {
+  if (!estudiantes.length) throw new ConflictException('El trabajo no tiene estudiantes asignados.');
+  if (!solicitados) {
+    const pendientes = estudiantes.filter((estudiante) => !estudiante.programado).map(({ id }) => id);
+    if (!pendientes.length) {
+      throw new ConflictException('El trabajo ya tiene una programación registrada; edítela desde el cronograma.');
+    }
+    return pendientes;
+  }
+  const porId = new Map(estudiantes.map((estudiante) => [estudiante.id.toLowerCase(), estudiante]));
+  const elegidos = [...new Set(solicitados.map((id) => id.toLowerCase()))];
+  if (!elegidos.length) throw new BadRequestException('Seleccione al menos un estudiante para la sesión.');
+  if (elegidos.some((id) => !porId.has(id))) {
+    throw new BadRequestException('Un estudiante seleccionado no pertenece al trabajo.');
+  }
+  if (elegidos.some((id) => porId.get(id)!.programado)) {
+    throw new ConflictException('Un estudiante seleccionado ya tiene una programación registrada; edítela desde el cronograma.');
+  }
+  return elegidos.map((id) => porId.get(id)!.id);
 }
 
 export function validarDuracionEstimada(valor: unknown): number {

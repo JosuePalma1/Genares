@@ -113,7 +113,9 @@ export default function PaginaCronograma() {
   const [cargandoTrabajos, establecerCargandoTrabajos] = useState(false);
   const [idTrabajo, establecerIdTrabajo] = useState(trabajoIdUrl);
   const [idEdicion, establecerIdEdicion] = useState(null);
-  const [formulario, establecerFormulario] = useState({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60 });
+  const [formulario, establecerFormulario] = useState({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
+  // RN-28: estudiantes de la sesión nueva; por defecto, todos los que aún no tienen programación.
+  const [participantes, establecerParticipantes] = useState([]);
   const [guardando, establecerGuardando] = useState(false);
   const [actualizandoEstadoId, establecerActualizandoEstadoId] = useState(null);
   const [impresion, establecerImpresion] = useState(null);
@@ -129,6 +131,18 @@ export default function PaginaCronograma() {
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
   const puedeEditar = Boolean(capacidad?.puedeAdministrar);
+  const pendientesSeleccionado = trabajoSeleccionado?.estudiantesPendientes ?? [];
+  const idsPendientesSeleccionado = pendientesSeleccionado.map(({ id }) => id).join(',');
+
+  useEffect(() => {
+    establecerParticipantes(idsPendientesSeleccionado ? idsPendientesSeleccionado.split(',') : []);
+  }, [idTrabajo, idsPendientesSeleccionado]);
+
+  function alternarParticipante(id) {
+    establecerParticipantes((actuales) => (actuales.includes(id)
+      ? actuales.filter((actual) => actual !== id)
+      : pendientesSeleccionado.map((estudiante) => estudiante.id).filter((pendiente) => pendiente === id || actuales.includes(pendiente))));
+  }
 
   useEffect(() => {
     const tid = parametrosUrl.get('trabajoId');
@@ -216,7 +230,7 @@ export default function PaginaCronograma() {
   function abrirNuevaProgramacion() {
     establecerIdEdicion(null);
     establecerIdTrabajo('');
-    establecerFormulario({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60 });
+    establecerFormulario({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
     establecerMostrarFormulario(true);
   }
 
@@ -228,6 +242,7 @@ export default function PaginaCronograma() {
       horaProgramada: programacion.horaProgramada,
       sala: programacion.sala,
       duracionEstimadaMinutos: programacion.duracionEstimadaMinutos,
+      motivo: '',
     });
     establecerMostrarFormulario(true);
   }
@@ -247,12 +262,26 @@ export default function PaginaCronograma() {
       await Swal.fire({ icon: 'warning', title: 'Complete la programación', text: 'Seleccione el trabajo, ingrese fecha, hora y sala, y defina una duración estimada entera entre 1 y 240 minutos.' });
       return;
     }
+    if (idEdicion && !formulario.motivo.trim()) {
+      await Swal.fire({ icon: 'warning', title: 'Indique el motivo', text: 'Toda reprogramación registra su motivo en el historial del trabajo.' });
+      return;
+    }
+    if (!idEdicion && trabajoSeleccionado && participantes.length === 0) {
+      await Swal.fire({ icon: 'warning', title: 'Seleccione los participantes', text: 'La sesión debe incluir al menos un estudiante.' });
+      return;
+    }
+    const { motivo, ...datosSesion } = formulario;
     establecerGuardando(true);
     try {
       if (idEdicion) {
-        await actualizarProgramacionApi({ id: idEdicion, ...formulario, duracionEstimadaMinutos: Number(formulario.duracionEstimadaMinutos) });
+        await actualizarProgramacionApi({ id: idEdicion, ...datosSesion, motivo, duracionEstimadaMinutos: Number(formulario.duracionEstimadaMinutos) });
       } else {
-        await crearProgramacionApi({ idTrabajo, ...formulario, duracionEstimadaMinutos: Number(formulario.duracionEstimadaMinutos) });
+        await crearProgramacionApi({
+          idTrabajo,
+          ...datosSesion,
+          duracionEstimadaMinutos: Number(formulario.duracionEstimadaMinutos),
+          ...(trabajoSeleccionado ? { idEstudiantes: participantes } : {}),
+        });
       }
       cerrarFormulario();
       await cargarListado();
@@ -359,7 +388,7 @@ export default function PaginaCronograma() {
               <div>
                 <span className="section-kicker">Programación vigente</span>
                 <h2 id="cronograma-form-title">{idEdicion ? 'Editar sustentación' : 'Agregar una sustentación'}</h2>
-                <p>Una programación corresponde a un trabajo. Los estudiantes y el tribunal se consultan de sus registros existentes.</p>
+                <p>Una sesión puede reunir a toda la bina o a un solo estudiante. Los estudiantes y el tribunal se consultan de sus registros existentes.</p>
               </div>
               <button className="icon-button" type="button" aria-label="Cerrar formulario" onClick={cerrarFormulario}><X size={19} /></button>
             </header>
@@ -376,7 +405,7 @@ export default function PaginaCronograma() {
                       </option>
                     ))}
                   </select>
-                  {trabajosDisponibles.length === 0 && !cargandoTrabajos && <small>No hay trabajos elegibles sin programación. Se requieren dos evaluaciones escritas cerradas y un tribunal confirmado.</small>}
+                  {trabajosDisponibles.length === 0 && !cargandoTrabajos && <small>No hay trabajos elegibles con estudiantes sin programación. Se requieren dos evaluaciones escritas cerradas y un tribunal confirmado.</small>}
                 </div>
               ) : (
                 <div className="cronograma-selected-work">
@@ -391,6 +420,30 @@ export default function PaginaCronograma() {
                   <div><strong>Tribunal confirmado</strong><span>{personaLista(trabajoSeleccionado.tribunal)}</span></div>
                   <div><strong>Carrera y período</strong><span>{trabajoSeleccionado.carrera.nombre} · {trabajoSeleccionado.periodo.codigo}</span></div>
                 </div>
+              )}
+
+              {!idEdicion && trabajoSeleccionado && (
+                <fieldset className="field cronograma-participantes">
+                  <legend>Participantes de esta sesión</legend>
+                  {pendientesSeleccionado.map((estudiante) => (
+                    <label key={estudiante.id} className="cronograma-participante">
+                      <input
+                        type="checkbox"
+                        checked={participantes.includes(estudiante.id)}
+                        onChange={() => alternarParticipante(estudiante.id)}
+                        disabled={pendientesSeleccionado.length === 1}
+                      />
+                      <span>{nombre(estudiante)}</span>
+                    </label>
+                  ))}
+                  <small>
+                    {pendientesSeleccionado.length < trabajoSeleccionado.estudiantes.length
+                      ? 'El otro estudiante del trabajo ya tiene su propia programación.'
+                      : pendientesSeleccionado.length > 1
+                        ? 'Desmarque a un estudiante para que sustente en otra sesión; podrá programarlo después.'
+                        : 'Sesión individual.'}
+                  </small>
+                </fieldset>
               )}
 
               <div className="cronograma-form-fields">
@@ -412,6 +465,21 @@ export default function PaginaCronograma() {
                   <small>Predeterminada: 60 minutos. Puede definir entre 1 y 240.</small>
                 </div>
               </div>
+              {idEdicion && (
+                <div className="field">
+                  <label htmlFor="cronograma-motivo">Motivo de la reprogramación</label>
+                  <textarea
+                    id="cronograma-motivo"
+                    className="input"
+                    rows={2}
+                    maxLength={500}
+                    value={formulario.motivo}
+                    onChange={(evento) => establecerFormulario((actual) => ({ ...actual, motivo: evento.target.value }))}
+                    required
+                  />
+                  <small>Queda en el historial del trabajo junto con la fecha, hora y sala anteriores.</small>
+                </div>
+              )}
               <p className="cronograma-conflict-note">Los horarios de una misma sala no pueden solaparse. Se permiten horarios consecutivos; las salas distintas no se bloquean entre sí.</p>
               <div className="cronograma-form-actions">
                 <button className="button button-outline" type="button" onClick={cerrarFormulario} disabled={guardando}>Cancelar</button>

@@ -20,12 +20,36 @@ import {
   validarSalaProgramada,
   DURACION_ESTIMADA_PREDETERMINADA_MINUTOS,
   permiteTransicionEstadoProgramacion,
+  elegirParticipantesSesion,
+  EstudianteProgramable,
+  validarMotivoReprogramacion,
 } from './reglas-programacion-sustentacion';
 
 /**
  * Trabajos vigentes con proceso visible: mismos filtros de visibilidad que CONSULTA_TRABAJOS_MER.
  * $1 carrera · $2 periodo · $3 búsqueda normalizada (como la de Trabajos, más el código de carrera).
  */
+/**
+ * Estudiantes de una asignación según S2 (misma regla que s4.estudiante_pertenece_asignacion) que
+ * aún no figuran en ninguna programación del proceso, aunque esté cancelada u oculta: es el criterio
+ * que antes se aplicaba al trabajo completo, ahora por estudiante (RN-28).
+ */
+function estudiantesSinProgramacion(asignacion: string, proceso: string): string {
+  return `
+SELECT estudiante.id FROM (
+  SELECT ai.estudiante_id AS id FROM s2.asignacion_tema ai
+  WHERE ai.id = ${asignacion} AND ai.estudiante_id IS NOT NULL
+  UNION
+  SELECT gi.estudiante_id FROM s2.asignacion_tema ag
+  JOIN s2.grupo_integrante gi ON gi.grupo_id = ag.grupo_id AND gi.estado = 'ACTIVO'
+  WHERE ag.id = ${asignacion}
+) estudiante
+WHERE NOT EXISTS (
+  SELECT 1 FROM s4.programacion_estudiante pe_prev
+  JOIN s4.programaciones_sustentacion ps_prev ON ps_prev.id = pe_prev.programacion_sustentacion_id
+  WHERE ps_prev.id_proceso_evaluacion = ${proceso} AND pe_prev.id_estudiante = estudiante.id)`;
+}
+
 const FILTRO_TRABAJOS_PROGRAMACION = `
 FROM s2.asignacion_tema a
 JOIN gen.tema t ON t.id = a.tema_id
@@ -67,16 +91,29 @@ SELECT
     ) pagina), '[]'::jsonb) AS filas
 `;
 
-/** Candidatos a una nueva programación: sin programaciones (visibles u ocultas) y con dos miembros de tribunal. */
+/**
+ * Candidatos a una nueva programación: con algún estudiante aún sin programación (visible u oculta)
+ * y con dos miembros de tribunal. `pendientes` son esos estudiantes.
+ */
 export const CONSULTA_TRABAJOS_DISPONIBLES = `
-SELECT a.id
+SELECT a.id, ARRAY(${estudiantesSinProgramacion('a.id', 'p.id')} ORDER BY 1) AS pendientes
 ${FILTRO_TRABAJOS_PROGRAMACION}
-  AND NOT EXISTS (
-    SELECT 1 FROM s4.programaciones_sustentacion programacion
-    JOIN s4.procesos_evaluacion proceso
-      ON proceso.id = programacion.id_proceso_evaluacion AND proceso.estado_registro = 1
-    WHERE proceso.asignacion_tema_id = a.id)
+  AND EXISTS (${estudiantesSinProgramacion('a.id', 'p.id')})
   AND (SELECT count(*) FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id) = 2
+`;
+
+/** Estudiantes de la asignación con su marca de programación ($1 asignación · $2 proceso). */
+export const CONSULTA_ESTUDIANTES_PROGRAMABLES = `
+SELECT estudiante.id, estudiante.id NOT IN (${estudiantesSinProgramacion('$1::uuid', '$2::uuid')}) AS programado
+FROM (
+  SELECT ai.estudiante_id AS id FROM s2.asignacion_tema ai
+  WHERE ai.id = $1::uuid AND ai.estudiante_id IS NOT NULL
+  UNION
+  SELECT gi.estudiante_id FROM s2.asignacion_tema ag
+  JOIN s2.grupo_integrante gi ON gi.grupo_id = ag.grupo_id AND gi.estado = 'ACTIVO'
+  WHERE ag.id = $1::uuid
+) estudiante
+ORDER BY estudiante.id
 `;
 
 @Injectable()
@@ -170,19 +207,27 @@ export class ProgramacionesSustentacionService {
   }
 
   async trabajosDisponibles(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
-    // PostgreSQL descarta los trabajos ya programados (incluso con programación oculta) o sin tribunal completo;
-    // la regla de elegibilidad se vuelve a comprobar sobre el detalle.
+    // PostgreSQL descarta los trabajos con todos sus estudiantes programados (incluso en programaciones
+    // ocultas) o sin tribunal completo; la regla de elegibilidad se vuelve a comprobar sobre el detalle.
     const [candidatos, catalogos] = await Promise.all([
       this.dataSource.query(CONSULTA_TRABAJOS_DISPONIBLES, [
         filtros.carreraId ?? null, this.periodoExplicito(filtros.periodoId), normalizarBusqueda(filtros.buscar),
-      ]) as Promise<Array<{ id: string }>>,
+      ]) as Promise<Array<{ id: string; pendientes?: string[] }>>,
       this.listarCatalogos(),
     ]);
+    const pendientes = new Map(candidatos.map(({ id, pendientes: ids }) => [id, ids ?? []]));
     const trabajos = candidatos.length ? await this.trabajos.consultar(null, candidatos.map(({ id }) => id)) : [];
     return {
-      elementos: trabajos.filter((t) => t.procesoId && t.sesiones.length === 0
-        && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
-        .map((trabajo) => this.contexto(trabajo)),
+      elementos: trabajos.filter((t) => t.procesoId && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
+        .map((trabajo) => {
+          const sinProgramacion = pendientes.get(trabajo.id) ?? [];
+          return {
+            ...this.contexto(trabajo),
+            // Estudiantes que aún pueden incluirse en una sesión nueva (RN-28).
+            estudiantesPendientes: trabajo.estudiantes.filter((estudiante) => sinProgramacion.includes(estudiante.id)),
+          };
+        })
+        .filter((trabajo) => trabajo.estudiantesPendientes.length > 0),
       filtros: catalogos,
     };
   }
@@ -219,12 +264,12 @@ export class ProgramacionesSustentacionService {
               JOIN s3.asignacion_tribunal a ON a.asignacion_tribunal_id = e.id_asignacion_tribunal
               JOIN s4.procesos_evaluacion p ON p.id = e.id_proceso_evaluacion
               WHERE p.id = $1 AND a.asignacion_tema_id = $2 AND e.id_version_rubrica = p.id_version_rubrica
-                AND e.estado_registro = 1 AND e.etapa = 'ESCRITA' AND e.estado = 'CERRADA') AS cerradas,
-            EXISTS (SELECT 1 FROM s4.programaciones_sustentacion WHERE id_proceso_evaluacion = $1) AS programada
+                AND e.estado_registro = 1 AND e.etapa = 'ESCRITA' AND e.estado = 'CERRADA') AS cerradas
         `, [proceso.id, dto.idTrabajo]);
-        if (trabajo.programada) {
-          throw new ConflictException('El trabajo ya tiene una programación registrada; edítela desde el cronograma.');
-        }
+        // RN-28: cada estudiante figura en una sola programación (incluso cancelada u oculta, como antes
+        // por trabajo); una bina puede sustentar junta o en sesiones separadas.
+        const estudiantes = await manager.query(CONSULTA_ESTUDIANTES_PROGRAMABLES, [dto.idTrabajo, proceso.id]) as EstudianteProgramable[];
+        const participantes = elegirParticipantesSesion(estudiantes, dto.idEstudiantes);
         if (trabajo.tribunal !== 2 || trabajo.cerradas !== 2) {
           throw new ConflictException('La sustentación requiere dos evaluaciones escritas cerradas del tribunal asignado.');
         }
@@ -235,17 +280,14 @@ export class ProgramacionesSustentacionService {
             id_proceso_evaluacion, fecha_programada, hora_programada, hora_fin_programada, sala,
             duracion_estimada_minutos, scheduled_by_id_cuenta, scheduled_by_actor_id, estado, tipo
           ) VALUES ($1, $2::date, $3::time, $3::time + make_interval(mins => $5::int), $4, $5, $6, $7,
-            'PROGRAMADA', CASE WHEN (SELECT grupo_id FROM s2.asignacion_tema WHERE id = $8) IS NULL
-              THEN 'INDIVIDUAL' ELSE 'CONJUNTA' END)
+            'PROGRAMADA', $8)
           RETURNING "id"
-        `, [proceso.id, fecha, hora, sala, duracionEstimadaMinutos, cuenta?.id ?? null, accesoLocal ? actorId : null, dto.idTrabajo]) as Array<{ id: string }>;
-        const participantes = await manager.query(`
+        `, [proceso.id, fecha, hora, sala, duracionEstimadaMinutos, cuenta?.id ?? null, accesoLocal ? actorId : null,
+          participantes.length > 1 ? 'CONJUNTA' : 'INDIVIDUAL']) as Array<{ id: string }>;
+        await manager.query(`
           INSERT INTO s4.programacion_estudiante (programacion_sustentacion_id, id_estudiante)
-          SELECT $1, e.id FROM gen.estudiante e
-          WHERE s4.estudiante_pertenece_asignacion($2, e.id)
-          RETURNING id_estudiante
-        `, [creada.id, dto.idTrabajo]);
-        if (!participantes.length) throw new ConflictException('El trabajo no tiene estudiantes asignados.');
+          SELECT $1, unnest($2::uuid[])
+        `, [creada.id, participantes]);
         return creada.id;
       });
       return this.obtener(id);
@@ -259,6 +301,7 @@ export class ProgramacionesSustentacionService {
     const fecha = validarFechaProgramada(dto.fechaProgramada);
     const hora = validarHoraProgramada(dto.horaProgramada);
     const sala = validarSalaProgramada(dto.sala);
+    const motivo = validarMotivoReprogramacion(dto.motivo);
 
     try {
       await this.dataSource.transaction('READ COMMITTED', async (manager) => {
@@ -283,8 +326,11 @@ export class ProgramacionesSustentacionService {
             LEFT JOIN s4.etapas_rubrica etapa ON etapa."id" = evaluacion."id_etapa_rubrica"
             WHERE evaluacion.id_proceso_evaluacion = $1
               AND (evaluacion."etapa" = 'ORAL' OR etapa."kind" = 'ORAL')
+              AND evaluacion.id_estudiante IN (
+                SELECT pe.id_estudiante FROM s4.programacion_estudiante pe
+                WHERE pe.programacion_sustentacion_id = $2 AND pe.estado_registro = 1)
           ) AS "iniciada"
-        `, [actual.idTrabajo]) as Array<{ iniciada: boolean }>;
+        `, [actual.idTrabajo, actual.id]) as Array<{ iniciada: boolean }>;
         if (oral?.iniciada) {
           throw new ConflictException('No se puede cambiar la programación después de iniciar una evaluación oral.');
         }
@@ -293,7 +339,10 @@ export class ProgramacionesSustentacionService {
           ? actual.duracionEstimadaMinutos
           : validarDuracionEstimada(dto.duracionEstimadaMinutos);
         await this.exigirSalaDisponible(manager, fecha, hora, sala, duracionEstimadaMinutos, actual.id);
-        await manager.query("SELECT set_config('genares.actor_id', $1, true)", [actorId]);
+        await manager.query(
+          "SELECT set_config('genares.actor_id', $1, true), set_config('s4.motivo_cambio', $2, true)",
+          [actorId, motivo],
+        );
         await manager.query(`
           UPDATE s4.programaciones_sustentacion
           SET "fecha_programada" = $2::date,
