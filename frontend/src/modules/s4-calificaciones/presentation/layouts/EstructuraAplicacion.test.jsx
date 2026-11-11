@@ -43,9 +43,14 @@ describe('barra lateral de Genares', () => {
 
   it('marca como pendientes las vistas sin pantalla y no las convierte en enlaces', () => {
     const html = renderizar();
-    expect(html).toMatch(/<span class="nav-pendiente nav-subitem" aria-disabled="true"[^>]*>.*Finalización del trabajo.*Pendiente/);
     expect(html).toMatch(/aria-disabled="true"[^>]*>.*Solicitudes de corrección.*Pendiente/);
-    expect(html).not.toContain('href="/cierre');
+    expect(html.match(/aria-disabled="true"/g)).toHaveLength(1);
+  });
+
+  it('enlaza la finalización del trabajo (SE-03) dentro de Seguimiento', () => {
+    const html = renderizar({}, '/seguimiento/finalizacion');
+    expect(html).toMatch(/class="nav-subitem active"[^>]*href="\/seguimiento\/finalizacion"/);
+    expect(html).toMatch(/class="nav-parent contiene-activa">(?:(?!<\/p>).)*<span>Seguimiento<\/span>/);
   });
 
   it('oculta Auditoría hasta que el servidor confirma la autorización', () => {

@@ -16,6 +16,7 @@ DECLARE
   v_bloqueado boolean;
   v_conteo bigint;
   v_total text;
+  v_proceso uuid;
 BEGIN
   IF current_database() <> 'genares_integrado_dev' THEN
     RAISE EXCEPTION 'Base incorrecta: se requiere genares_integrado_dev';
@@ -196,6 +197,26 @@ BEGIN
   UPDATE s4.versiones_rubrica SET estado_registro = 0 WHERE id = v_version;
   IF (SELECT count(*) FROM s4.procesos_evaluacion WHERE id_version_rubrica = v_version) <> v_conteo THEN
     RAISE EXCEPTION 'Retirar una versión usada alteró sus procesos existentes';
+  END IF;
+
+  -- SE-03: un trabajo finalizado no vuelve a otro estado; ocultarlo sigue permitido.
+  SELECT id INTO v_proceso FROM s4.procesos_evaluacion
+  WHERE estado_registro = 1 AND estado IS DISTINCT FROM 'FINALIZADO' LIMIT 1;
+  IF v_proceso IS NULL THEN
+    RAISE NOTICE 'Sin procesos sin finalizar: se omite la prueba de trabajo finalizado.';
+  ELSE
+    UPDATE s4.procesos_evaluacion SET estado = 'FINALIZADO' WHERE id = v_proceso;
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.procesos_evaluacion SET estado = 'REGISTRADO' WHERE id = v_proceso;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Un trabajo finalizado volvió a otro estado';
+    END IF;
+    UPDATE s4.procesos_evaluacion SET estado_registro = 0 WHERE id = v_proceso;
+    UPDATE s4.procesos_evaluacion SET estado_registro = 1 WHERE id = v_proceso;
   END IF;
 
   RAISE NOTICE 'VERIFICACIÓN S4: todas las comprobaciones terminaron; el ROLLBACK final revertirá los cambios de prueba.';

@@ -158,7 +158,9 @@ export async function instalarIdentidadDesarrolloLocal(
     ? ['trabajos:leer', 'integracion:guardar-borrador', 'integracion:cerrar-evaluacion',
       'programaciones:leer', 'programaciones:administrar', 'rubricas:leer', 'rubricas:administrar',
       'modalidades:leer', 'carreras:leer', 'evaluaciones:leer', 'evaluaciones:leer-demostracion',
-      'documentos:emitir', 'configuracion-academica:administrar']
+      'documentos:emitir', 'configuracion-academica:administrar',
+      // SE-03: cierre administrativo del trabajo (Paso 2, Anexo A.2 «Cierre autorizado»).
+      'trabajos:finalizar']
     : CAPACIDADES_DESARROLLO_LOCAL;
   aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(capacidades));
   aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));

@@ -26,6 +26,8 @@ GRANT INSERT ON s4.actas_archivadas, s4.historial_nota_minima TO genares;
 GRANT SELECT (id) ON s4.historial_nota_minima TO genares;
 GRANT SELECT, INSERT, UPDATE ON s4.consecutivos_acta TO genares;
 GRANT UPDATE (valor, actualizado_en, actualizado_por) ON s4.configuracion_nota_minima TO genares;
+-- SE-03: la finalización administrativa cambia el estado del proceso a FINALIZADO.
+GRANT UPDATE (estado) ON s4.procesos_evaluacion TO genares;
 
 -- Valor provisional vigente en Genares, con historial solo si se inicializa.
 WITH inicial AS (

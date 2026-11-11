@@ -1,0 +1,43 @@
+/* SE-03 · Lista de condiciones de finalización. Reutiliza las secciones de seguimientoApi.css. */
+.finalizacion-trabajo .seguimiento-api-section-heading { align-items: flex-start; gap: var(--space-3); }
+.finalizacion-trabajo h2 { overflow-wrap: anywhere; }
+
+.finalizacion-estudiantes {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.finalizacion-estudiantes > li {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+}
+
+.finalizacion-estudiantes > li > strong { display: flex; align-items: center; gap: var(--space-2); }
+.finalizacion-estudiantes > li.cumplida > strong svg { color: var(--color-state-success-text, #1d6b3a); }
+.finalizacion-estudiantes > li.pendiente > strong svg { color: var(--color-state-warning-text, #8a5a00); }
+
+.finalizacion-pendientes {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.finalizacion-pendientes li { display: flex; align-items: flex-start; gap: var(--space-2); overflow-wrap: anywhere; }
+.finalizacion-pendientes svg { flex: none; margin-top: .15rem; color: var(--color-state-warning-text, #8a5a00); }
+
+.finalizacion-acciones { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); }
+/* Los estilos compartidos no distinguen un botón deshabilitado; aquí debe notarse. */
+.finalizacion-acciones .button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+@media (max-width: 480px) {
+  .finalizacion-acciones .button { width: 100%; justify-content: center; }
+}

@@ -45,7 +45,7 @@ export const NAVEGACION = [
         hijos: [
           { to: '/coordinacion', etiqueta: 'Coordinación', icon: University },
           { to: '/secretaria', etiqueta: 'Secretaría', icon: ShieldCheck },
-          { clave: 'cierre-administrativo', etiqueta: 'Finalización del trabajo', icon: Lock, pendiente: true },
+          { to: '/seguimiento/finalizacion', etiqueta: 'Finalización del trabajo', icon: Lock },
         ],
       },
       { to: '/consulta', etiqueta: 'Resultados', icon: Award, activaEn: ['/resultados'] },

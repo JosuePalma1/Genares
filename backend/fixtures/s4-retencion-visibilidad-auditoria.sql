@@ -457,6 +457,25 @@ BEGIN
 END;
 $$;
 
+-- SE-03: un trabajo finalizado no vuelve a otro estado ni cambia su rúbrica por
+-- operaciones ordinarias. Solo puede cambiar su visibilidad (estado_registro).
+CREATE OR REPLACE FUNCTION s4.proteger_trabajo_finalizado()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, s4
+AS $$
+BEGIN
+  IF OLD.estado = 'FINALIZADO'
+     AND (to_jsonb(NEW) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en'])
+         IS DISTINCT FROM
+         (to_jsonb(OLD) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en']) THEN
+    RAISE EXCEPTION 'Un trabajo finalizado no se modifica por operaciones ordinarias.'
+      USING ERRCODE = '55000';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 -- Reemplaza únicamente el validador de asignación para que no se asigne una versión oculta.
 CREATE OR REPLACE FUNCTION s4.validar_rubrica_proceso()
 RETURNS trigger
@@ -576,6 +595,9 @@ BEGIN
   DROP TRIGGER IF EXISTS s4_10_acta_archivada ON s4.actas_archivadas;
   CREATE TRIGGER s4_10_acta_archivada BEFORE UPDATE ON s4.actas_archivadas
     FOR EACH ROW EXECUTE FUNCTION s4.proteger_acta_archivada();
+  DROP TRIGGER IF EXISTS s4_10_trabajo_finalizado ON s4.procesos_evaluacion;
+  CREATE TRIGGER s4_10_trabajo_finalizado BEFORE UPDATE ON s4.procesos_evaluacion
+    FOR EACH ROW EXECUTE FUNCTION s4.proteger_trabajo_finalizado();
   DROP TRIGGER IF EXISTS s4_10_rubrica_usada ON s4.rubricas;
   CREATE TRIGGER s4_10_rubrica_usada BEFORE UPDATE ON s4.rubricas
     FOR EACH ROW EXECUTE FUNCTION s4.proteger_rubrica_usada();
