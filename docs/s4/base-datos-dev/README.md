@@ -12,6 +12,7 @@ Scripts para crear desde cero la base local `genares_integrado_dev` con el MER u
 | `001_catalogos_y_personas_dev.sql` | Carreras, modalidad, período, roles, personas, usuarios, docentes y estudiantes. | Sí. |
 | `002_integracion_s2_s3_s4_dev.sql` | Tema, bina e individual de S2; tribunal de S3; rúbrica `DEV-1` y procesos de S4. | Solo antes de instalar la retención de S4 (ver abajo). |
 | `003_escenarios_evaluaciones_cronograma_dev.sql` | Evaluaciones escritas cerradas y dos sustentaciones en aulas distintas. | Solo antes de instalar la retención de S4 (ver abajo). |
+| `004_rol_aplicacion_genares_dev.sql` | Rol de aplicación `genares` (sin contraseña) y su acceso básico: esquemas, lecturas y columnas de evaluaciones. | Sí. No modifica un rol existente. |
 
 ## Orden de instalación
 
@@ -24,9 +25,13 @@ Ejecuta todo como `postgres`, conectado a una base **nueva** llamada `genares_in
 2. `001_catalogos_y_personas_dev.sql`
 3. `002_integracion_s2_s3_s4_dev.sql`
 4. `003_escenarios_evaluaciones_cronograma_dev.sql`
-5. Los scripts de S4 de `backend/fixtures`, en el orden del [README principal](../../../README.md#scripts-sql-de-backendfixtures): permisos, retención/auditoría y verificación.
+5. `004_rol_aplicacion_genares_dev.sql`. Después define la contraseña del rol, la misma de `DB_PASSWORD` en `backend/.env`:
+   ```sql
+   ALTER ROLE genares WITH PASSWORD 'tu-contraseña-local';
+   ```
+6. Los scripts de S4 de `backend/fixtures`, en el orden del [README principal](../../../README.md#scripts-sql-de-backendfixtures): permisos, retención/auditoría y verificación.
 
-El rol de aplicación `genares` no se crea en estos scripts, ni tampoco su acceso básico a los esquemas (`USAGE` y lectura de las tablas que consulta S4). Los scripts de permisos de `backend/fixtures` solo agregan permisos puntuales sobre un rol que ya tiene ese acceso. Antes del paso 5, crea el rol con su acceso básico y anota la contraseña en `backend/.env` ([instalación local](../instalacion/local.md)).
+Los permisos se reparten así: `004` da el acceso básico y `backend/fixtures` agrega las escrituras de rúbricas, cronograma y actas, y la retención. Juntos reproducen exactamente los permisos con los que funciona la base local.
 
 ## Detalles a tener en cuenta
 
