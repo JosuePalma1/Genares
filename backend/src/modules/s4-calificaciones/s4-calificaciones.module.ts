@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CarrerasModule } from './carreras/carreras.module';
+import { CorreccionesModule } from './correcciones/correcciones.module';
 import { DocumentosModule } from './documentos/documentos.module';
 import { EvaluacionesModule } from './evaluaciones/evaluaciones.module';
 import { FinalizacionModule } from './finalizacion/finalizacion.module';
@@ -13,6 +14,7 @@ import { TrabajosModule } from './trabajos/trabajos.module';
   imports: [
     AuditoriaModule,
     CarrerasModule,
+    CorreccionesModule,
     DocumentosModule,
     EvaluacionesModule,
     FinalizacionModule,

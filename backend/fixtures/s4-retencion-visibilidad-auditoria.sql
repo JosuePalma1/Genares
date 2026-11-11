@@ -185,6 +185,29 @@ BEGIN
 END;
 $$;
 
+-- RF-36: una corrección extraordinaria solo modifica una evaluación cerrada si la
+-- transacción apunta (s4.correccion_solicitud) a una solicitud APROBADA de esa evaluación.
+-- La tabla la crea s4-correccion-calificaciones.sql; sin ella, nunca se autoriza.
+CREATE OR REPLACE FUNCTION s4.correccion_autorizada(p_evaluacion uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+STABLE
+SET search_path = pg_catalog, s4
+AS $$
+DECLARE
+  v_solicitud text := NULLIF(current_setting('s4.correccion_solicitud', true), '');
+BEGIN
+  IF v_solicitud IS NULL OR to_regclass('s4.solicitudes_correccion_evaluacion') IS NULL THEN
+    RETURN false;
+  END IF;
+  RETURN EXISTS (
+    SELECT 1 FROM s4.solicitudes_correccion_evaluacion s
+    WHERE s.id::text = v_solicitud AND s.id_evaluacion = p_evaluacion
+      AND s.estado = 'APROBADA' AND s.estado_registro = 1
+  );
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION s4.proteger_evaluacion_cerrada()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -202,6 +225,15 @@ BEGIN
      AND (to_jsonb(NEW) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en'])
          IS DISTINCT FROM
          (to_jsonb(OLD) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en']) THEN
+    -- Corrección aprobada (RF-36): solo cambian el total recalculado y la revisión.
+    IF s4.correccion_autorizada(OLD.id)
+       AND (to_jsonb(NEW) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en',
+             'calificacion_total', 'revision'])
+           IS NOT DISTINCT FROM
+           (to_jsonb(OLD) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en',
+             'calificacion_total', 'revision']) THEN
+      RETURN NEW;
+    END IF;
     RAISE EXCEPTION 'Una evaluación cerrada no se modifica por operaciones ordinarias.'
       USING ERRCODE = '55000';
   END IF;
@@ -233,6 +265,16 @@ BEGIN
   ) AND (to_jsonb(NEW) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en'])
         IS DISTINCT FROM
         (to_jsonb(OLD) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en']) THEN
+    -- Corrección aprobada (RF-36): solo la nota y la observación, sin mover el puntaje.
+    IF NEW.id_evaluacion = OLD.id_evaluacion
+       AND s4.correccion_autorizada(OLD.id_evaluacion)
+       AND (to_jsonb(NEW) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en',
+             'score', 'observation'])
+           IS NOT DISTINCT FROM
+           (to_jsonb(OLD) - ARRAY['estado_registro', 'creado_por', 'actualizado_por', 'actualizado_en',
+             'score', 'observation']) THEN
+      RETURN NEW;
+    END IF;
     RAISE EXCEPTION 'La calificación de una evaluación cerrada es inmutable.'
       USING ERRCODE = '55000';
   END IF;

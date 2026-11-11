@@ -89,4 +89,26 @@ describe('acceso local abierto sin cuentas', () => {
     expect(continuarValido).toHaveBeenCalledTimes(1);
   });
 
+  it('acepta formularios con archivo solo en la solicitud de corrección (RF-36), con las mismas garantías', () => {
+    const middleware = crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno));
+    const cabeceras = { origin: 'http://127.0.0.1:5173', 'sec-fetch-site': 'same-origin',
+      'content-type': 'multipart/form-data; boundary=x', 'x-genares-write-intent': 'local-development' };
+    const probar = (solicitud: Record<string, unknown>) => {
+      const respuesta = { statusCode: 0, setHeader: jest.fn(), end: jest.fn() };
+      const continuar = jest.fn();
+      middleware({ method: 'POST', ...solicitud } as never, respuesta, continuar);
+      return continuar.mock.calls.length === 1 ? 'aceptada' : respuesta.statusCode;
+    };
+    expect(probar({ originalUrl: '/api/v1/correcciones-evaluacion', headers: cabeceras })).toBe('aceptada');
+    expect(probar({ url: '/api/v1/correcciones-evaluacion?x=1', headers: cabeceras })).toBe('aceptada');
+    // Otras rutas siguen exigiendo JSON.
+    expect(probar({ originalUrl: '/api/v1/finalizacion-trabajos/abc', headers: cabeceras })).toBe(403);
+    expect(probar({ originalUrl: '/api/v1/correcciones-evaluacion/abc/aprobacion', headers: cabeceras })).toBe(403);
+    // La ruta permitida no relaja origen, Fetch Metadata ni la cabecera de intención.
+    expect(probar({ originalUrl: '/api/v1/correcciones-evaluacion', headers: { ...cabeceras, origin: 'http://evil.example' } })).toBe(403);
+    expect(probar({ originalUrl: '/api/v1/correcciones-evaluacion', headers: { ...cabeceras, 'sec-fetch-site': 'cross-site' } })).toBe(403);
+    expect(probar({ originalUrl: '/api/v1/correcciones-evaluacion', headers: { ...cabeceras, 'x-genares-write-intent': undefined } })).toBe(403);
+    expect(probar({ method: 'PUT', originalUrl: '/api/v1/correcciones-evaluacion', headers: cabeceras })).toBe(403);
+  });
+
 });

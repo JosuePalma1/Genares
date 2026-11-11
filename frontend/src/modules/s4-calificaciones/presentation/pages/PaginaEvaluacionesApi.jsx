@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
+import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FilePen, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
 import { listarTrabajosEvaluacionApi } from '../services/evaluacionesApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
+import { usarCapacidadesCorrecciones } from '../hooks/usarCapacidadesCorrecciones';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import './evaluacionesApi.css';
@@ -138,6 +139,7 @@ function FilaIndicadores({ evaluacion }) {
 }
 
 function EvaluacionCard({ evaluacion, compartida }) {
+  const { puedeSolicitar } = usarCapacidadesCorrecciones();
   return (
     <article className="evaluaciones-api-evaluation">
       <div className="evaluaciones-api-evaluation-heading">
@@ -161,6 +163,14 @@ function EvaluacionCard({ evaluacion, compartida }) {
         </div>
       )}
       <FilaIndicadores evaluacion={evaluacion} />
+      {/* RF-36: una evaluación cerrada solo se corrige por el procedimiento extraordinario. */}
+      {evaluacion.estado === 'CERRADA' && puedeSolicitar && (
+        <div className="form-actions">
+          <Link className="button button-outline" to={`/auditoria/correcciones/nueva?evaluacion=${encodeURIComponent(evaluacion.id)}`}>
+            <FilePen size={16} aria-hidden="true" /> Solicitar corrección
+          </Link>
+        </div>
+      )}
     </article>
   );
 }

@@ -81,6 +81,8 @@ const ETIQUETAS_EVENTO = Object.freeze({
   SUSTENTACION_FINALIZADA: 'Sustentación finalizada',
   SUSTENTACION_ESTADO_CAMBIADO: 'Estado de sustentación actualizado',
   ACTA_ARCHIVADA: 'Acta archivada',
+  TRABAJO_FINALIZADO: 'Trabajo finalizado',
+  CORRECCION_EVALUACION_APLICADA: 'Corrección extraordinaria aplicada',
   RUBRICA_AUDITADA: 'Auditoría de rúbrica relacionada',
 });
 

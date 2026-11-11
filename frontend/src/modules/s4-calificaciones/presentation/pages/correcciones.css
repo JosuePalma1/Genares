@@ -1,0 +1,20 @@
+/* RF-36 · Solicitudes de corrección. Reutiliza las secciones de seguimientoApi.css. */
+.correccion-datos { display: grid; gap: var(--space-2); margin: var(--space-3) 0; }
+.correccion-datos > div { display: grid; grid-template-columns: minmax(8rem, 12rem) 1fr; gap: var(--space-3); }
+.correccion-datos dt { font-weight: 700; }
+.correccion-datos dd { margin: 0; overflow-wrap: anywhere; }
+
+.correcciones-cambios tr.cambia td { background: var(--color-state-warning-surface, #fff7e6); }
+.correcciones-cambios input.input { min-width: 6rem; }
+
+.correccion-formulario { display: grid; gap: var(--space-4); }
+
+.correccion-acciones, .correccion-solicitud .finalizacion-acciones {
+  display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-3);
+}
+.correccion-acciones .button:disabled, .correccion-solicitud .button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 480px) {
+  .correccion-datos > div { grid-template-columns: 1fr; gap: var(--space-1); }
+  .correccion-acciones .button, .correccion-solicitud .finalizacion-acciones .button { width: 100%; justify-content: center; }
+}

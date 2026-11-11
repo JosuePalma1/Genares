@@ -96,12 +96,13 @@ Son operaciones manuales para la base local: no son migraciones y no se ejecutan
 | 1 | `permisos-consulta-mer.sql` | `postgres` | Concede a `genares` lectura sobre las tablas de `gen`, `s2` y `s4` que consulta S4. |
 | 2 | `permisos-operacion-s4.sql` | `postgres` | Concede las escrituras que necesitan rúbricas, sustentaciones, actas y trazabilidad. |
 | 3 | `s4-retencion-visibilidad-auditoria.sql` | `postgres` | Instala `estado_registro`, la bitácora `s4.eventos_cambio_registro` y los disparadores de protección (ver abajo). Es idempotente: puedes repetirlo. |
-| 4 | `verificar-retencion-visibilidad-auditoria.sql` | `postgres` | Comprueba las protecciones del paso 3 dentro de una transacción que termina en `ROLLBACK`; no deja cambios. |
+| 4 | `s4-correccion-calificaciones.sql` | `postgres` | Crea `s4.solicitudes_correccion_evaluacion` (corrección extraordinaria, RF-36) con su máquina de estados y permisos. Requiere el paso 3. Es idempotente. |
+| 5 | `verificar-retencion-visibilidad-auditoria.sql` | `postgres` | Comprueba las protecciones de los pasos 3 y 4 dentro de una transacción que termina en `ROLLBACK`; no deja cambios. |
 | — | `etapa-5-rubrica-mer.sql` | `genares` o `postgres` | Opcional. Agrega la versión de rúbrica de prueba `DEV-ETAPA-5` a partir de `DEV-1`, sin sustituirla. |
 
 El paso 3 revoca `DELETE`/`TRUNCATE` sobre `s4` al rol `genares`, pero `permisos-operacion-s4.sql` concede `DELETE` sobre las tablas de estructura de rúbrica. Si vuelves a ejecutar el paso 2, ejecuta también el paso 3 después. Los disparadores siguen bloqueando el borrado de todos modos, pero así el permiso se mantiene igual.
 
-La verificación (paso 4) termina con el aviso `VERIFICACIÓN S4: todas las comprobaciones terminaron…`. Si falta un dato que necesita, se detiene con un mensaje explícito (por ejemplo, *No hay una evaluación cerrada de prueba*); en ese caso crea o cierra una evaluación en la base local y vuelve a ejecutarla.
+La verificación (paso 5) termina con dos avisos `VERIFICACIÓN S4` (comprobaciones generales y actores consecutivos). Si falta un dato que necesita, se detiene con un mensaje explícito (por ejemplo, *No hay una evaluación cerrada de prueba*); en ese caso crea o cierra una evaluación en la base local y vuelve a ejecutarla.
 
 ## Retención, visibilidad y auditoría
 

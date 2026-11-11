@@ -17,6 +17,7 @@ DECLARE
   v_conteo bigint;
   v_total text;
   v_proceso uuid;
+  v_solicitud uuid;
 BEGIN
   IF current_database() <> 'genares_integrado_dev' THEN
     RAISE EXCEPTION 'Base incorrecta: se requiere genares_integrado_dev';
@@ -197,6 +198,100 @@ BEGIN
   UPDATE s4.versiones_rubrica SET estado_registro = 0 WHERE id = v_version;
   IF (SELECT count(*) FROM s4.procesos_evaluacion WHERE id_version_rubrica = v_version) <> v_conteo THEN
     RAISE EXCEPTION 'Retirar una versión usada alteró sus procesos existentes';
+  END IF;
+
+  -- RF-36: una evaluación cerrada solo se corrige con una solicitud APROBADA de esa evaluación,
+  -- y solo en la nota, la observación, el total y la revisión.
+  IF to_regclass('s4.solicitudes_correccion_evaluacion') IS NULL THEN
+    RAISE NOTICE 'Sin s4-correccion-calificaciones.sql: se omite la prueba de corrección extraordinaria.';
+  ELSE
+    SELECT id INTO v_calificacion FROM s4.calificaciones_evaluacion
+    WHERE id_evaluacion = v_evaluacion AND estado_registro = 1 LIMIT 1;
+    IF v_calificacion IS NULL THEN
+      RAISE EXCEPTION 'La evaluación cerrada de prueba no tiene puntajes para verificar RF-36';
+    END IF;
+    INSERT INTO s4.solicitudes_correccion_evaluacion
+      (id_evaluacion, id_proceso_evaluacion, motivo, revision_base, puntajes_anteriores, puntajes_propuestos,
+       total_anterior, total_propuesto, justificativo_ruta, justificativo_sha256, justificativo_nombre,
+       justificativo_bytes, solicitado_por)
+    SELECT e.id, e.id_proceso_evaluacion, 'Prueba de verificación RF-36', COALESCE(e.revision, 0), '[]', '[]',
+      COALESCE(e.calificacion_total, 0), COALESCE(e.calificacion_total, 0),
+      'auditoria/justificativos/00000000-0000-4000-8000-000000000000.pdf', repeat('a', 64), 'prueba.pdf', 1,
+      'PRUEBA-SOLICITANTE'
+    FROM s4.evaluaciones e WHERE e.id = v_evaluacion
+    RETURNING id INTO v_solicitud;
+    PERFORM set_config('s4.correccion_solicitud', v_solicitud::text, true);
+
+    -- Pendiente: todavía no autoriza ningún cambio.
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.calificaciones_evaluacion SET observation = 'PRUEBA-PENDIENTE' WHERE id = v_calificacion;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Una solicitud pendiente permitió corregir una evaluación cerrada';
+    END IF;
+
+    UPDATE s4.solicitudes_correccion_evaluacion
+      SET estado = 'APROBADA', resuelto_por = 'PRUEBA-AUTORIZADOR', resuelto_en = clock_timestamp()
+      WHERE id = v_solicitud;
+    -- Aprobada: se permiten la observación y el total, no reabrir la evaluación.
+    UPDATE s4.calificaciones_evaluacion SET observation = 'PRUEBA-CORREGIDA' WHERE id = v_calificacion;
+    UPDATE s4.evaluaciones SET revision = COALESCE(revision, 0) + 1,
+      calificacion_total = calificacion_total WHERE id = v_evaluacion;
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.evaluaciones SET estado = 'BORRADOR' WHERE id = v_evaluacion;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Una corrección aprobada reabrió la evaluación cerrada';
+    END IF;
+
+    -- Sin la solicitud en la transacción, la evaluación vuelve a ser inmutable.
+    PERFORM set_config('s4.correccion_solicitud', '', true);
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.calificaciones_evaluacion SET observation = 'PRUEBA-SIN-SOLICITUD' WHERE id = v_calificacion;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Se corrigió una evaluación cerrada sin solicitud aprobada';
+    END IF;
+
+    UPDATE s4.solicitudes_correccion_evaluacion SET estado = 'APLICADA', aplicada_en = clock_timestamp()
+      WHERE id = v_solicitud;
+    -- La solicitud resuelta conserva su contenido, no retrocede y no se borra.
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.solicitudes_correccion_evaluacion SET motivo = 'Motivo alterado en prueba' WHERE id = v_solicitud;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Se alteró el contenido de una solicitud de corrección';
+    END IF;
+    v_bloqueado := false;
+    BEGIN
+      UPDATE s4.solicitudes_correccion_evaluacion SET estado = 'PENDIENTE' WHERE id = v_solicitud;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Una solicitud aplicada volvió a pendiente';
+    END IF;
+    v_bloqueado := false;
+    BEGIN
+      DELETE FROM s4.solicitudes_correccion_evaluacion WHERE id = v_solicitud;
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+      v_bloqueado := true;
+    END;
+    IF NOT v_bloqueado THEN
+      RAISE EXCEPTION 'Se borró una solicitud de corrección';
+    END IF;
   END IF;
 
   -- SE-03: un trabajo finalizado no vuelve a otro estado; ocultarlo sigue permitido.

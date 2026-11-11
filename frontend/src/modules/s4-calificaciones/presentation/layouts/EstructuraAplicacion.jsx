@@ -57,10 +57,12 @@ export const NAVEGACION = [
     elementos: [
       {
         clave: 'auditoria', etiqueta: 'Auditoría', icon: History,
-        permiso: 'auditoria', exigencia: EXIGENCIA.AUTORIZACION,
+        // Cada subopción exige su propia autorización confirmada por el servidor.
         hijos: [
-          { to: '/auditoria', etiqueta: 'Historial de cambios', icon: FileClock },
-          { clave: 'solicitudes-correccion', etiqueta: 'Solicitudes de corrección', icon: FilePen, pendiente: true },
+          { to: '/auditoria', etiqueta: 'Historial de cambios', icon: FileClock, end: true,
+            permiso: 'auditoria', exigencia: EXIGENCIA.AUTORIZACION },
+          { to: '/auditoria/correcciones', etiqueta: 'Solicitudes de corrección', icon: FilePen,
+            permiso: 'correcciones', exigencia: EXIGENCIA.AUTORIZACION },
         ],
       },
     ],

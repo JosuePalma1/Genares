@@ -7,7 +7,7 @@ import { ESTADO_PERMISO } from '../../domain/navegacion';
 import { NAVEGACION, Navegacion } from './EstructuraAplicacion';
 
 const { PERMITIDO, DENEGADO, CONSULTANDO } = ESTADO_PERMISO;
-const TODOS = { rubricas: PERMITIDO, modalidades: PERMITIDO, carreras: PERMITIDO, programaciones: PERMITIDO, auditoria: PERMITIDO };
+const TODOS = { rubricas: PERMITIDO, modalidades: PERMITIDO, carreras: PERMITIDO, programaciones: PERMITIDO, auditoria: PERMITIDO, correcciones: PERMITIDO };
 
 function renderizar(props = {}, ruta = '/dashboard') {
   return renderToStaticMarkup(
@@ -41,10 +41,10 @@ describe('barra lateral de Genares', () => {
     expect(hijos('seguimiento')).toEqual(['Coordinación', 'Secretaría', 'Finalización del trabajo']);
   });
 
-  it('marca como pendientes las vistas sin pantalla y no las convierte en enlaces', () => {
+  it('ya no quedan opciones pendientes: todas las vistas del menú tienen pantalla', () => {
     const html = renderizar();
-    expect(html).toMatch(/aria-disabled="true"[^>]*>.*Solicitudes de corrección.*Pendiente/);
-    expect(html.match(/aria-disabled="true"/g)).toHaveLength(1);
+    expect(html).not.toContain('aria-disabled="true"');
+    expect(html).toContain('href="/auditoria/correcciones"');
   });
 
   it('enlaza la finalización del trabajo (SE-03) dentro de Seguimiento', () => {
@@ -53,14 +53,29 @@ describe('barra lateral de Genares', () => {
     expect(html).toMatch(/class="nav-parent contiene-activa">(?:(?!<\/p>).)*<span>Seguimiento<\/span>/);
   });
 
-  it('oculta Auditoría hasta que el servidor confirma la autorización', () => {
-    expect(renderizar({ permisos: { ...TODOS, auditoria: CONSULTANDO } })).not.toContain('Auditoría');
-    expect(renderizar({ permisos: { ...TODOS, auditoria: DENEGADO } })).not.toContain('href="/auditoria"');
+  it('oculta Auditoría hasta que el servidor confirma alguna de sus autorizaciones', () => {
+    expect(renderizar({ permisos: { ...TODOS, auditoria: CONSULTANDO, correcciones: CONSULTANDO } })).not.toContain('Auditoría');
+    expect(renderizar({ permisos: { ...TODOS, auditoria: DENEGADO, correcciones: DENEGADO } })).not.toContain('Auditoría');
     expect(renderizar()).toContain('href="/auditoria"');
   });
 
+  it('separa la bitácora de las correcciones: cada subopción exige su propio permiso', () => {
+    const soloCorrecciones = renderizar({ permisos: { ...TODOS, auditoria: DENEGADO } });
+    expect(soloCorrecciones).toContain('href="/auditoria/correcciones"');
+    expect(soloCorrecciones).not.toContain('href="/auditoria"');
+    const soloBitacora = renderizar({ permisos: { ...TODOS, correcciones: DENEGADO } });
+    expect(soloBitacora).toContain('href="/auditoria"');
+    expect(soloBitacora).not.toContain('href="/auditoria/correcciones"');
+  });
+
+  it('dentro de las correcciones solo marca activa su subopción, no la bitácora', () => {
+    const html = renderizar({}, '/auditoria/correcciones/nueva');
+    expect(html).toMatch(/class="nav-subitem active"[^>]*href="\/auditoria\/correcciones"/);
+    expect(html).not.toMatch(/class="nav-subitem active"[^>]*href="\/auditoria"/);
+  });
+
   it('oculta las operaciones administrativas que el servidor niega a un docente del tribunal', () => {
-    const html = renderizar({ permisos: { rubricas: DENEGADO, modalidades: DENEGADO, carreras: DENEGADO, programaciones: PERMITIDO, auditoria: DENEGADO } });
+    const html = renderizar({ permisos: { rubricas: DENEGADO, modalidades: DENEGADO, carreras: DENEGADO, programaciones: PERMITIDO, auditoria: DENEGADO, correcciones: DENEGADO } });
     expect(html).not.toContain('<span>Rúbricas</span>');
     expect(html).not.toContain('href="/maestros/modalidades"');
     expect(html).toContain('href="/mis-evaluaciones"');

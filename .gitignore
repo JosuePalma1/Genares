@@ -9,3 +9,5 @@ coverage/
 Thumbs.db
 /frontend.zip
 /frontend/src/assets/hero.png
+# Archivos subidos en tiempo de ejecución (PDF justificativos de RF-36). Nunca al repositorio.
+/storage/

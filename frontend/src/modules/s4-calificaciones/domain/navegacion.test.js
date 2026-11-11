@@ -74,3 +74,12 @@ describe('ruta activa', () => {
     expect(rutaActiva({ to: '/dashboard', end: true }, '/dashboard/x')).toBe(false);
   });
 });
+
+describe('reintento de permisos', () => {
+  it('solo reintenta las consultas que fallaron por conexión, no las negadas ni las concedidas', async () => {
+    const { clavesPorReintentar } = await import('../presentation/hooks/usarPermisosNavegacion');
+    expect(clavesPorReintentar({ auditoria: DESCONOCIDO, rubricas: PERMITIDO, carreras: DENEGADO, correcciones: DESCONOCIDO }))
+      .toEqual(['auditoria', 'correcciones']);
+    expect(clavesPorReintentar({ auditoria: PERMITIDO })).toEqual([]);
+  });
+});

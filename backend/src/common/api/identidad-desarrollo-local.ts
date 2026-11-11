@@ -14,7 +14,22 @@ export interface EntornoAccesoDesarrollo {
 export interface SolicitudLocalApi extends SolicitudConIdentidad {
   socket?: { remoteAddress?: string };
   method?: string;
+  url?: string;
+  originalUrl?: string;
   headers?: Record<string, string | string[] | undefined>;
+}
+
+/**
+ * Únicas escrituras locales que aceptan un formulario con archivo: la solicitud de
+ * corrección extraordinaria con su PDF justificativo (RF-36). El resto exige JSON.
+ */
+export const RUTAS_ESCRITURA_MULTIPART_LOCAL = Object.freeze(['/api/v1/correcciones-evaluacion']);
+
+function aceptaContenido(solicitud: SolicitudLocalApi, contenido: string | undefined): boolean {
+  if (contenido === 'application/json') return true;
+  if (contenido !== 'multipart/form-data' || (solicitud.method ?? '').toUpperCase() !== 'POST') return false;
+  const ruta = (solicitud.originalUrl ?? solicitud.url ?? '').split('?')[0].replace(/\/+$/, '');
+  return RUTAS_ESCRITURA_MULTIPART_LOCAL.includes(ruta);
 }
 
 interface RespuestaLocalApi {
@@ -136,7 +151,7 @@ export function crearMiddlewareProteccionEscrituraLocal(origenesPermitidos: stri
     const contenido = encabezado(solicitud, 'content-type')?.split(';')[0].trim().toLowerCase();
     const intencion = encabezado(solicitud, 'x-genares-write-intent');
     if (!origen || !permitidos.has(origen) || fetchSite !== 'same-origin'
-      || contenido !== 'application/json' || intencion !== 'local-development') {
+      || !aceptaContenido(solicitud, contenido) || intencion !== 'local-development') {
       return rechazar(respuesta, 403, 'LOCAL_WRITE_ORIGIN_REJECTED', 'Solicitud de escritura local rechazada.');
     }
     continuar();
@@ -160,7 +175,9 @@ export async function instalarIdentidadDesarrolloLocal(
       'modalidades:leer', 'carreras:leer', 'evaluaciones:leer', 'evaluaciones:leer-demostracion',
       'documentos:emitir', 'configuracion-academica:administrar',
       // SE-03: cierre administrativo del trabajo (Paso 2, Anexo A.2 «Cierre autorizado»).
-      'trabajos:finalizar']
+      'trabajos:finalizar',
+      // RF-36: solicitar y autorizar correcciones extraordinarias (Paso 2, Anexo A.2).
+      'evaluaciones:solicitar-correccion', 'evaluaciones:autorizar-correccion']
     : CAPACIDADES_DESARROLLO_LOCAL;
   aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(capacidades));
   aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));

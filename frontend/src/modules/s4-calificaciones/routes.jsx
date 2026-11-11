@@ -19,6 +19,8 @@ import PaginaEvaluacionesIntegradasDev from './presentation/pages/PaginaEvaluaci
 import PaginaRubricas from './presentation/pages/PaginaRubricas';
 import PaginaAuditoria from './presentation/pages/PaginaAuditoria';
 import PaginaFinalizacionTrabajos from './presentation/pages/PaginaFinalizacionTrabajos';
+import PaginaCorrecciones from './presentation/pages/PaginaCorrecciones';
+import PaginaSolicitarCorreccion from './presentation/pages/PaginaSolicitarCorreccion';
 import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './presentation/pages/PaginaTrabajosApi';
 
 function RedirigirProgramacionLegacy() {
@@ -58,6 +60,8 @@ export default function Aplicacion() {
         <Route path="/coordinacion" element={<PaginaCoordinacion />} />
         <Route path="/seguimiento/finalizacion" element={<PaginaFinalizacionTrabajos />} />
         <Route path="/auditoria" element={<PaginaAuditoria />} />
+        <Route path="/auditoria/correcciones" element={<PaginaCorrecciones />} />
+        <Route path="/auditoria/correcciones/nueva" element={<PaginaSolicitarCorreccion />} />
         <Route path="*" element={<PaginaNoEncontrada />} />
       </Route>
     </Routes>
