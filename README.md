@@ -97,7 +97,9 @@ Son operaciones manuales para la base local: no son migraciones y no se ejecutan
 | 2 | `permisos-operacion-s4.sql` | `postgres` | Concede las escrituras que necesitan rúbricas, sustentaciones, actas y trazabilidad. |
 | 3 | `s4-retencion-visibilidad-auditoria.sql` | `postgres` | Instala `estado_registro`, la bitácora `s4.eventos_cambio_registro` y los disparadores de protección (ver abajo). Es idempotente: puedes repetirlo. |
 | 4 | `s4-correccion-calificaciones.sql` | `postgres` | Crea `s4.solicitudes_correccion_evaluacion` (corrección extraordinaria, RF-36) con su máquina de estados y permisos. Requiere el paso 3. Es idempotente. |
-| 5 | `verificar-retencion-visibilidad-auditoria.sql` | `postgres` | Comprueba las protecciones de los pasos 3 y 4 dentro de una transacción que termina en `ROLLBACK`; no deja cambios. |
+| 5 | `s4-sesion-evaluacion-oral.sql` | `postgres` | Liga cada evaluación oral a su sesión (`s4.evaluaciones.id_programacion_sustentacion`, RF-46/RN-26) y guarda el motivo de cada reprogramación en el historial (RN-27). Completa la sesión de las orales existentes solo cuando hay una única posible. Requiere el paso 3. Es idempotente. **El backend lo necesita para guardar evaluaciones orales.** |
+| 6 | `verificar-retencion-visibilidad-auditoria.sql` | `postgres` | Comprueba las protecciones de los pasos 3 y 4 dentro de una transacción que termina en `ROLLBACK`; no deja cambios. |
+| — | `s4-indices-rendimiento.sql` | `postgres` | Recomendado. Crea índices para las consultas paginadas de S4; no cambia datos ni restricciones. Es idempotente. |
 | — | `etapa-5-rubrica-mer.sql` | `genares` o `postgres` | Opcional. Agrega la versión de rúbrica de prueba `DEV-ETAPA-5` a partir de `DEV-1`, sin sustituirla. |
 
 El paso 3 revoca `DELETE`/`TRUNCATE` sobre `s4` al rol `genares`, pero `permisos-operacion-s4.sql` concede `DELETE` sobre las tablas de estructura de rúbrica. Si vuelves a ejecutar el paso 2, ejecuta también el paso 3 después. Los disparadores siguen bloqueando el borrado de todos modos, pero así el permiso se mantiene igual.

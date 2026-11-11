@@ -113,32 +113,26 @@ describe('servicio API de cronogramas', () => {
     expect(() => adaptarTrabajosDisponiblesApi({ filtros, elementos: [{ ...disponible, estudiantesPendientes: [{ id: ids.member }] }] })).toThrow();
   });
 
-  it('preserva duraciones personalizadas, estado operativo e inicio/final reales', async () => {
-    const enCurso = {
-      ...programacion,
-      duracionEstimadaMinutos: 90,
-      estado: 'EN_SUSTENTACION',
-      inicioRealEn: '2026-10-24T14:00:00.000Z',
-    };
-    const finalizada = {
-      ...enCurso,
-      estado: 'FINALIZADA',
-      finalizacionRealEn: '2026-10-24T15:12:00.000Z',
-    };
+  it('sigue mostrando sesiones históricas en curso o finalizadas con sus horas reales', () => {
+    const enCurso = { ...programacion, duracionEstimadaMinutos: 90, estado: 'EN_SUSTENTACION', inicioRealEn: '2026-10-24T14:00:00.000Z' };
+    const finalizada = { ...enCurso, estado: 'FINALIZADA', finalizacionRealEn: '2026-10-24T15:12:00.000Z' };
+    expect(adaptarProgramacionApi(enCurso)).toMatchObject({ estado: 'EN_SUSTENTACION', duracionEstimadaMinutos: 90, finalizacionRealEn: null });
+    expect(adaptarProgramacionApi(finalizada).finalizacionRealEn).toBe('2026-10-24T15:12:00.000Z');
+  });
+
+  it('solo envía la cancelación: no inicia ni finaliza la defensa', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(new Response(JSON.stringify(enCurso), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify(finalizada), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ ...programacion, estado: 'CANCELADA' }), { status: 200 }));
     const cliente = crearClienteHttp({ baseUrl: '/api/v1', habilitado: true, escriturasHabilitadas: true });
     const servicio = crearServicioProgramacionesApi(cliente);
 
-    const iniciada = await servicio.cambiarEstado({ id: ids.schedule, estado: 'EN_SUSTENTACION' });
-    const terminada = await servicio.cambiarEstado({ id: ids.schedule, estado: 'FINALIZADA' });
+    await expect(servicio.cambiarEstado({ id: ids.schedule, estado: 'EN_SUSTENTACION' })).rejects.toThrow();
+    await expect(servicio.cambiarEstado({ id: ids.schedule, estado: 'FINALIZADA' })).rejects.toThrow();
+    const cancelada = await servicio.cambiarEstado({ id: ids.schedule, estado: 'CANCELADA' });
 
-    expect(iniciada).toMatchObject({ estado: 'EN_SUSTENTACION', duracionEstimadaMinutos: 90, finalizacionRealEn: null });
-    expect(terminada.finalizacionRealEn).toBe('2026-10-24T15:12:00.000Z');
+    expect(cancelada.estado).toBe('CANCELADA');
     expect(fetchMock.mock.calls.map(([url, init]) => [url, init.method, JSON.parse(init.body)])).toEqual([
-      [`/api/v1/programaciones-sustentacion/${ids.schedule}/estado`, 'PATCH', { estado: 'EN_SUSTENTACION' }],
-      [`/api/v1/programaciones-sustentacion/${ids.schedule}/estado`, 'PATCH', { estado: 'FINALIZADA' }],
+      [`/api/v1/programaciones-sustentacion/${ids.schedule}/estado`, 'PATCH', { estado: 'CANCELADA' }],
     ]);
   });
 

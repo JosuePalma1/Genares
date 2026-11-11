@@ -107,9 +107,13 @@ export function seSolapanEnLaMismaSala(a: IntervaloProgramacion, b: IntervaloPro
   return inicioA < finB && inicioB < finA;
 }
 
+/**
+ * El cronograma es de horario previsto: no se registra el inicio ni el fin real de la defensa
+ * (decisión posterior del proyecto). Solo se puede cancelar una sesión programada; las sesiones
+ * EN_SUSTENTACION o FINALIZADA que ya existan se conservan y se consultan sin cambios.
+ */
 export function permiteTransicionEstadoProgramacion(actual: string, siguiente: string): boolean {
-  return (actual === 'PROGRAMADA' && ['EN_SUSTENTACION', 'CANCELADA'].includes(siguiente))
-    || (actual === 'EN_SUSTENTACION' && siguiente === 'FINALIZADA');
+  return actual === 'PROGRAMADA' && siguiente === 'CANCELADA';
 }
 
 export function patronBusquedaProgramacion(busqueda?: string): string | null {

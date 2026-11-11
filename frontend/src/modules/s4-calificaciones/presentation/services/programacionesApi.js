@@ -214,7 +214,8 @@ export function crearServicioProgramacionesApi(cliente) {
       return adaptarProgramacionApi(await cliente.putJson(`${RUTA}/${encodeURIComponent(id)}`, dto, options));
     },
     async cambiarEstado({ id, estado }, options) {
-      exigir(esUuidPostgres(id ?? '') && ['EN_SUSTENTACION', 'FINALIZADA', 'CANCELADA'].includes(estado));
+      // Sin inicio ni fin real de la defensa: el único cambio de estado es cancelar.
+      exigir(esUuidPostgres(id ?? '') && estado === 'CANCELADA');
       return adaptarProgramacionApi(await cliente.patchJson(`${RUTA}/${encodeURIComponent(id)}/estado`, { estado }, options));
     },
   };

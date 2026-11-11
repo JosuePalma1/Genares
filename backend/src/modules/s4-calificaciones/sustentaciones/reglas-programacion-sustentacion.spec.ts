@@ -53,9 +53,10 @@ describe('reglas de programación de sustentaciones', () => {
   });
 
   it('permite solo transiciones operativas confirmadas', () => {
-    expect(permiteTransicionEstadoProgramacion('PROGRAMADA', 'EN_SUSTENTACION')).toBe(true);
     expect(permiteTransicionEstadoProgramacion('PROGRAMADA', 'CANCELADA')).toBe(true);
-    expect(permiteTransicionEstadoProgramacion('EN_SUSTENTACION', 'FINALIZADA')).toBe(true);
+    // Sin inicio ni fin real de la defensa.
+    expect(permiteTransicionEstadoProgramacion('PROGRAMADA', 'EN_SUSTENTACION')).toBe(false);
+    expect(permiteTransicionEstadoProgramacion('EN_SUSTENTACION', 'FINALIZADA')).toBe(false);
     expect(permiteTransicionEstadoProgramacion('PROGRAMADA', 'FINALIZADA')).toBe(false);
     expect(permiteTransicionEstadoProgramacion('CANCELADA', 'PROGRAMADA')).toBe(false);
     expect(permiteTransicionEstadoProgramacion('FINALIZADA', 'CANCELADA')).toBe(false);

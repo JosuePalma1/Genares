@@ -127,8 +127,8 @@ describe('API de programaciones de sustentación', () => {
   });
 
   it('reserva el cambio operativo de estado a la capacidad administrativa', async () => {
-    servicio.cambiarEstado.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', estado: 'EN_SUSTENTACION' });
-    const body = { estado: 'EN_SUSTENTACION' };
+    servicio.cambiarEstado.mockResolvedValue({ id: '11111111-1111-4111-8111-111111111111', estado: 'CANCELADA' });
+    const body = { estado: 'CANCELADA' };
     expect((await solicitar('/api/v1/programaciones-sustentacion/11111111-1111-4111-8111-111111111111/estado', 'lector', 'PATCH', body)).status).toBe(403);
     expect(servicio.cambiarEstado).not.toHaveBeenCalled();
 
@@ -145,6 +145,17 @@ describe('API de programaciones de sustentación', () => {
       'administrador', 'PATCH', { estado: 'PROGRAMADA' },
     );
     expect(respuesta.status).toBe(400);
+    expect(servicio.cambiarEstado).not.toHaveBeenCalled();
+  });
+
+  it('no permite iniciar ni finalizar la defensa: el cronograma es de horario previsto', async () => {
+    for (const estado of ['EN_SUSTENTACION', 'FINALIZADA']) {
+      const respuesta = await solicitar(
+        '/api/v1/programaciones-sustentacion/11111111-1111-4111-8111-111111111111/estado',
+        'administrador', 'PATCH', { estado },
+      );
+      expect(respuesta.status).toBe(400);
+    }
     expect(servicio.cambiarEstado).not.toHaveBeenCalled();
   });
 });

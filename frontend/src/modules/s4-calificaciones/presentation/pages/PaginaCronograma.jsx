@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Ban, CalendarDays, CheckCircle2, Clock3, FilePlus2, MapPin, Pencil, Play, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
+import { Ban, CalendarDays, Clock3, FilePlus2, MapPin, Pencil, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstadoRegistro } from '../components/interfaz';
 import { Paginador } from '../components/Paginador';
@@ -299,17 +299,14 @@ export default function PaginaCronograma() {
     }
   }
 
-  async function cambiarEstado(elemento, siguiente) {
+  // El cronograma es de horario previsto: no se registra el inicio ni el fin real de la defensa.
+  // La única acción de estado es cancelar una sesión programada.
+  async function cancelarProgramacion(elemento) {
     if (!puedeEditar || actualizandoEstadoId) return;
-    const acciones = {
-      EN_SUSTENTACION: { titulo: '¿Iniciar la sustentación?', texto: 'Se registrará la hora real de inicio. La duración estimada no cerrará la sustentación automáticamente.' },
-      FINALIZADA: { titulo: '¿Finalizar la sustentación?', texto: 'Se registrará la hora real de finalización. Esta acción no modifica evaluaciones ni resultados académicos.' },
-      CANCELADA: { titulo: '¿Cancelar la programación?', texto: 'La sala quedará disponible para otro horario. No se borrará el registro.' },
-    };
     const confirmacion = await Swal.fire({
-      icon: siguiente === 'CANCELADA' ? 'warning' : 'question',
-      title: acciones[siguiente].titulo,
-      text: acciones[siguiente].texto,
+      icon: 'warning',
+      title: '¿Cancelar la programación?',
+      text: 'La sala quedará disponible para otro horario. No se borrará el registro.',
       showCancelButton: true,
       confirmButtonText: 'Confirmar',
       cancelButtonText: 'Volver',
@@ -318,12 +315,12 @@ export default function PaginaCronograma() {
 
     establecerActualizandoEstadoId(elemento.id);
     try {
-      await cambiarEstadoProgramacionApi({ id: elemento.id, estado: siguiente });
+      await cambiarEstadoProgramacionApi({ id: elemento.id, estado: 'CANCELADA' });
       await cargarListado();
       await Swal.fire({
         icon: 'success',
-        title: siguiente === 'CANCELADA' ? 'Programación cancelada' : `Estado: ${etiquetaEstado(siguiente)}`,
-        text: siguiente === 'CANCELADA' ? 'La sala ya puede asignarse a otra sustentación.' : 'Se registró el cambio y la hora real correspondiente.',
+        title: 'Programación cancelada',
+        text: 'La sala ya puede asignarse a otra sustentación.',
         timer: 1800,
         showConfirmButton: false,
       });
@@ -547,11 +544,9 @@ export default function PaginaCronograma() {
                       <td data-label="Acciones"><div className="cronograma-row-actions">
                         {elemento.estado === 'PROGRAMADA' && puedeEditar && <>
                           <button className="button button-outline cronograma-edit-button" type="button" onClick={() => abrirEdicion(elemento)}><Pencil size={15} aria-hidden="true" /> Editar</button>
-                          <button className="button button-outline cronograma-edit-button" type="button" disabled={actualizandoEstadoId === elemento.id} onClick={() => void cambiarEstado(elemento, 'EN_SUSTENTACION')}><Play size={15} aria-hidden="true" /> Iniciar</button>
-                          <button className="button button-outline cronograma-edit-button" type="button" disabled={actualizandoEstadoId === elemento.id} onClick={() => void cambiarEstado(elemento, 'CANCELADA')}><Ban size={15} aria-hidden="true" /> Cancelar</button>
+                          <button className="button button-outline cronograma-edit-button" type="button" disabled={actualizandoEstadoId === elemento.id} onClick={() => void cancelarProgramacion(elemento)}><Ban size={15} aria-hidden="true" /> Cancelar</button>
                         </>}
-                        {elemento.estado === 'EN_SUSTENTACION' && puedeEditar && <button className="button button-outline cronograma-edit-button" type="button" disabled={actualizandoEstadoId === elemento.id} onClick={() => void cambiarEstado(elemento, 'FINALIZADA')}><CheckCircle2 size={15} aria-hidden="true" /> Finalizar</button>}
-                        {(!puedeEditar || !['PROGRAMADA', 'EN_SUSTENTACION'].includes(elemento.estado)) && <span className="cronograma-readonly">Solo consulta</span>}
+                        {(!puedeEditar || elemento.estado !== 'PROGRAMADA') && <span className="cronograma-readonly">Solo consulta</span>}
                       </div></td>
                     </tr>
                   ))}
