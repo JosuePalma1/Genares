@@ -320,6 +320,18 @@ export function mapearActualizarVersionRubricaDto(version) {
   return { revision: version.revision, etapas };
 }
 
+/** RF-15/RF-20/RN-09: solo una versión ACTIVA se retira; su contenido no cambia. */
+export function mapearRetirarVersionRubricaDto(version) {
+  if (!version || version.estado !== 'ACTIVA') {
+    throw new ErrorMapeoEscrituraRubrica('Solo se puede retirar una versión activa.');
+  }
+  uuid(version.id, 'version.id');
+  if (!Number.isInteger(version.revision) || version.revision < 1 || version.revision > 32767) {
+    throw new ErrorMapeoEscrituraRubrica('La revisión de servidor no es válida.');
+  }
+  return { revision: version.revision };
+}
+
 export function mapearActivarVersionRubricaDto(version) {
   soloBorrador(version);
   uuid(version.id, 'version.id');

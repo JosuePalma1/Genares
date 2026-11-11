@@ -14,6 +14,8 @@ import {
   crearRubricaApi,
   crearRubricaCompletaApi,
   crearVersionCompletaRubricaApi,
+  retirarVersionRubricaApi,
+  activarVersionRubricaApi,
 } from './rubricasApi';
 
 const ids = {
@@ -252,5 +254,37 @@ describe('escrituras API de versiones borrador', () => {
       revision: 7,
       etapas: [{ id: etapaId, tipo: 'ESCRITA', alcance: 'TRABAJO_COMPARTIDO', codigo: 'ESC', nombre: 'Etapa', descripcion: null, calificacionMaxima: '0.30', porcentaje: null, orden: 1, categorias: [{ id: categoriaId, codigo: 'A', nombre: 'Categoria', calificacionMaxima: '0.30', orden: 1, indicadores: [{ id: indicadorId, label: 'A1', descripcion: 'Indicador', calificacionMaxima: '0.30', orden: 1 }] }] }],
     });
+  });
+});
+
+describe('retiro de versiones de rúbrica (RF-15, RF-20, RN-09)', () => {
+  it('envía la revisión al endpoint de retiro solo para una versión activa', async () => {
+    const solicitarJson = vi.fn().mockResolvedValue({ id: ids.version, estado: 'ARCHIVADA' });
+    await retirarVersionRubricaApi({ id: ids.version, revision: 4, estado: 'ACTIVA' }, { solicitarJson });
+    expect(solicitarJson).toHaveBeenCalledWith(`/versiones-rubrica/${ids.version}/retirar`, { revision: 4 });
+  });
+
+  it('no envía borradores, versiones ya retiradas ni revisiones inválidas', () => {
+    const solicitarJson = vi.fn();
+    expect(() => retirarVersionRubricaApi({ id: ids.version, revision: 4, estado: 'BORRADOR' }, { solicitarJson })).toThrow();
+    expect(() => retirarVersionRubricaApi({ id: ids.version, revision: 4, estado: 'ARCHIVADA' }, { solicitarJson })).toThrow();
+    expect(() => retirarVersionRubricaApi({ id: ids.version, revision: 0, estado: 'ACTIVA' }, { solicitarJson })).toThrow();
+    expect(solicitarJson).not.toHaveBeenCalled();
+  });
+});
+
+describe('activación de versiones de rúbrica desde la API', () => {
+  it('envía la revisión guardada de un borrador al endpoint de activación', async () => {
+    const solicitarJson = vi.fn().mockResolvedValue({ activada: { id: ids.version }, archivada: null });
+    await activarVersionRubricaApi({ id: ids.version, revision: 5, estado: 'BORRADOR', fuenteDatos: 'api' }, { solicitarJson });
+    expect(solicitarJson).toHaveBeenCalledWith(`/versiones-rubrica/${ids.version}/activar`, { revision: 5 });
+  });
+
+  it('no envía versiones activas o retiradas', () => {
+    const solicitarJson = vi.fn();
+    for (const estado of ['ACTIVA', 'ARCHIVADA']) {
+      expect(() => activarVersionRubricaApi({ id: ids.version, revision: 5, estado, fuenteDatos: 'api' }, { solicitarJson })).toThrow();
+    }
+    expect(solicitarJson).not.toHaveBeenCalled();
   });
 });

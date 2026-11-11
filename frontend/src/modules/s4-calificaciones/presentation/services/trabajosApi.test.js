@@ -67,7 +67,7 @@ describe('servicio API de trabajos', () => {
     const servicio = crearServicioTrabajosApi({ getJson });
 
     await expect(servicio.listarPagina({ pagina: 2, limite: 25, periodo: 'TODOS', buscar: '  Lucía Pérez ', tribunal: 'con' }))
-      .resolves.toEqual({ trabajos: [trabajo], paginacion: pagina.paginacion, filtros: pagina.filtros });
+      .resolves.toEqual({ trabajos: [trabajo], paginacion: pagina.paginacion, filtros: { ...pagina.filtros, carreras: [], modalidades: [] } });
     expect(getJson.mock.calls[0][0]).toBe('/trabajos?limite=25&pagina=2&periodo=TODOS&buscar=Luc%C3%ADa+P%C3%A9rez&tribunal=con');
 
     await servicio.listarPagina();
@@ -76,6 +76,28 @@ describe('servicio API de trabajos', () => {
     const adaptarLista = vi.fn(() => ['adaptado']);
     await expect(servicio.listarPagina({}, { adaptarLista })).resolves.toMatchObject({ trabajos: ['adaptado'] });
     expect(adaptarLista).toHaveBeenCalledWith({ elementos: [trabajo] });
+  });
+
+  it('envía los filtros de RF-13 y adapta los catálogos de carrera y modalidad', async () => {
+    const filtros = {
+      periodo: 'TODOS', periodos: [], estados: [],
+      carreras: [{ codigo: 'TI', nombre: 'Tecnologías de la Información' }], modalidades: [{ codigo: 'PI', nombre: null }],
+    };
+    const getJson = vi.fn().mockResolvedValue({ elementos: [], paginacion: { pagina: 1, limite: 25, total: 0, paginas: 1 }, filtros });
+    const servicio = crearServicioTrabajosApi({ getJson });
+
+    const respuesta = await servicio.listarPagina({ carrera: 'TI', modalidad: 'PI', estudiante: ' Ana ', tema: 'Sistema', tutor: '  ' });
+
+    expect(getJson.mock.calls[0][0]).toBe('/trabajos?limite=25&pagina=1&carrera=TI&modalidad=PI&estudiante=Ana&tema=Sistema');
+    expect(respuesta.filtros.carreras).toEqual([{ codigo: 'TI', nombre: 'Tecnologías de la Información' }]);
+    expect(respuesta.filtros.modalidades).toEqual([{ codigo: 'PI', nombre: 'PI' }]);
+  });
+
+  it('rechaza catálogos de filtros mal formados', async () => {
+    const respuesta = { elementos: [], paginacion: { pagina: 1, limite: 25, total: 0, paginas: 1 },
+      filtros: { periodo: 'TODOS', periodos: [], estados: [], modalidades: [{ codigo: 7 }] } };
+    const servicio = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue(respuesta) });
+    await expect(servicio.listarPagina()).rejects.toBeInstanceOf(ErrorRespuestaApi);
   });
 
   it('vuelve a la última página si la pedida ya no existe', async () => {

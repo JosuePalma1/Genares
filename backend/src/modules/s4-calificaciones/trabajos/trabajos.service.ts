@@ -152,28 +152,38 @@ WHERE a.estado = 'VIGENTE'
   AND ($1::text IS NULL OR pa.codigo = $1::text)
 `;
 
-/**
- * Texto buscable: código, título, carrera, modalidad, periodo, estudiantes, tutores y tribunal.
- * Usa los alias a (asignación), t (tema), c (carrera), m (modalidad) y pa (periodo); también lo usa Finalización.
- */
-export const TEXTO_BUSCABLE_TRABAJO = `
-translate(lower(concat_ws(' ', a.id::text, t.titulo, c.nombre, m.nombre, pa.codigo,
-  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+/** Minúsculas y sin tildes, igual que normalizarBusqueda en el servidor y en el frontend. */
+const normalizarSql = (expresion: string) => `translate(lower(${expresion}),
+  'áàäâéèëêíìïîóòöôúùüûñçÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑÇ', 'aaaaeeeeiiiioooouuuuncaaaaeeeeiiiioooouuuunc')`;
+
+/** Nombres de los estudiantes de la asignación `a` (individual o bina activa en S2). */
+const NOMBRES_ESTUDIANTES = `(SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
      FROM gen.estudiante est JOIN gen.persona per ON per.id = est.persona_id
      WHERE est.id = a.estudiante_id
        OR (a.grupo_id IS NOT NULL AND EXISTS (SELECT 1 FROM s2.grupo_integrante gi
-         WHERE gi.grupo_id = a.grupo_id AND gi.estudiante_id = est.id AND gi.estado = 'ACTIVO'))),
-  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+         WHERE gi.grupo_id = a.grupo_id AND gi.estudiante_id = est.id AND gi.estado = 'ACTIVO')))`;
+
+/** Nombres de los tutores registrados en S2 para la asignación `a`. */
+const NOMBRES_TUTORES = `(SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
      FROM s2.asignacion_tutor tut JOIN gen.docente doc ON doc.id = tut.docente_id
-     JOIN gen.persona per ON per.id = doc.persona_id WHERE tut.asignacion_tema_id = a.id),
-  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+     JOIN gen.persona per ON per.id = doc.persona_id WHERE tut.asignacion_tema_id = a.id)`;
+
+/** Nombres de los integrantes del tribunal de S3 para la asignación `a`. */
+const NOMBRES_TRIBUNAL = `(SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
      FROM s3.asignacion_tribunal at
      JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
      JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
      JOIN gen.docente doc ON doc.id = dcp.docente_id JOIN gen.persona per ON per.id = doc.persona_id
-     WHERE at.asignacion_tema_id = a.id))),
-  'áàäâéèëêíìïîóòöôúùüûñçÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑÇ', 'aaaaeeeeiiiioooouuuuncaaaaeeeeiiiioooouuuunc')
-`;
+     WHERE at.asignacion_tema_id = a.id)`;
+
+/**
+ * Texto buscable: código, título, carrera, modalidad, periodo, estudiantes, tutores y tribunal.
+ * Usa los alias a (asignación), t (tema), c (carrera), m (modalidad) y pa (periodo); también lo usa Finalización.
+ */
+export const TEXTO_BUSCABLE_TRABAJO = normalizarSql(`concat_ws(' ', a.id::text, t.titulo, c.nombre, m.nombre, pa.codigo,
+  ${NOMBRES_ESTUDIANTES},
+  ${NOMBRES_TUTORES},
+  ${NOMBRES_TRIBUNAL})`);
 
 export const CONSULTA_PAGINA_TRABAJOS_MER = `
 WITH filtrados AS (
@@ -188,6 +198,11 @@ WITH filtrados AS (
       WHERE at.asignacion_tema_id = a.id))
     AND ($4::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $4::text) > 0)
     AND ($7::text IS NULL OR c.codigo = $7::text)
+    -- RF-13: filtros específicos, combinables con los anteriores.
+    AND ($8::text IS NULL OR m.codigo = $8::text)
+    AND ($9::text IS NULL OR strpos(${normalizarSql(`COALESCE(${NOMBRES_ESTUDIANTES}, '')`)}, $9::text) > 0)
+    AND ($10::text IS NULL OR strpos(${normalizarSql("COALESCE(t.titulo, '')")}, $10::text) > 0)
+    AND ($11::text IS NULL OR strpos(${normalizarSql(`COALESCE(${NOMBRES_TUTORES}, '')`)}, $11::text) > 0)
 )
 SELECT
   (SELECT count(*)::integer FROM filtrados) AS total,
@@ -200,6 +215,15 @@ const CONSULTA_ESTADOS_TRABAJOS_MER = `
 SELECT DISTINCT COALESCE(p.estado, 'REGISTRADO') AS estado
 ${FILTRO_TRABAJOS_MER}
 ORDER BY 1
+`;
+
+/** Carreras y modalidades presentes en el periodo consultado, para los selectores de RF-13. */
+export const CONSULTA_CATALOGOS_TRABAJOS_MER = `
+SELECT
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('codigo', codigo, 'nombre', nombre) ORDER BY nombre, codigo)
+    FROM (SELECT DISTINCT c.codigo, c.nombre ${FILTRO_TRABAJOS_MER} AND c.codigo IS NOT NULL) x), '[]'::jsonb) AS carreras,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('codigo', codigo, 'nombre', nombre) ORDER BY nombre, codigo)
+    FROM (SELECT DISTINCT m.codigo, m.nombre ${FILTRO_TRABAJOS_MER} AND m.codigo IS NOT NULL) x), '[]'::jsonb) AS modalidades
 `;
 
 export const CONSULTA_PERIODOS = `
@@ -215,7 +239,14 @@ export interface PaginaTrabajosMer {
     periodo: string;
     periodos: Array<{ codigo: string; nombre: string | null; activo: boolean }>;
     estados: string[];
+    carreras: CatalogosTrabajos['carreras'];
+    modalidades: CatalogosTrabajos['modalidades'];
   };
+}
+
+interface CatalogosTrabajos {
+  carreras: Array<{ codigo: string; nombre: string | null }>;
+  modalidades: Array<{ codigo: string; nombre: string | null }>;
 }
 
 interface PersonaMer {
@@ -280,18 +311,24 @@ export class TrabajosService {
     const { limite, pagina, desplazamiento } = leerPaginacion(filtros.limite, filtros.pagina);
     const periodos = await this.dataSource.query<PaginaTrabajosMer['filtros']['periodos']>(CONSULTA_PERIODOS);
     const periodo = periodoAplicado(filtros.periodo, periodos);
-    const [[{ total, ids }], estados] = await Promise.all([
+    const [[{ total, ids }], estados, [catalogos]] = await Promise.all([
       this.dataSource.query<Array<{ total: number; ids: string[] }>>(CONSULTA_PAGINA_TRABAJOS_MER, [
         periodo, filtros.estado ?? null, filtros.tribunal ?? null,
         normalizarBusqueda(filtros.buscar), limite, desplazamiento, filtros.carrera ?? null,
+        filtros.modalidad ?? null, normalizarBusqueda(filtros.estudiante),
+        normalizarBusqueda(filtros.tema), normalizarBusqueda(filtros.tutor),
       ]),
       this.dataSource.query<Array<{ estado: string }>>(CONSULTA_ESTADOS_TRABAJOS_MER, [periodo]),
+      this.dataSource.query<Array<CatalogosTrabajos>>(CONSULTA_CATALOGOS_TRABAJOS_MER, [periodo]),
     ]);
     const porId = new Map((ids.length ? await this.consultar(null, ids) : []).map((trabajo) => [trabajo.id, trabajo]));
     return {
       elementos: ids.map((id) => porId.get(id)).filter((trabajo): trabajo is TrabajoMer => Boolean(trabajo)),
       paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
-      filtros: { periodo: periodo ?? TODOS_LOS_PERIODOS, periodos, estados: estados.map(({ estado }) => estado) },
+      filtros: {
+        periodo: periodo ?? TODOS_LOS_PERIODOS, periodos, estados: estados.map(({ estado }) => estado),
+        carreras: catalogos?.carreras ?? [], modalidades: catalogos?.modalidades ?? [],
+      },
     };
   }
 

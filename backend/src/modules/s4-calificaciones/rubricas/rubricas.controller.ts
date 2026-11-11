@@ -16,7 +16,7 @@ import {
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { ActualizarVersionRubricaDto } from './dto/actualizar-version-rubrica.dto';
-import { ActivarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
+import { ActivarVersionRubricaDto, RetirarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
 import { ConsultarRubricasDto } from './dto/consultar-rubricas.dto';
 import { CrearRubricaDto } from './dto/crear-rubrica.dto';
 import { CrearVersionRubricaDto } from './dto/crear-version-rubrica.dto';
@@ -124,6 +124,18 @@ export class VersionesRubricaController {
     @Body() dto: ActivarVersionRubricaDto,
   ) {
     return this.rubricas.activarVersion(id, dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
+  }
+
+  @Post(':id/retirar')
+  @HttpCode(HttpStatus.OK)
+  @RequiereCapacidades('rubricas:administrar')
+  retirar(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Req() solicitud: SolicitudConIdentidad,
+    @Headers('x-correlation-id') correlationId: string | string[] | undefined,
+    @Body() dto: RetirarVersionRubricaDto,
+  ) {
+    return this.rubricas.retirarVersion(id, dto, actorValidadoDe(solicitud), correlationIdDe(correlationId));
   }
 }
 

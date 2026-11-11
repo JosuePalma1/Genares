@@ -12,6 +12,7 @@ import {
   mapearCrearRubricaDto,
   mapearCrearVersionCompletaRubrica,
   mapearCrearVersionRubricaDto,
+  mapearRetirarVersionRubricaDto,
 } from '../../infrastructure/repositories/rubricasEscritura';
 import { getJsonApi, postJsonApi, putJsonApi } from './clienteHttp';
 
@@ -68,6 +69,12 @@ export function clonarVersionRubricaApi(datos, { solicitarJson = postJsonApi } =
 export function actualizarVersionRubricaApi(version, { solicitarJson = putJsonApi } = {}) {
   const dto = mapearActualizarVersionRubricaDto(version);
   return solicitarJson(`/versiones-rubrica/${encodeURIComponent(version.id)}`, dto);
+}
+
+/** Retira una versión activa de futuros usos; los trabajos que ya la usan la conservan. */
+export function retirarVersionRubricaApi(version, { solicitarJson = postJsonApi } = {}) {
+  const dto = mapearRetirarVersionRubricaDto(version);
+  return solicitarJson(`/versiones-rubrica/${encodeURIComponent(version.id)}/retirar`, dto);
 }
 
 export function activarVersionRubricaApi(version, { solicitarJson = postJsonApi } = {}) {

@@ -20,7 +20,7 @@ import { ConsultarRubricasDto } from './dto/consultar-rubricas.dto';
 import { CrearRubricaDto } from './dto/crear-rubrica.dto';
 import { CrearVersionRubricaDto } from './dto/crear-version-rubrica.dto';
 import { ActualizarVersionRubricaDto } from './dto/actualizar-version-rubrica.dto';
-import { ActivarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
+import { ActivarVersionRubricaDto, RetirarVersionRubricaDto } from './dto/activar-version-rubrica.dto';
 import {
   CrearRubricaCompletaDto,
   CrearVersionRubricaCompletaDto,
@@ -723,6 +723,66 @@ export class RubricasService {
       this.lanzarErrorActivacion(error);
       throw error;
     }
+  }
+
+  /**
+   * RF-15, RF-20, RN-09: retira una versión ACTIVA de futuros usos (pasa a ARCHIVADA).
+   * No cambia su contenido ni los procesos que ya la usan; PostgreSQL solo asigna versiones
+   * ACTIVA a procesos nuevos (s4.validar_rubrica_proceso). Una versión archivada no se reactiva.
+   */
+  async retirarVersion(
+    versionId: string,
+    dto: RetirarVersionRubricaDto,
+    actorId: string,
+    correlationId: string | null,
+  ): Promise<VersionRubricaResumenDto> {
+    return this.dataSource.transaction(async (manager) => {
+      await establecerActorAuditoria(manager, actorId, correlationId);
+      const repositorioVersion = manager.getRepository(VersionRubrica);
+      const inicial = await repositorioVersion.findOne({
+        where: { id: versionId, estadoRegistro: 1 },
+        relations: { rubrica: true },
+      });
+      if (!inicial) throw new NotFoundException('No existe la versión solicitada.');
+
+      // Mismo orden de cerrojos que la activación: rúbrica y luego versión.
+      const rubricaBloqueada = await manager.getRepository(Rubrica).findOne({
+        where: { id: inicial.rubrica.id, estadoRegistro: 1 },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!rubricaBloqueada) throw new NotFoundException('No existe la rúbrica de la versión.');
+      const version = await repositorioVersion.createQueryBuilder('version')
+        .where('version.id = :versionId', { versionId })
+        .andWhere('version.estadoRegistro = 1')
+        .setLock('pessimistic_write')
+        .getOne();
+      if (!version) throw new NotFoundException('No existe la versión solicitada.');
+      if (version.estado === EstadoVersionRubrica.ARCHIVADA) {
+        throw new ConflictException('La versión ya está retirada.');
+      }
+      if (version.estado !== EstadoVersionRubrica.ACTIVA) {
+        throw new ConflictException('Solo se puede retirar una versión activa; un borrador sigue editable.');
+      }
+      if (version.revision !== dto.revision) {
+        throw new ConflictException('La versión cambió desde la última lectura; recárguela antes de retirarla.');
+      }
+
+      await repositorioVersion.update(versionId, { estado: EstadoVersionRubrica.ARCHIVADA });
+      await this.registrarAuditoria(manager, {
+        actorId,
+        accion: 'VERSION_RUBRICA_RETIRADA',
+        rubrica: rubricaBloqueada,
+        version,
+        correlationId,
+      });
+
+      const retirada = await repositorioVersion.findOne({
+        where: { id: versionId, estadoRegistro: 1 },
+        relations: { rubrica: true, academicPeriod: true },
+      });
+      if (!retirada) throw new NotFoundException('No se pudo recuperar la versión retirada.');
+      return this.aResumen(retirada);
+    });
   }
 
   private validarCarrerasUnicas(carreraIds: string[]): void {

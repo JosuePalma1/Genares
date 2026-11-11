@@ -7,6 +7,7 @@ La APK empaqueta **el mismo frontend de Genares** con Capacitor: las mismas pant
 - **Abre sin Internet.** Las pantallas van dentro de la APK (`assets/public`), así que la aplicación arranca aunque no haya red.
 - **Evalúa sin conexión lo ya descargado.** Si una evaluación se abrió antes con conexión, su rúbrica queda copiada en el dispositivo y se puede seguir calificando sin red (Paso 2, A.3.4).
 - **Recupera los borradores (S4-16).** Cada cambio se guarda en el dispositivo y sobrevive a perder la red, recargar o cerrar la aplicación.
+- **Respaldo nativo de borradores (RNF-09).** En la APK cada borrador se copia también a `@capacitor/preferences`, que lo guarda en el almacenamiento nativo de la app. Si el `localStorage` del WebView se vacía, al abrir una evaluación se restauran desde esa copia (se conserva la versión más reciente). En el navegador no cambia nada.
 - **Sincroniza al reconectar.** Los borradores «Pendiente de sincronización» se envían solos a PostgreSQL al volver la conexión; los conflictos de revisión no se sobrescriben.
 - **No cierra sin servidor.** El cierre de una evaluación exige conexión y confirmación del servidor.
 
@@ -25,6 +26,7 @@ La APK empaqueta **el mismo frontend de Genares** con Capacitor: las mismas pant
 Desde `frontend/`:
 
 ```powershell
+npm install                    # incluye @capacitor/preferences (respaldo de borradores)
 npm run android:build          # vite build --mode android + cap sync android
 cd android
 # JAVA_HOME debe ser la carpeta real de un JDK 21 (la que contiene bin\java.exe), por ejemplo:
@@ -76,6 +78,7 @@ No hay emulador ni tablet en el equipo donde se generó la APK. Falta comprobar:
 - [ ] Con el **modo avión activado**, la aplicación abre y muestra una evaluación descargada antes.
 - [ ] La **WebView envía `Sec-Fetch-Site: same-site`** en las escrituras. Si no lo enviara, guardar respondería 403 «LOCAL_WRITE_ORIGIN_REJECTED»; es el punto técnico más incierto.
 - [ ] Un borrador hecho sin conexión sobrevive a **forzar el cierre** de la aplicación y a **reiniciar** la tablet.
+- [ ] Respaldo nativo: con un borrador pendiente, borrar **solo la caché** de la app en Ajustes de Android y reabrir; el borrador debe volver.
 - [ ] Al reconectar (`adb reverse` activo) el borrador pendiente se sincroniza solo.
 - [ ] Conflicto real entre dos dispositivos que editan la misma evaluación.
 - [ ] Diseño en la tablet: horizontal y vertical, teclado numérico en las notas, botón Atrás de Android.

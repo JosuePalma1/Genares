@@ -336,8 +336,17 @@ export function PaginaTrabajosApi() {
   // null = el periodo que el servidor considera actual (activo).
   const [periodoFiltro, establecerPeriodoFiltro] = useState(null);
   const [tribunalFiltro, establecerTribunalFiltro] = useState('Todos');
+  // RF-13: filtros específicos, combinables con los anteriores ('' = sin filtro).
+  const [carreraFiltro, establecerCarreraFiltro] = useState('');
+  const [modalidadFiltro, establecerModalidadFiltro] = useState('');
+  const [estudianteFiltro, establecerEstudianteFiltro] = useState('');
+  const [temaFiltro, establecerTemaFiltro] = useState('');
+  const [tutorFiltro, establecerTutorFiltro] = useState('');
   const [pagina, establecerPagina] = useState(1);
   const busquedaDiferida = usarValorDiferido(busqueda);
+  const estudianteDiferido = usarValorDiferido(estudianteFiltro);
+  const temaDiferido = usarValorDiferido(temaFiltro);
+  const tutorDiferido = usarValorDiferido(tutorFiltro);
 
   const filtros = useMemo(() => ({
     pagina, limite: TRABAJOS_POR_PAGINA,
@@ -345,22 +354,36 @@ export function PaginaTrabajosApi() {
     ...(busquedaDiferida.trim() && { buscar: busquedaDiferida.trim() }),
     ...(estadoFiltro !== 'Todos' && { estado: estadoFiltro }),
     ...(TRIBUNAL_SERVIDOR[tribunalFiltro] && { tribunal: TRIBUNAL_SERVIDOR[tribunalFiltro] }),
-  }), [pagina, periodoFiltro, busquedaDiferida, estadoFiltro, tribunalFiltro]);
+    ...(carreraFiltro && { carrera: carreraFiltro }),
+    ...(modalidadFiltro && { modalidad: modalidadFiltro }),
+    ...(estudianteDiferido.trim() && { estudiante: estudianteDiferido.trim() }),
+    ...(temaDiferido.trim() && { tema: temaDiferido.trim() }),
+    ...(tutorDiferido.trim() && { tutor: tutorDiferido.trim() }),
+  }), [pagina, periodoFiltro, busquedaDiferida, estadoFiltro, tribunalFiltro, carreraFiltro, modalidadFiltro,
+    estudianteDiferido, temaDiferido, tutorDiferido]);
   const consultaApi = usarPaginaTrabajosApi(filtros);
   const filas = consultaApi.trabajos;
   const total = consultaApi.paginacion?.total ?? 0;
   const estados = consultaApi.filtros?.estados ?? [];
   const periodos = consultaApi.filtros?.periodos ?? [];
+  const carreras = consultaApi.filtros?.carreras ?? [];
+  const modalidades = consultaApi.filtros?.modalidades ?? [];
   const periodoVisible = periodoFiltro ?? consultaApi.filtros?.periodo ?? 'TODOS';
 
   // Cualquier cambio de filtro vuelve a la primera página.
   const conPrimeraPagina = (establecer) => (valor) => { establecer(valor); establecerPagina(1); };
-  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== null || tribunalFiltro !== 'Todos');
+  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== null || tribunalFiltro !== 'Todos'
+    || carreraFiltro || modalidadFiltro || estudianteFiltro || temaFiltro || tutorFiltro);
   const limpiar = () => {
     establecerBusqueda('');
     establecerEstadoFiltro('Todos');
     establecerPeriodoFiltro(null);
     establecerTribunalFiltro('Todos');
+    establecerCarreraFiltro('');
+    establecerModalidadFiltro('');
+    establecerEstudianteFiltro('');
+    establecerTemaFiltro('');
+    establecerTutorFiltro('');
     establecerPagina(1);
   };
 
@@ -405,6 +428,30 @@ export function PaginaTrabajosApi() {
               <option value="con-tribunal">Con integrantes asignados</option>
               <option value="sin-tribunal">Sin integrantes asignados</option>
             </select>
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-carrera">Carrera</label>
+            <select id="trabajos-api-carrera" className="select" value={carreraFiltro} onChange={(evento) => conPrimeraPagina(establecerCarreraFiltro)(evento.target.value)}>
+              <option value="">Todas</option>{carreras.map(({ codigo, nombre }) => <option key={codigo} value={codigo}>{nombre}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-modalidad">Modalidad</label>
+            <select id="trabajos-api-modalidad" className="select" value={modalidadFiltro} onChange={(evento) => conPrimeraPagina(establecerModalidadFiltro)(evento.target.value)}>
+              <option value="">Todas</option>{modalidades.map(({ codigo, nombre }) => <option key={codigo} value={codigo}>{nombre}</option>)}
+            </select>
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-estudiante">Estudiante</label>
+            <input id="trabajos-api-estudiante" className="input" type="search" value={estudianteFiltro} onChange={(evento) => conPrimeraPagina(establecerEstudianteFiltro)(evento.target.value)} placeholder="Nombre o apellido" />
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-tema">Tema</label>
+            <input id="trabajos-api-tema" className="input" type="search" value={temaFiltro} onChange={(evento) => conPrimeraPagina(establecerTemaFiltro)(evento.target.value)} placeholder="Parte del título" />
+          </div>
+          <div className="field">
+            <label htmlFor="trabajos-api-tutor">Tutor</label>
+            <input id="trabajos-api-tutor" className="input" type="search" value={tutorFiltro} onChange={(evento) => conPrimeraPagina(establecerTutorFiltro)(evento.target.value)} placeholder="Nombre o apellido" />
           </div>
           {filtrosActivos && <button className="button button-outline trabajos-clear-filters" type="button" onClick={limpiar}>Limpiar filtros</button>}
         </div>

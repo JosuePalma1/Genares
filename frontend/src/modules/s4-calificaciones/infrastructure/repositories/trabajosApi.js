@@ -102,24 +102,39 @@ export function adaptarPaginaTrabajosApi(respuesta, adaptarLista = adaptarListaT
   exigir(objeto(respuesta) && objeto(respuesta.paginacion) && objeto(respuesta.filtros));
   const { pagina, limite, total, paginas } = respuesta.paginacion;
   exigir(entero(pagina, 1) && entero(limite, 1) && entero(total, 0) && entero(paginas, 1));
-  const { periodo, periodos, estados } = respuesta.filtros;
+  const { periodo, periodos, estados, carreras = [], modalidades = [] } = respuesta.filtros;
   exigir(typeof periodo === 'string' && Array.isArray(periodos) && Array.isArray(estados)
     && periodos.every((p) => objeto(p) && typeof p.codigo === 'string' && typeof p.activo === 'boolean')
     && estados.every((estado) => typeof estado === 'string'));
+  // RF-13: catálogos de los selectores; una respuesta anterior sin ellos deja las listas vacías.
+  const catalogo = (lista) => {
+    exigir(Array.isArray(lista) && lista.every((item) => objeto(item) && typeof item.codigo === 'string'
+      && (item.nombre == null || typeof item.nombre === 'string')));
+    return lista.map(({ codigo, nombre }) => ({ codigo, nombre: nombre ?? codigo }));
+  };
   return {
     trabajos: adaptarLista({ elementos: respuesta.elementos }),
     paginacion: { pagina, limite, total, paginas },
-    filtros: { periodo, periodos: periodos.map(({ codigo, nombre, activo }) => ({ codigo, nombre: nombre ?? null, activo })), estados },
+    filtros: {
+      periodo, periodos: periodos.map(({ codigo, nombre, activo }) => ({ codigo, nombre: nombre ?? null, activo })), estados,
+      carreras: catalogo(carreras), modalidades: catalogo(modalidades),
+    },
   };
 }
 
 /** Ruta de la página pedida; omite los filtros vacíos o «Todos». */
-export function rutaPaginaTrabajos({ pagina = 1, limite = 25, periodo, buscar, estado, tribunal, carrera } = {}) {
+export function rutaPaginaTrabajos({
+  pagina = 1, limite = 25, periodo, buscar, estado, tribunal, carrera, modalidad, estudiante, tema, tutor,
+} = {}) {
   const parametros = new URLSearchParams({ limite: String(limite), pagina: String(pagina) });
   if (periodo) parametros.set('periodo', periodo);
   if (buscar?.trim()) parametros.set('buscar', buscar.trim());
   if (estado) parametros.set('estado', estado);
   if (tribunal) parametros.set('tribunal', tribunal);
   if (carrera) parametros.set('carrera', carrera);
+  if (modalidad) parametros.set('modalidad', modalidad);
+  if (estudiante?.trim()) parametros.set('estudiante', estudiante.trim());
+  if (tema?.trim()) parametros.set('tema', tema.trim());
+  if (tutor?.trim()) parametros.set('tutor', tutor.trim());
   return `/trabajos?${parametros}`;
 }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../components/dialogos';
 import {
+  Archive,
   ArrowLeft,
   BookOpenCheck,
   CalendarRange,
@@ -19,7 +20,7 @@ import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototi
 import { formatearFecha, obtenerEtapasRubrica, redondearCalificacion } from '../../domain/flujoTrabajo';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
 import { usarRubricasLectura } from '../hooks/usarRubricasLectura';
-import { actualizarVersionRubricaApi } from '../services/rubricasApi';
+import { activarVersionRubricaApi, actualizarVersionRubricaApi, retirarVersionRubricaApi } from '../services/rubricasApi';
 import { mensajeErrorEscrituraRubrica, prepararVersionApiParaGuardar } from '../../domain/rubricasApiEdicion';
 import EditorEstructuraRubrica from '../components/EditorEstructuraRubrica';
 import { claveElemento, decimalIndicador, etapasParaEditor, ordenarEstructura, revisarEstructura, subtotalCategoria, subtotalEtapa } from '../../domain/estructuraRubrica';
@@ -31,6 +32,13 @@ const statusPresentation = {
 };
 
 const clonar = (value) => JSON.parse(JSON.stringify(value ?? []));
+
+/** Mensaje al activar o retirar: el genérico de escritura habla de «borrador». */
+function mensajeCambioEstadoVersion(error, accion) {
+  if (error?.status === 409) return `La versión cambió o ya no puede ${accion}. Recargue la página para ver su estado actual.`;
+  if (error?.status === 400) return error.message || 'La estructura no cumple las condiciones para activarse.';
+  return mensajeErrorEscrituraRubrica(error);
+}
 
 function categoryMaximum(categoria) {
   try { return Number(subtotalCategoria(categoria)); } catch { return NaN; }
@@ -71,7 +79,12 @@ export default function PaginaDetalleRubrica() {
   }, [rubrica?.id, rubrica?.revision, rubrica?.estado]);
 
   const canEdit = Boolean(rubrica && rubrica.estado === 'BORRADOR' && (esApi ? lectura.puedeAdministrar : true));
-  const canActivate = canEdit && !esApi;
+  // En modo API, canEdit ya exige permiso de administración y una versión BORRADOR.
+  const canActivate = canEdit;
+  // RF-15/RF-20/RN-09: una versión activa se retira de futuros usos sin alterar su contenido.
+  const puedeRetirar = Boolean(esApi && lectura.puedeAdministrar && rubrica?.estado === 'ACTIVA');
+  const [retirando, setRetirando] = useState(false);
+  const [activando, setActivando] = useState(false);
   const visibleCategories = canEdit ? draftCategories : (rubrica?.categorias ?? []);
   const visibleStages = canEdit ? draftStages : (rubrica ? obtenerEtapasRubrica(rubrica) : []);
   const maximumTotal = useMemo(
@@ -164,9 +177,69 @@ export default function PaginaDetalleRubrica() {
     await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Borrador guardado', showConfirmButton: false, timer: 1600 });
   };
 
+  const retirarVersion = async () => {
+    if (!puedeRetirar || retirando) return;
+    const respuesta = await Swal.fire({
+      icon: 'warning',
+      title: '¿Retirar esta versión?',
+      text: 'Dejará de asignarse a trabajos nuevos. Los trabajos y evaluaciones que ya la usan la conservan sin cambios. Una versión retirada no puede reactivarse; para volver a usar su estructura, cree una versión nueva.',
+      showCancelButton: true,
+      confirmButtonText: 'Retirar versión',
+      cancelButtonText: 'Volver',
+      reverseButtons: true,
+    });
+    if (!respuesta.isConfirmed) return;
+    setRetirando(true);
+    try {
+      await retirarVersionRubricaApi(rubrica);
+      await lectura.reintentar();
+      await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Versión retirada', showConfirmButton: false, timer: 1800 });
+    } catch (error) {
+      await Swal.fire({ icon: 'error', title: 'No se retiró la versión', text: mensajeCambioEstadoVersion(error, 'retirarse') });
+    } finally {
+      setRetirando(false);
+    }
+  };
+
   const activateDraft = async () => {
+    if (activando || guardando) return;
+    if (esApi && tieneCambios) {
+      await Swal.fire({ icon: 'warning', title: 'Guarde el borrador primero', text: 'La activación usa la última revisión guardada en el servidor. Guarde o descarte los cambios antes de activar.' });
+      return;
+    }
     if (diagnostico.pendientes.length) {
       await Swal.fire({ icon: 'warning', title: 'Estructura incompleta', text: 'Cada etapa debe tener categorías, indicadores y una valoración mayor que cero.' });
+      return;
+    }
+    if (esApi) {
+      const confirmacion = await Swal.fire({
+        icon: 'warning',
+        title: '¿Activar esta versión?',
+        text: 'Será la versión vigente para esta modalidad y período, y dejará de poder editarse. Si había otra versión activa, pasará a histórica. Los trabajos y evaluaciones anteriores conservarán la versión que ya tienen asignada.',
+        showCancelButton: true,
+        confirmButtonText: 'Activar versión',
+        cancelButtonText: 'Volver y revisar',
+        reverseButtons: true,
+      });
+      if (!confirmacion.isConfirmed) return;
+      setActivando(true);
+      try {
+        const respuesta = await activarVersionRubricaApi({ ...rubrica, revision: revisionEditada ?? rubrica.revision });
+        await lectura.reintentar();
+        await Swal.fire({
+          icon: 'success',
+          title: 'Versión activada',
+          text: respuesta?.archivada?.version
+            ? `La versión ${respuesta.archivada.version} pasó a histórica.`
+            : 'Ya puede asignarse a los trabajos de esta modalidad y período.',
+          timer: 2200,
+          showConfirmButton: false,
+        });
+      } catch (error) {
+        await Swal.fire({ icon: 'error', title: 'No se activó la versión', text: mensajeCambioEstadoVersion(error, 'activarse') });
+      } finally {
+        setActivando(false);
+      }
       return;
     }
     const normalized = normalizedDraft();
@@ -220,6 +293,7 @@ export default function PaginaDetalleRubrica() {
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: rubrica.version }]}
         actions={<>
           {esApi && lectura.puedeAdministrar && rubrica?.idRubrica && <Link className="button button-primary" to={`/rubricas/${encodeURIComponent(rubrica.idRubrica)}/nueva-version/${encodeURIComponent(rubrica.id)}`}><GitBranch size={17} aria-hidden="true" /> Nueva versión</Link>}
+          {puedeRetirar && <button className="button button-outline" type="button" disabled={retirando} onClick={() => void retirarVersion()}><Archive size={17} aria-hidden="true" /> {retirando ? 'Retirando…' : 'Retirar versión'}</button>}
           <VolverAlCatalogo esApi={esApi}>Volver al listado</VolverAlCatalogo>
         </>}
       />
@@ -313,7 +387,7 @@ export default function PaginaDetalleRubrica() {
           <div>
             {conflicto ? <button className="button button-outline" type="button" disabled={guardando} onClick={recargarVersion}>Recargar versión</button> : null}
             <button className="button button-outline" type="button" disabled={!tieneCambios || guardando} onClick={saveDraft}><Save size={17} /> {guardando ? 'Guardando...' : 'Guardar borrador'}</button>
-            {canActivate ? <button className="button button-primary" type="button" onClick={activateDraft}><ShieldCheck size={17} /> Activar versión</button> : null}
+            {canActivate ? <button className="button button-primary" type="button" disabled={activando || guardando} onClick={() => void activateDraft()}><ShieldCheck size={17} /> {activando ? 'Activando…' : 'Activar versión'}</button> : null}
           </div>
         </div>
       ) : null}

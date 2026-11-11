@@ -27,4 +27,20 @@ export class ConsultarTrabajosDto {
   /** Código de la carrera (p. ej. TI). */
   @IsOptional() @IsString() @MaxLength(30)
   carrera?: string;
+
+  /** RF-13 · Código de la modalidad. */
+  @IsOptional() @IsString() @MaxLength(30)
+  modalidad?: string;
+
+  /** RF-13 · Parte del nombre de un estudiante, sin distinguir tildes ni mayúsculas. */
+  @IsOptional() @IsString() @MaxLength(160)
+  estudiante?: string;
+
+  /** RF-13 · Parte del título del tema. */
+  @IsOptional() @IsString() @MaxLength(160)
+  tema?: string;
+
+  /** RF-13 · Parte del nombre de un tutor. */
+  @IsOptional() @IsString() @MaxLength(160)
+  tutor?: string;
 }

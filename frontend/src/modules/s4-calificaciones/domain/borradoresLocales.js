@@ -19,6 +19,63 @@ const almacenPorDefecto = () => {
   try { return globalThis.localStorage ?? null; } catch { return null; }
 };
 
+// RNF-09 · Copia duradera opcional. En la APK se configura con Preferences nativo; en el navegador
+// no existe y localStorage sigue siendo el único almacén. Recibe (clave, texto) o (clave, null) al borrar.
+let espejo = null;
+
+export function configurarEspejoBorradores(funcion) {
+  espejo = typeof funcion === 'function' ? funcion : null;
+}
+
+function reflejar(clave, texto, almacen) {
+  // Solo se refleja el almacén real del dispositivo, no los almacenes que inyectan las pruebas.
+  if (!espejo || almacen !== almacenPorDefecto()) return;
+  try { espejo(clave, texto); } catch { /* la copia duradera nunca bloquea el guardado local */ }
+}
+
+/** Claves que se respaldan: borradores y copias de expediente de S4. */
+export function esClaveRespaldo(clave) {
+  return typeof clave === 'string' && (clave.startsWith(PREFIJO) || clave.startsWith(PREFIJO_EXPEDIENTE));
+}
+
+const instanteRegistro = (texto) => {
+  try {
+    const registro = JSON.parse(texto);
+    return Date.parse(registro?.actualizadoEn ?? registro?.guardadoEn ?? '') || 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Concilia la copia duradera con localStorage al abrir la app (RNF-09, RNF-10):
+ * restaura lo que falte o sea más reciente en la copia, y devuelve lo que la copia aún no tiene.
+ * Nunca borra nada: si localStorage se vació, los borradores vuelven desde la copia.
+ */
+export function conciliarRespaldo(entradas, almacen = almacenPorDefecto()) {
+  if (!almacen) return { restauradas: 0, paraCopiar: [] };
+  const respaldadas = new Map(entradas.filter(({ clave, valor }) => esClaveRespaldo(clave) && typeof valor === 'string')
+    .map(({ clave, valor }) => [clave, valor]));
+  let restauradas = 0;
+  for (const [clave, valor] of respaldadas) {
+    let local = null;
+    try { local = almacen.getItem(clave); } catch { /* sin acceso: se intenta restaurar */ }
+    if (local === null || instanteRegistro(valor) > instanteRegistro(local)) {
+      try { almacen.setItem(clave, valor); restauradas += 1; } catch { /* almacenamiento lleno */ }
+    }
+  }
+  const paraCopiar = [];
+  for (let i = 0; i < almacen.length; i += 1) {
+    const clave = almacen.key(i);
+    if (!esClaveRespaldo(clave)) continue;
+    const valor = almacen.getItem(clave);
+    if (valor !== null && (!respaldadas.has(clave) || instanteRegistro(valor) > instanteRegistro(respaldadas.get(clave)))) {
+      paraCopiar.push({ clave, valor });
+    }
+  }
+  return { restauradas, paraCopiar };
+}
+
 /** Una clave por evaluación: etapa, titular (estudiante o compartida) y evaluador. */
 export function claveBorrador({ asignacionId, tipo, idEtapa, idTitular, idEvaluador }) {
   if (!asignacionId || !idEtapa || !idEvaluador || (tipo === 'ORAL' && !idTitular)) return null;
@@ -41,7 +98,9 @@ export function guardarBorrador(clave, datos, almacen = almacenPorDefecto(), aho
   try {
     const anterior = leerBorrador(clave, almacen);
     const registro = { ...anterior, ...datos, estado: datos.estado ?? anterior?.estado ?? ESTADO_LOCAL.LOCAL, actualizadoEn: ahora.toISOString() };
-    almacen.setItem(clave, JSON.stringify(registro));
+    const texto = JSON.stringify(registro);
+    almacen.setItem(clave, texto);
+    reflejar(clave, texto, almacen);
     return true;
   } catch {
     return false;
@@ -49,7 +108,12 @@ export function guardarBorrador(clave, datos, almacen = almacenPorDefecto(), aho
 }
 
 export function eliminarBorrador(clave, almacen = almacenPorDefecto()) {
-  try { if (clave && almacen) almacen.removeItem(clave); } catch { /* sin almacenamiento disponible */ }
+  try {
+    if (clave && almacen) {
+      almacen.removeItem(clave);
+      reflejar(clave, null, almacen);
+    }
+  } catch { /* sin almacenamiento disponible */ }
 }
 
 /** Borradores que esperan conexión para enviarse al servidor. */
@@ -91,7 +155,10 @@ export function mismasNotas(notasLocales, puntajesServidor = []) {
 /** Copia del expediente para seguir evaluando si se recarga sin conexión (solo lectura de lo ya descargado). */
 export function guardarExpediente(asignacionId, datos, almacen = almacenPorDefecto(), ahora = new Date()) {
   try {
-    almacen?.setItem(`${PREFIJO_EXPEDIENTE}${asignacionId}`, JSON.stringify({ guardadoEn: ahora.toISOString(), datos }));
+    const clave = `${PREFIJO_EXPEDIENTE}${asignacionId}`;
+    const texto = JSON.stringify({ guardadoEn: ahora.toISOString(), datos });
+    almacen?.setItem(clave, texto);
+    reflejar(clave, texto, almacen);
     return true;
   } catch {
     return false;

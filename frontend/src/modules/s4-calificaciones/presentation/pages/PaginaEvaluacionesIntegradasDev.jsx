@@ -12,6 +12,7 @@ import { claveBorrador, leerBorrador, guardarBorrador, eliminarBorrador, leerExp
   guardarExpediente, etiquetaSincronizacion, ESTADO_LOCAL, sincronizarBorrador,
   RESULTADO_SINCRONIZACION, estadoAlConsultarExpediente } from '../../domain/borradoresLocales';
 import { usarConexion, esErrorDeConexion } from '../hooks/usarConexion';
+import { usarRespaldoBorradores } from '../hooks/usarRespaldoBorradores';
 import './evaluacionesMerDev.css';
 
 function armarNotas(indicadores, evaluacion) {
@@ -22,7 +23,14 @@ function armarNotas(indicadores, evaluacion) {
   }));
 }
 
-export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
+/** RNF-09: en la APK, los borradores duraderos se restauran antes de abrir la evaluación. */
+export default function PaginaEvaluacionesIntegradasDev(props) {
+  const respaldoListo = usarRespaldoBorradores();
+  if (!respaldoListo) return <p className="card" role="status">Recuperando los borradores guardados en este dispositivo…</p>;
+  return <EvaluacionIntegrada {...props} />;
+}
+
+function EvaluacionIntegrada({ tipo = 'ORAL' }) {
   const { asignacionId, idEstudiante } = useParams();
   const [estado, setEstado] = useState({ status: 'cargando', datos: null, error: null });
   const [recarga, setRecarga] = useState(0);
