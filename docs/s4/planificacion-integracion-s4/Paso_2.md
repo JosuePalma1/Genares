@@ -29,7 +29,7 @@ La distribución funcional S3/S4 quedó aclarada por comunicación del equipo: S
 | --- | --- |
 | PROPIO DE S4 | Modalidades y rúbricas; programación, cronograma y reprogramación de sustentaciones; evaluaciones escritas y orales; guardado, sincronización, estados, resultados, PDF y auditoría de S4. |
 | CONSUMIDO DE OTROS | Identidad, roles y ámbitos institucionales; estudiantes, docentes, carreras, períodos y trabajos; asignaciones iniciales y miembros de tribunal gestionados por S3. |
-| PENDIENTE TÉCNICO | Cardinalidad de sesiones, participantes por sesión, claves externas oral/sesión y ajustes a la relación de tribunal. Acordar tratamiento físico de s3.defensa sin duplicar escrituras. |
+| PENDIENTE TÉCNICO | Clave externa evaluación oral–sesión y ajustes a la relación de tribunal. Acordar tratamiento físico de s3.defensa sin duplicar escrituras. Los participantes por sesión ya se registran en s4.programacion\_estudiante y un trabajo admite varias sesiones. |
 | FUERA DEL ALCANCE | Gestión de usuarios/roles institucionales, inscripción y proceso integral de titulación, asignación inicial de tribunales, firma electrónica y escritura automática de notas en SGA. |
 
 |  |
@@ -116,7 +116,7 @@ Funciones y subfunciones:
 * Buscar trabajos históricos combinando carrera, período, modalidad, estudiante, tema, tutor y estado.
 * Validar existencia y consistencia del trabajo, estudiantes, tribunal y versión de rúbrica antes de habilitar una evaluación.
 
-**Entradas y dependencias.** Entidades compartidas gen.\*; s4.trabajos\_titulacion, s4.estudiantes\_trabajo, s4.asignaciones\_tribunal, s4.miembros\_tribunal; tablas de tribunal gestionadas por S3 (lectura).
+**Entradas y dependencias.** Entidades compartidas gen.\* (gen.tema, gen.estudiante, gen.persona, gen.docente, gen.carrera, gen.periodo\_academico y gen.modalidad). De S2, por lectura: s2.asignacion\_tema (identifica el trabajo evaluable), s2.grupo\_integrante (integrantes de binas) y s2.asignacion\_tutor. De S3, por lectura: s3.asignacion\_tribunal, s3.miembros\_tribunal y s3.docente\_carrera\_periodo. De S4: s4.procesos\_evaluacion, que enlaza cada asignación de S2 con su versión de rúbrica.
 
 **Salida / producto.** Ficha/consulta del trabajo y estudiante; contexto validado para módulos MF-03, MF-04 y MF-05.
 
@@ -182,7 +182,7 @@ Funciones y subfunciones:
 * Admitir sesión conjunta para dos estudiantes o sesiones excepcionales separadas del mismo trabajo.
 * Vincular cada evaluación oral con sesión, estudiante y evaluador; detectar conflictos de horario antes de confirmar.
 
-**Entradas y dependencias.** s4.programaciones\_sustentacion y s4.eventos\_trazabilidad\_trabajo bajo escritura de S4; miembros de tribunal de S3 por lectura; asociación participante–sesión y FK oral por implementar.
+**Entradas y dependencias.** s4.programaciones\_sustentacion, s4.programacion\_estudiante (participantes de cada sesión, sin repetir un estudiante en la misma sesión) y s4.eventos\_trazabilidad\_trabajo bajo escritura de S4; miembros de tribunal de S3 por lectura. Pendiente: la FK física de la evaluación oral hacia la sesión; mientras tanto, el servidor exige que el estudiante tenga una sesión vigente antes de guardar su evaluación oral.
 
 **Salida / producto.** Cronograma oficial, sesiones reprogramables con historial y referencia estable de sesión para evaluaciones orales.
 
@@ -223,13 +223,13 @@ Funciones y subfunciones:
 * Promediar evaluadores requeridos sin convertir pendientes en cero.
 * Consolidar aportes según ponderaciones por versión; la rúbrica documentada aporta escrita 5 + oral 5 = 10.
 * Conservar precisión decimal exacta en operaciones intermedias.
-* Presentar dos decimales aplicando la regla de redondeo comercial estándar (HALF\_UP), incrementando la centésima en una unidad si el tercer decimal es mayor o igual a 5; diferenciar parcial, pendiente y definitivo.
+* Presentar las calificaciones con dos decimales aplicando ROUND\_HALF\_UP (redondeo comercial: la centésima sube una unidad cuando el tercer decimal es mayor o igual a 5). El redondeo se aplica solo al presentar; los cálculos intermedios conservan la precisión decimal exacta. Diferenciar parcial, pendiente y definitivo.
 
 **Entradas y dependencias.** Evaluaciones confirmadas MF-03; alcance y máximos MF-02; ámbitos CT-01.
 
 **Salida / producto.** Notas y consolidaciones consultables para MF-05 y MF-07.
 
-**Exclusiones.** No escribe notas al SGA, no aplica HALF\_UP ni inventa una etapa de anexos.
+**Exclusiones.** No escribe notas al SGA, no redondea resultados intermedios ni inventa una etapa de anexos.
 
 **Verificación mínima.** 9,445→9,45; 9,446→9,45; 9,444→9,44. Instrumento escrito 4,20/5 + oral 4,50/5 da 8,70/10.
 
@@ -334,9 +334,9 @@ Los contratos siguientes describen la información mínima que Genares necesita.
 ## 5.1. Riesgos de la base unificada
 
 * El MER del 24 de octubre aún contiene s3.defensa y s4.programaciones\_sustentacion. Se acordó usar la tabla S4 para el cronograma; falta definir el tratamiento de relaciones antiguas de s3.defensa sin eliminar referencias útiles unilateralmente.
-* En el MER, la relación documentada s4.programaciones\_sustentacion ↔ trabajo es 0..1; esto no cubre todavía varias sesiones de una bina. Hay que definir participantes y cardinalidad antes de las migraciones definitivas.
+* s4.programaciones\_sustentacion admite varias sesiones por trabajo (no hay restricción UNIQUE por trabajo) y los participantes de cada sesión se registran en s4.programacion\_estudiante. Así se cubren binas en sesión conjunta o en sesiones separadas.
 * s4.evaluaciones dispone de identificadores de trabajo, estudiante y evaluador, pero el esquema fuente examinado no incluye una FK explícita hacia sesión. Su necesidad deriva del RF-46 y requiere coordinación.
-* Aunque las tablas s4.asignaciones\_tribunal y s4.miembros\_tribunal figuren en el esquema S4 del MER, el acuerdo funcional asigna su gestión a S3; S4 solo las consulta. No renombrarlas automáticamente sin revisar migraciones.
+* La asignación de tribunal y sus integrantes se leen de s3.asignacion\_tribunal, s3.miembros\_tribunal y s3.docente\_carrera\_periodo, gestionadas por S3. S4 solo las consulta y no mantiene copias en su esquema.
 * Una tabla ubicada en s4 no obliga a que S4 sea propietario funcional de todos sus datos. La propiedad se decide por operación y contrato de integración.
 
 # 6. Acuerdo de cronograma y gestión del historial
@@ -356,7 +356,7 @@ Los contratos siguientes describen la información mínima que Genares necesita.
 * Construir en S4 la creación y consulta de sesiones, cronograma por tribunal y acceso a evaluación oral; utilizar datos de prueba de S3 mientras no esté disponible la asignación real.
 * Implementar en S4 programación y reprogramación sobre su tabla oficial; no modificar unilateralmente tablas de S3 ni su asignación de tribunales.
 * Mantener RF-48 como requisito propio de S4, confirmado por la decisión entre equipos; registrar dicha confirmación como precisión de integración.
-* Completar el diseño de participantes de sesión y de la referencia oral–sesión para permitir binas conjuntas o separadas.
+* Completar la referencia física oral–sesión. Los participantes de sesión ya se registran en s4.programacion\_estudiante y permiten binas conjuntas o separadas.
 * S3 consultará s4.programaciones\_sustentacion como fuente común; el contrato de lectura y el tratamiento de s3.defensa deben verificarse en migraciones.
 
 |  |
@@ -369,7 +369,7 @@ Los contratos siguientes describen la información mínima que Genares necesita.
 | --- | --- | --- | --- |
 | D-01 / Cerrada | S4 programa y reprograma; S3 consulta el cronograma. | S3 + S4 | RF-48 propio; fuente s4.programaciones\_sustentacion. |
 | D-02 / Cerrada | Ambos equipos utilizarán s4.programaciones\_sustentacion; revisar legado s3.defensa. | S3 + S4 | No duplicar sesiones; adecuación física pendiente. |
-| D-03 / Cerrada | Incorporación de la tabla asociativa s4.estudiantes\_sesion\_sustentacion (id\_sesion, id\_estudiante) y eliminación de la restricción UNIQUE(id\_trabajo) en s4.programaciones\_sustentacion para soportar sesiones conjuntas y separadas. | S4 + integrador | RF-46, RF-48, RN-28; soporte técnico confirmado. |
+| D-03 / Cerrada | Incorporación de la tabla asociativa de participantes, implementada como s4.programacion\_estudiante (programacion\_sustentacion\_id, id\_estudiante), y eliminación de la restricción UNIQUE(id\_trabajo) en s4.programaciones\_sustentacion para soportar sesiones conjuntas y separadas. | S4 + integrador | RF-46, RF-48, RN-28; soporte técnico confirmado. |
 | D-04 / Cerrada | S3 registra asignaciones e integrantes; validar columnas, vigencia y cambios. | S3 + S4 | RF-10 y RF-23: consumo de información de S3. |
 | D-05 / Media | Contrato de identidad, roles y permisos por carrera. | Equipo de identidad | RF-01, RF-08; CT-01. |
 | D-06 / Media | Quién crea y actualiza trabajos y estudiantes asociados. | Equipo dueño del proceso | RF-09, RF-11; referencia académica. |
@@ -557,7 +557,7 @@ MF-02 (rúbricas), MF-03 (escrita y lógica de oral sobre sesión simulada), MF-
 
 ## 11.2. Qué queda por validar técnicamente
 
-Quedan por diseñar y verificar la asociación participante–sesión, la FK física de evaluación oral hacia sesión, conflictos de horario, el acceso de lectura a tribunales de S3 y el tratamiento de las referencias de s3.defensa.
+La asociación participante–sesión ya existe en s4.programacion\_estudiante. Quedan por diseñar y verificar la FK física de evaluación oral hacia sesión, conflictos de horario, el acceso de lectura a tribunales de S3 y el tratamiento de las referencias de s3.defensa.
 
 # 12. Control de cambios respecto del Paso 1
 
@@ -650,7 +650,7 @@ La visibilidad del menú es solo una ayuda. Cada consulta y cambio debe repetir 
 | **CR-04 · Reprogramar sesión** | Cambiar fecha/hora de sesión existente, con motivo y conservación de ID; validaciones de disponibilidad. | Programador autorizado | RF-48 |
 | **CR-05 · Historial de reprogramación** | Mostrar valor anterior y nuevo, responsable, instante y motivo de cada modificación confirmada. | Consulta autorizada / auditor | RF-37, RF-48 |
 
-**Origen y límites.** Datos: S4 escribe s4.programaciones\_sustentacion y s4.eventos\_trazabilidad\_trabajo; S3 administra y S4 lee tribunal. Relación participante–sesión pendiente de concretar en esquema físico.
+**Origen y límites.** Datos: S4 escribe s4.programaciones\_sustentacion y s4.eventos\_trazabilidad\_trabajo; S3 administra y S4 lee tribunal. Los participantes de cada sesión se registran en s4.programacion\_estudiante.
 
 ## A.3.4. Mis evaluaciones
 
@@ -755,7 +755,7 @@ Recorrido B — revisión escrita: Mis evaluaciones → Evaluación escrita comp
 | **S4 — evaluaciones / rúbricas** | Versiones, indicadores, notas, cierres y resultados. | Gestión y cálculo propios de S4. |
 | **S4 — trazabilidad / PDF** | Cambios de sesión, auditoría de evaluación y documentos archivados. | Registro, consulta y generación con permisos. |
 
-**Pendientes de diseño físico:** Asociación estudiante–sesión; cardinalidad de varias sesiones por trabajo; FK evaluación oral–sesión; validación de cruces de horarios; lectura de asignaciones escritas por S3; tratamiento de s3.defensa sin registros duplicados. No cambian la propiedad funcional acordada.
+**Pendientes de diseño físico:** FK evaluación oral–sesión; validación de cruces de horarios; lectura de asignaciones escritas por S3; tratamiento de s3.defensa sin registros duplicados. No cambian la propiedad funcional acordada. La asociación estudiante–sesión (s4.programacion\_estudiante) y las varias sesiones por trabajo ya están implementadas.
 
 ## A.8. Criterios para aprobar la matriz de navegación
 
