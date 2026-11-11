@@ -557,7 +557,7 @@ MF-02 (rúbricas), MF-03 (escrita y lógica de oral sobre sesión simulada), MF-
 
 ## 11.2. Qué queda por validar técnicamente
 
-La asociación participante–sesión ya existe en s4.programacion\_estudiante. Quedan por diseñar y verificar la FK física de evaluación oral hacia sesión, conflictos de horario, el acceso de lectura a tribunales de S3 y el tratamiento de las referencias de s3.defensa.
+La asociación participante–sesión ya existe en s4.programacion\_estudiante. Quedan por diseñar y verificar la FK física de evaluación oral hacia sesión, el acceso de lectura a tribunales de S3 y el tratamiento de las referencias de s3.defensa. El sistema valida los cruces de horarios de sustentaciones mediante controles en PostgreSQL. Impide programaciones simultáneas en una misma aula y conflictos entre evaluadores asignados. Permite sustentaciones simultáneas cuando utilizan aulas diferentes y no comparten evaluadores.
 
 # 12. Control de cambios respecto del Paso 1
 
@@ -755,7 +755,7 @@ Recorrido B — revisión escrita: Mis evaluaciones → Evaluación escrita comp
 | **S4 — evaluaciones / rúbricas** | Versiones, indicadores, notas, cierres y resultados. | Gestión y cálculo propios de S4. |
 | **S4 — trazabilidad / PDF** | Cambios de sesión, auditoría de evaluación y documentos archivados. | Registro, consulta y generación con permisos. |
 
-**Pendientes de diseño físico:** FK evaluación oral–sesión; validación de cruces de horarios; lectura de asignaciones escritas por S3; tratamiento de s3.defensa sin registros duplicados. No cambian la propiedad funcional acordada. La asociación estudiante–sesión (s4.programacion\_estudiante) y las varias sesiones por trabajo ya están implementadas.
+**Pendientes de diseño físico:** FK evaluación oral–sesión; lectura de asignaciones escritas por S3; tratamiento de s3.defensa sin registros duplicados. No cambian la propiedad funcional acordada. La asociación estudiante–sesión (s4.programacion\_estudiante) y las varias sesiones por trabajo ya están implementadas. El sistema valida los cruces de horarios de sustentaciones mediante controles en PostgreSQL. Impide programaciones simultáneas en una misma aula y conflictos entre evaluadores asignados. Permite sustentaciones simultáneas cuando utilizan aulas diferentes y no comparten evaluadores.
 
 ## A.8. Criterios para aprobar la matriz de navegación
 
