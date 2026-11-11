@@ -35,7 +35,7 @@ Los espacios S1–S3 reservan la estructura común. Sus funciones siguen siendo 
 - PostgreSQL local con la base unificada `genares_integrado_dev` preparada por el proyecto común.
 - El rol de PostgreSQL `genares` con los permisos S4 correspondientes.
 
-Este repositorio no crea la base ni ejecuta migraciones. No ejecutes migraciones del prototipo: S4 consume `s2.asignacion_tema`, `s3.asignacion_tribunal` y las tablas de `s4` existentes.
+La aplicación no crea la base ni ejecuta migraciones al arrancar. No ejecutes migraciones del prototipo: S4 consume `s2.asignacion_tema`, `s3.asignacion_tribunal` y las tablas de `s4` existentes. Para crear desde cero una base local con datos ficticios, usa los scripts de [`docs/s4/base-datos-dev`](docs/s4/base-datos-dev/README.md).
 
 ## Instalación local en Windows
 
@@ -130,6 +130,7 @@ Estas protecciones cubren la API y las sesiones SQL normales. Un superusuario o 
 | Carpeta | Contenido |
 | --- | --- |
 | [`docs/s4/instalacion`](docs/s4/instalacion) | Instalación local paso a paso, con verificación de puertos y permisos. |
+| [`docs/s4/base-datos-dev`](docs/s4/base-datos-dev/README.md) | Creación de la base local (MER completo) y datos de prueba ficticios, con su orden de ejecución. |
 | [`docs/s4/decisiones`](docs/s4/decisiones) | Decisiones de diseño aprobadas (retención, visibilidad y auditoría). |
 | [`docs/s4/planificacion-integracion-s4`](docs/s4/planificacion-integracion-s4) | Plan de integración con el MER unificado, por pasos. |
 | [`docs/s4/procedimientos`](docs/s4/procedimientos) | Consultas SQL de comprobación manual. |
