@@ -83,7 +83,7 @@ function DetalleAuditoria({ titulo, valor }) {
   );
 }
 
-function AuditoriaCambios() {
+export function AuditoriaCambios() {
   const [tabla, establecerTabla] = useState('');
   const [registro, establecerRegistro] = useState('');
   const [filtros, establecerFiltros] = useState({ tabla: '', registro: '' });

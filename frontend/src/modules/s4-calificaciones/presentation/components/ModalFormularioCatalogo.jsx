@@ -102,7 +102,7 @@ export function ModalFormularioCatalogo({
       >
         <header className="modal-catalogo-cabecera">
           <div>
-            <span className="section-kicker">Maestros / Catálogos</span>
+            <span className="section-kicker">Rúbricas</span>
             <h2 id={`${id}-titulo`}>{titulo}</h2>
             {descripcion && <p id={`${id}-descripcion`}>{descripcion}</p>}
           </div>

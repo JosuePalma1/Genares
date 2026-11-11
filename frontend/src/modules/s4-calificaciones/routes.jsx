@@ -17,6 +17,7 @@ import PaginaCronograma from './presentation/pages/PaginaCronograma';
 import PaginaDocumentos from './presentation/pages/PaginaDocumentos';
 import PaginaEvaluacionesIntegradasDev from './presentation/pages/PaginaEvaluacionesIntegradasDev';
 import PaginaRubricas from './presentation/pages/PaginaRubricas';
+import PaginaAuditoria from './presentation/pages/PaginaAuditoria';
 import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './presentation/pages/PaginaTrabajosApi';
 
 function RedirigirProgramacionLegacy() {
@@ -54,6 +55,7 @@ export default function Aplicacion() {
         <Route path="/maestros/carreras" element={<PaginaCarreras />} />
         <Route path="/secretaria" element={<PaginaSecretaria />} />
         <Route path="/coordinacion" element={<PaginaCoordinacion />} />
+        <Route path="/auditoria" element={<PaginaAuditoria />} />
         <Route path="*" element={<PaginaNoEncontrada />} />
       </Route>
     </Routes>

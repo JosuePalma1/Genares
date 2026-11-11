@@ -266,10 +266,10 @@ export default function PaginaModalidades() {
 
   return <div className="modalidades-page">
     <EncabezadoPagina
-      eyebrow="Maestros / Catálogos"
+      eyebrow="Rúbricas"
       title="Modalidades de titulación"
       description="Consulte el catálogo y la familia de rúbricas asociada a cada modalidad."
-      breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Maestros / Catálogos' }, { etiqueta: 'Modalidades de titulación' }]}
+      breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Modalidades de titulación' }]}
       actions={esApi ? <>
         <button className="button button-outline" type="button" onClick={() => recargar()} disabled={cargando}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>
         {puedeAdministrar && <button className="button button-primary" type="button" onClick={abrirNuevo}><Plus size={18} aria-hidden="true" /> Nueva modalidad</button>}

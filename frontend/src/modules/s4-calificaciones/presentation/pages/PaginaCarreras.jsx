@@ -234,9 +234,9 @@ export default function PaginaCarreras() {
   }
 
   return <div className="modalidades-page carreras-page">
-    <EncabezadoPagina eyebrow="Maestros / Catálogos" title="Carreras"
+    <EncabezadoPagina eyebrow="Rúbricas" title="Carreras"
       description="Consulte y administre las carreras académicas registradas."
-      breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Maestros / Catálogos' }, { etiqueta: 'Carreras' }]}
+      breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Carreras' }]}
       actions={esApi ? <>
         <button className="button button-outline" type="button" onClick={() => recargar()} disabled={cargando}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>
         {puedeAdministrar && <button className="button button-primary" type="button" onClick={abrirNuevo}><Plus size={18} aria-hidden="true" /> Nueva carrera</button>}

@@ -140,10 +140,10 @@ export default function PaginaDetalleModalidad() {
   return (
     <div className="modalidades-page">
       <EncabezadoPagina
-        eyebrow="Maestros / Catálogos"
+        eyebrow="Rúbricas"
         title={modalidad.nombre}
         description={`Código estable: ${modalidad.codigo}`}
-        breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Modalidades', to: '/maestros/modalidades' }, { etiqueta: modalidad.nombre }]}
+        breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Rúbricas', to: '/rubricas' }, { etiqueta: 'Modalidades', to: '/maestros/modalidades' }, { etiqueta: modalidad.nombre }]}
         actions={<>{esApi && puedeAdministrar && !editando && <button className="button button-primary" type="button" onClick={() => { setFormulario(vacio(modalidad)); setEditando(true); setAviso(''); }}><PencilLine size={17} /> Editar datos</button>}{volver}</>}
       />
 
