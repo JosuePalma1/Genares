@@ -1,13 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FilePen, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
-import { listarTrabajosEvaluacionApi } from '../services/evaluacionesApi';
+import { adaptarListaTrabajosEvaluacionApi } from '../../infrastructure/repositories/evaluacionesApi';
+import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
+import { usarValorDiferido } from '../hooks/usarValorDiferido';
+import { Paginador } from '../components/Paginador';
+import { SelectorPeriodo } from '../components/SelectorPeriodo';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { usarCapacidadesCorrecciones } from '../hooks/usarCapacidadesCorrecciones';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import './evaluacionesApi.css';
+
+export const EVALUACIONES_POR_PAGINA = 20;
 
 const ETIQUETAS_ESTADO = {
   SIN_EVALUACIONES: 'Sin evaluaciones',
@@ -39,23 +45,20 @@ export function mensajeSeguroEvaluaciones(error) {
 }
 
 export function PaginaMisEvaluacionesApi() {
-  const [trabajos, establecerTrabajos] = useState([]);
-  const [estado, establecerEstado] = useState('cargando');
-  const [error, establecerError] = useState(null);
-
-  const cargar = (signal) => {
-    establecerEstado('cargando');
-    establecerError(null);
-    return listarTrabajosEvaluacionApi({ signal })
-      .then((elementos) => { establecerTrabajos(elementos); establecerEstado('listo'); })
-      .catch((fallo) => { if (fallo.name !== 'AbortError') { establecerError(fallo); establecerEstado('error'); } });
-  };
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void cargar(controller.signal);
-    return () => controller.abort();
-  }, []);
+  const [busqueda, establecerBusqueda] = useState('');
+  // null = el periodo que el servidor considera actual (activo).
+  const [periodo, establecerPeriodo] = useState(null);
+  const [pagina, establecerPagina] = useState(1);
+  const busquedaDiferida = usarValorDiferido(busqueda);
+  const filtros = useMemo(() => ({
+    pagina, limite: EVALUACIONES_POR_PAGINA,
+    ...(periodo && { periodo }),
+    ...(busquedaDiferida.trim() && { buscar: busquedaDiferida.trim() }),
+  }), [pagina, periodo, busquedaDiferida]);
+  const consulta = usarPaginaTrabajosApi(filtros, adaptarListaTrabajosEvaluacionApi);
+  const { estado, error, trabajos } = consulta;
+  const filtrosActivos = Boolean(busqueda || periodo !== null);
+  const limpiar = () => { establecerBusqueda(''); establecerPeriodo(null); establecerPagina(1); };
 
   return (
     <div className="evaluaciones-api-page">
@@ -65,9 +68,25 @@ export function PaginaMisEvaluacionesApi() {
         breadcrumbs={['Gestión académica', 'Evaluaciones']}
         meta={<InsigniaEstado tono="info"><Database size={14} /> Seguimiento académico</InsigniaEstado>}
       />
+      <section className="evaluaciones-api-card evaluaciones-api-filtros" aria-label="Buscar evaluaciones">
+        <div className="field">
+          <label htmlFor="mis-evaluaciones-busqueda">Buscar trabajo, estudiante o evaluador</label>
+          <input id="mis-evaluaciones-busqueda" className="input" type="search" value={busqueda}
+            onChange={(evento) => { establecerBusqueda(evento.target.value); establecerPagina(1); }} placeholder="Título, carrera o nombre" />
+        </div>
+        <div className="field">
+          <label htmlFor="mis-evaluaciones-periodo">Período académico</label>
+          <SelectorPeriodo id="mis-evaluaciones-periodo" valor={periodo ?? consulta.filtros?.periodo ?? 'TODOS'}
+            periodos={consulta.filtros?.periodos ?? []} alCambiar={(valor) => { establecerPeriodo(valor); establecerPagina(1); }} />
+        </div>
+        <p aria-live="polite">{consulta.actualizando ? 'Actualizando…' : `${consulta.paginacion?.total ?? 0} trabajo(s)`}</p>
+        {filtrosActivos && <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>}
+      </section>
       {estado === 'cargando' && <EstadoConsultaEvaluacionesApi estado="cargando" />}
-      {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void cargar(); }} />}
-      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio className="card" icon={FileSearch} title="No hay trabajos registrados" description="Los trabajos aparecerán aquí cuando estén disponibles para su perfil." />}
+      {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void consulta.recargar(); }} />}
+      {estado === 'listo' && trabajos.length === 0 && <EstadoVacio className="card" icon={FileSearch}
+        title={filtrosActivos ? 'No hay coincidencias' : 'No hay trabajos registrados'}
+        description={filtrosActivos ? 'Cambie la búsqueda o el período.' : 'Los trabajos del período actual aparecerán aquí cuando estén disponibles para su perfil.'} />}
       {estado === 'listo' && trabajos.length > 0 && <div className="evaluaciones-api-sections">
         {trabajos.map((trabajo) => (
           <article className="evaluaciones-api-card" key={trabajo.id}>
@@ -89,6 +108,7 @@ export function PaginaMisEvaluacionesApi() {
           </article>
         ))}
       </div>}
+      {estado === 'listo' && <Paginador paginacion={consulta.paginacion} alCambiar={establecerPagina} deshabilitado={consulta.actualizando} etiqueta="Páginas de evaluaciones" />}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import { cerrarEvaluacionOralMerDev, construirPuntajesOrales, guardarBorradorOra
   obtenerEvaluacionesMerDev, validarPuntajesOrales } from '../services/evaluacionesMerDev';
 import { claveBorrador, leerBorrador, guardarBorrador, eliminarBorrador, leerExpediente,
   guardarExpediente, etiquetaSincronizacion, ESTADO_LOCAL, sincronizarBorrador,
-  RESULTADO_SINCRONIZACION } from '../../domain/borradoresLocales';
+  RESULTADO_SINCRONIZACION, estadoAlConsultarExpediente } from '../../domain/borradoresLocales';
 import { usarConexion, esErrorDeConexion } from '../hooks/usarConexion';
 import './evaluacionesMerDev.css';
 
@@ -44,20 +44,20 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
 
   useEffect(() => {
     const abort = new AbortController();
-    setEstado({ status: 'cargando', datos: null, error: null });
+    setEstado((previo) => estadoAlConsultarExpediente(previo, asignacionId));
     obtenerEvaluacionesMerDev(asignacionId, { signal: abort.signal })
       .then((datos) => {
         if (abort.signal.aborted) return;
         registrarResultado(null);
         guardarExpediente(asignacionId, datos);
-        setEstado({ status: 'listo', datos, error: null });
+        setEstado({ status: 'listo', datos, error: null, asignacionId });
       })
       .catch((error) => {
         if (abort.signal.aborted) return;
         registrarResultado(error);
         const copia = esErrorDeConexion(error) || !redDisponible ? leerExpediente(asignacionId) : null;
-        setEstado(copia ? { status: 'listo', datos: copia.datos, desdeCopia: true }
-          : { status: 'error', datos: null, error });
+        setEstado(copia ? { status: 'listo', datos: copia.datos, desdeCopia: true, asignacionId }
+          : { status: 'error', datos: null, error, asignacionId });
       });
     return () => abort.abort();
   }, [asignacionId, recarga, redDisponible, registrarResultado]);
@@ -185,10 +185,8 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
           esErrorConexion: esErrorDeConexion,
         });
         if (resultado.resultado !== RESULTADO_SINCRONIZACION.SINCRONIZADO) {
-          if (leerBorrador(claveRespaldo)?.actualizadoEn !== registro?.actualizadoEn) {
-            setRecarga((actual) => actual + 1);
-            return;
-          }
+          // El borrador cambió durante el intento: el guardado automático ya reintenta con lo nuevo.
+          if (leerBorrador(claveRespaldo)?.actualizadoEn !== registro?.actualizadoEn) return;
           const pendiente = resultado.resultado === RESULTADO_SINCRONIZACION.PENDIENTE;
           const siguiente = pendiente ? ESTADO_LOCAL.PENDIENTE : ESTADO_LOCAL.CONFLICTO;
           if (pendiente) registrarResultado({ name: 'ErrorConexionApi' });

@@ -57,6 +57,49 @@ describe('servicio API de trabajos', () => {
     expect(getJson.mock.calls.map(([path]) => path)).toEqual(['/trabajos', `/trabajos/${idTrabajo}`]);
   });
 
+  it('pide una página filtrada y valida la paginación del servidor', async () => {
+    const pagina = {
+      elementos: [trabajo],
+      paginacion: { pagina: 2, limite: 25, total: 26, paginas: 2 },
+      filtros: { periodo: '2026-2', periodos: [{ codigo: '2026-2', nombre: 'Período 2026-2', activo: true }], estados: ['TRIBUNAL_ASIGNADO'] },
+    };
+    const getJson = vi.fn().mockResolvedValue(pagina);
+    const servicio = crearServicioTrabajosApi({ getJson });
+
+    await expect(servicio.listarPagina({ pagina: 2, limite: 25, periodo: 'TODOS', buscar: '  Lucía Pérez ', tribunal: 'con' }))
+      .resolves.toEqual({ trabajos: [trabajo], paginacion: pagina.paginacion, filtros: pagina.filtros });
+    expect(getJson.mock.calls[0][0]).toBe('/trabajos?limite=25&pagina=2&periodo=TODOS&buscar=Luc%C3%ADa+P%C3%A9rez&tribunal=con');
+
+    await servicio.listarPagina();
+    expect(getJson.mock.calls[1][0]).toBe('/trabajos?limite=25&pagina=1');
+
+    const adaptarLista = vi.fn(() => ['adaptado']);
+    await expect(servicio.listarPagina({}, { adaptarLista })).resolves.toMatchObject({ trabajos: ['adaptado'] });
+    expect(adaptarLista).toHaveBeenCalledWith({ elementos: [trabajo] });
+  });
+
+  it('vuelve a la última página si la pedida ya no existe', async () => {
+    const filtros = { periodo: 'TODOS', periodos: [], estados: [] };
+    const getJson = vi.fn()
+      .mockResolvedValueOnce({ elementos: [], paginacion: { pagina: 4, limite: 25, total: 30, paginas: 2 }, filtros })
+      .mockResolvedValueOnce({ elementos: [trabajo], paginacion: { pagina: 2, limite: 25, total: 30, paginas: 2 }, filtros });
+    const servicio = crearServicioTrabajosApi({ getJson });
+
+    await expect(servicio.listarPagina({ pagina: 4, buscar: 'x' })).resolves.toMatchObject({ trabajos: [trabajo], paginacion: { pagina: 2 } });
+    expect(getJson.mock.calls.map(([ruta]) => ruta)).toEqual(['/trabajos?limite=25&pagina=4&buscar=x', '/trabajos?limite=25&pagina=2&buscar=x']);
+  });
+
+  it('rechaza una página sin paginación o con filtros mal formados', async () => {
+    for (const respuesta of [
+      { elementos: [trabajo] },
+      { elementos: [trabajo], paginacion: { pagina: 0, limite: 25, total: 1, paginas: 1 }, filtros: { periodo: 'TODOS', periodos: [], estados: [] } },
+      { elementos: [trabajo], paginacion: { pagina: 1, limite: 25, total: 1, paginas: 1 }, filtros: { periodo: 'TODOS', periodos: [{ codigo: 1 }], estados: [] } },
+    ]) {
+      const servicio = crearServicioTrabajosApi({ getJson: vi.fn().mockResolvedValue(respuesta) });
+      await expect(servicio.listarPagina()).rejects.toBeInstanceOf(ErrorRespuestaApi);
+    }
+  });
+
   it('omite trabajos y sesiones con estado de registro 0 y conserva visibles con estado 1', async () => {
     const getJson = vi.fn().mockResolvedValue({ elementos: [
       { ...trabajo, estadoRegistro: 1,

@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react';
 import { ArrowRight, RefreshCw, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
-import { usarSeguimientoApi } from '../hooks/usarSeguimientoApi';
+import { usarActasPaginadasApi, usarResumenSeguimientoApi, usarSeguimientoTrabajosApi } from '../hooks/usarSeguimientoApi';
+import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
+import { usarValorDiferido } from '../hooks/usarValorDiferido';
+import { Paginador } from '../components/Paginador';
+import { SelectorPeriodo } from '../components/SelectorPeriodo';
 import { usarCarrerasApi } from '../hooks/usarCarrerasApi';
 import { usarAuditoriaApi } from '../hooks/usarAuditoriaApi';
 import {
@@ -10,11 +14,9 @@ import {
   etiquetaEstadoResultado,
   etiquetaEstadoTrabajo,
   fechaApi,
-  filtrarTrabajosApi,
   nombrePersona,
   obtenerConsolidacion,
   obtenerResultadoEstudiante,
-  resultadosCompletos,
 } from '../../domain/seguimientoAcademico';
 import './seguimientoApi.css';
 
@@ -48,7 +50,7 @@ function Indicador({ etiqueta, valor, detalle }) {
   );
 }
 
-function ResumenActas({ actas, recargar }) {
+function ResumenActas({ actas, recargar, alCambiarPagina }) {
   if (actas.estado === 'cargando') return <Cargando texto="Consultando actas archivadas…" />;
   if (actas.estado === 'error') return <ErrorRecurso recurso={actas} alReintentar={recargar} nombre="actas archivadas" />;
   if (actas.estado === 'no_disponible') return <EstadoNoDisponible recurso={actas} texto="La consulta de actas no está disponible actualmente." />;
@@ -56,6 +58,7 @@ function ResumenActas({ actas, recargar }) {
     return <EstadoVacio title="No hay actas archivadas" description="No hay actas para mostrar." accion={<Link className="button button-outline" to="/documentos">Consultar documentos</Link>} />;
   }
   return (
+    <>
     <div className="table-wrap">
       <table className="data-table responsive-table seguimiento-api-table">
         <caption className="sr-only">Actas archivadas</caption>
@@ -71,6 +74,8 @@ function ResumenActas({ actas, recargar }) {
         ))}</tbody>
       </table>
     </div>
+    {alCambiarPagina && <Paginador paginacion={actas.paginacion} alCambiar={alCambiarPagina} etiqueta="Páginas de actas" />}
+    </>
   );
 }
 
@@ -196,24 +201,40 @@ function AvisoConsolidacion({ recurso, alReintentar }) {
   return null;
 }
 
+/** Trabajos por página en Secretaría, Coordinación y Consulta; solo esos se consolidan. */
+export const SEGUIMIENTO_POR_PAGINA = 25;
+export const ACTAS_POR_PAGINA = 10;
+const EXPEDIENTES_RECIENTES = 8;
+
+/** Código de periodo para filtrar actas: el elegido o el aplicado por el servidor; `TODOS` no filtra. */
+export function periodoParaActas(periodoElegido, periodoServidor) {
+  const valor = periodoElegido ?? periodoServidor;
+  return valor && valor !== 'TODOS' ? valor : undefined;
+}
+
+function FiltroPeriodo({ id, periodo, filtros, alCambiar }) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>Período académico</label>
+      <SelectorPeriodo id={id} valor={periodo ?? filtros?.periodo ?? 'TODOS'} periodos={filtros?.periodos ?? []} alCambiar={alCambiar} />
+    </div>
+  );
+}
+
+function ResultadoParcial({ resumen }) {
+  if (resumen.datos?.resultados.estado !== 'parcial') return null;
+  return <p role="status" className="seguimiento-api-unavailable">Algunos resultados no pudieron consultarse. El conteo incluye solo los trabajos que respondieron.</p>;
+}
+
 export function DashboardSeguimientoApi() {
-  const datos = usarSeguimientoApi();
   const { carreras } = usarCarrerasApi();
-  const trabajos = datos.trabajos.datos;
-  // Construye un indicador por cada carrera registrada en la base; el orden
-  // sigue el retornado por el backend (alfabético por nombre en el catálogo).
-  const porCarrera = carreras.map(({ codigo, nombre, id }) => ({
-    codigo,
-    nombre,
-    id,
-    cantidad: trabajos.filter((t) => t.codigoCarrera === codigo).length,
-  }));
-  const porEstado = [...new Set(trabajos.map((t) => t.estado))].map((estado) => ({ estado, cantidad: trabajos.filter((t) => t.estado === estado).length }));
-  const consolidados = Object.values(datos.consolidaciones.datos ?? {})
-    .filter((recurso) => recurso.estado === 'listo')
-    .map((recurso) => recurso.datos);
-  const totalResultados = resultadosCompletos(consolidados).length;
-  const resultadosParciales = datos.consolidaciones.estado === 'parcial';
+  const [periodo, establecerPeriodo] = useState(null);
+  const resumen = usarResumenSeguimientoApi(periodo);
+  const recientes = usarPaginaTrabajosApi({ pagina: 1, limite: EXPEDIENTES_RECIENTES, ...(periodo ? { periodo } : {}) });
+  const datos = resumen.datos;
+  const cantidadPorCarrera = new Map((datos?.trabajos.porCarrera ?? []).map(({ codigo, cantidad }) => [codigo, cantidad]));
+  // Un indicador por cada carrera registrada en la base, en el orden del catálogo.
+  const porCarrera = carreras.map(({ codigo, nombre, id }) => ({ codigo, nombre, id, cantidad: cantidadPorCarrera.get(codigo) ?? 0 }));
 
   return (
     <div className="seguimiento-api-page dashboard-api-page">
@@ -224,40 +245,41 @@ export function DashboardSeguimientoApi() {
         breadcrumbs={[{ etiqueta: 'Inicio' }, { etiqueta: 'Dashboard' }]}
         actions={<><Link className="button button-outline" to="/consulta">Consulta e historial</Link><Link className="button button-primary" to="/trabajos">Ver trabajos</Link></>}
       />
-      {datos.trabajos.estado !== 'error' && <AvisoConsolidacion recurso={datos.consolidaciones} alReintentar={datos.recargar} />}
-      {datos.trabajos.estado === 'cargando' ? <Cargando /> : datos.trabajos.estado === 'error' ? <ErrorRecurso recurso={datos.trabajos} alReintentar={datos.recargar} nombre="trabajos" /> : (
+      {resumen.estado === 'cargando' ? <Cargando /> : resumen.estado === 'error' ? <ErrorRecurso recurso={resumen} alReintentar={resumen.recargar} nombre="trabajos" /> : (
         <>
+          <section className="seguimiento-api-section seguimiento-api-filters" aria-label="Período del resumen">
+            <FiltroPeriodo id="dashboard-api-periodo" periodo={periodo} filtros={datos} alCambiar={establecerPeriodo} />
+            <p role="status">{resumen.actualizando ? 'Actualizando…' : `${datos.trabajos.total} trabajo(s)`}</p>
+          </section>
+          <ResultadoParcial resumen={resumen} />
           <section className="seguimiento-api-section" aria-labelledby="dashboard-api-total">
             <h2 id="dashboard-api-total">Trabajos disponibles</h2>
             <div className="seguimiento-api-metrics">
-              <Indicador etiqueta="Trabajos registrados" valor={trabajos.length} />
+              <Indicador etiqueta="Trabajos registrados" valor={datos.trabajos.total} />
               {porCarrera.map(({ codigo, nombre, id, cantidad }) => (
                 <Indicador key={id} etiqueta={`Trabajos ${codigo}`} valor={cantidad} detalle={nombre} />
               ))}
-              <Indicador etiqueta="Programaciones" valor={datos.programaciones.estado === 'listo' ? datos.programaciones.datos.length : 'No disponible'} detalle={datos.programaciones.estado === 'listo' && datos.programaciones.datos.length === 0 ? 'Sin programaciones registradas' : undefined} />
-              <Indicador etiqueta="Resultados completos" valor={datos.consolidaciones.estado === 'listo' || datos.consolidaciones.estado === 'parcial' ? totalResultados : 'No disponible'} detalle={resultadosParciales ? 'Consulta parcial; revisa el estado por trabajo' : undefined} />
+              <Indicador etiqueta="Programaciones" valor={datos.programaciones} detalle={datos.programaciones === 0 ? 'Sin programaciones registradas' : undefined} />
+              <Indicador etiqueta="Resultados completos" valor={datos.resultados.completos} detalle={datos.resultados.estado === 'parcial' ? 'Consulta parcial; revisa el estado por trabajo' : undefined} />
             </div>
           </section>
 
           <div className="seguimiento-api-columns">
             <section className="seguimiento-api-section" aria-labelledby="dashboard-api-estados">
               <h2 id="dashboard-api-estados">Estados de trabajos</h2>
-              {porEstado.length ? <ul className="seguimiento-api-list">{porEstado.map(({ estado, cantidad }) => <li key={estado}><span>{etiquetaEstadoTrabajo(estado)}</span><strong>{cantidad}</strong></li>)}</ul> : <EstadoVacio title="Sin estados para mostrar" description="No hay trabajos registrados." />}
+              {datos.trabajos.porEstado.length ? <ul className="seguimiento-api-list">{datos.trabajos.porEstado.map(({ estado, cantidad }) => <li key={estado}><span>{etiquetaEstadoTrabajo(estado)}</span><strong>{cantidad}</strong></li>)}</ul> : <EstadoVacio title="Sin estados para mostrar" description="No hay trabajos registrados." />}
             </section>
             <section className="seguimiento-api-section" aria-labelledby="dashboard-api-agenda">
               <h2 id="dashboard-api-agenda">Programaciones y actas</h2>
-              {datos.programaciones.estado === 'cargando' ? <Cargando texto="Cargando programaciones…" /> : datos.programaciones.estado === 'error' ? <ErrorRecurso recurso={datos.programaciones} alReintentar={datos.recargar} nombre="programaciones" /> : datos.programaciones.estado === 'no_disponible' ? <EstadoNoDisponible recurso={datos.programaciones} /> : datos.programaciones.datos.length ? <ul className="seguimiento-api-list"><li><span>Programaciones registradas</span><strong>{datos.programaciones.datos.length}</strong></li></ul> : <p>No hay programaciones registradas.</p>}
+              {datos.programaciones ? <ul className="seguimiento-api-list"><li><span>Programaciones registradas</span><strong>{datos.programaciones}</strong></li></ul> : <p>No hay programaciones registradas.</p>}
               <div className="seguimiento-api-links"><Link className="button button-outline" to="/cronograma">Abrir cronograma</Link><Link className="button button-outline" to="/documentos">Consultar actas y documentos</Link></div>
-              {datos.actas.estado === 'cargando' && <Cargando texto="Cargando actas…" />}
-              {datos.actas.estado === 'listo' && <p>{datos.actas.datos.length ? `${datos.actas.datos.length} acta(s) archivada(s).` : 'No hay actas archivadas.'}</p>}
-              {datos.actas.estado === 'error' && <ErrorRecurso recurso={datos.actas} alReintentar={datos.recargar} nombre="actas archivadas" />}
-              {datos.actas.estado === 'no_disponible' && <EstadoNoDisponible recurso={datos.actas} texto="La consulta de actas no está disponible." />}
+              <p>{datos.actas ? `${datos.actas} acta(s) archivada(s).` : 'No hay actas archivadas.'}</p>
             </section>
           </div>
 
           <section className="seguimiento-api-section" aria-labelledby="dashboard-api-expedientes">
             <header className="seguimiento-api-section-heading"><div><h2 id="dashboard-api-expedientes">Expedientes académicos</h2><p>Trabajos de titulación registrados.</p></div><Link className="button button-outline" to="/trabajos">Ver todos</Link></header>
-            {trabajos.length ? <div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Trabajos registrados</caption><thead><tr><th>Código y trabajo</th><th>Carrera</th><th>Período</th><th>Estado</th><th>Consulta</th></tr></thead><tbody>{trabajos.slice(0, 8).map((trabajo) => <tr key={trabajo.id}><td data-label="Trabajo"><strong>{trabajo.codigo}</strong><span className="cell-subtitle">{trabajo.titulo}</span></td><td data-label="Carrera">{trabajo.codigoCarrera} · {trabajo.carrera}</td><td data-label="Período">{trabajo.periodo}</td><td data-label="Estado">{etiquetaEstadoTrabajo(trabajo.estado)}</td><td data-label="Consulta"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Abrir expediente <ArrowRight size={16} aria-hidden="true" /></Link></td></tr>)}</tbody></table></div> : <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar." />}
+            {recientes.estado === 'cargando' ? <Cargando texto="Cargando expedientes…" /> : recientes.estado === 'error' ? <ErrorRecurso recurso={recientes} alReintentar={recientes.recargar} nombre="los expedientes" /> : recientes.trabajos.length ? <div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Trabajos registrados</caption><thead><tr><th>Código y trabajo</th><th>Carrera</th><th>Período</th><th>Estado</th><th>Consulta</th></tr></thead><tbody>{recientes.trabajos.map((trabajo) => <tr key={trabajo.id}><td data-label="Trabajo"><strong>{trabajo.codigo}</strong><span className="cell-subtitle">{trabajo.titulo}</span></td><td data-label="Carrera">{trabajo.codigoCarrera} · {trabajo.carrera}</td><td data-label="Período">{trabajo.periodo}</td><td data-label="Estado">{etiquetaEstadoTrabajo(trabajo.estado)}</td><td data-label="Consulta"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Abrir expediente <ArrowRight size={16} aria-hidden="true" /></Link></td></tr>)}</tbody></table></div> : <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar." />}
           </section>
         </>
       )}
@@ -266,34 +288,47 @@ export function DashboardSeguimientoApi() {
 }
 
 export function SecretariaSeguimientoApi() {
-  const datos = usarSeguimientoApi();
-  const trabajos = datos.trabajos.datos;
-  const consolidaciones = datos.consolidaciones.datos ?? {};
-  const finalizados = resultadosCompletos(Object.values(consolidaciones).filter((r) => r.estado === 'listo').map((r) => r.datos)).length;
+  const [periodo, establecerPeriodo] = useState(null);
+  const [pagina, establecerPagina] = useState(1);
+  const [paginaActas, establecerPaginaActas] = useState(1);
+  const resumen = usarResumenSeguimientoApi(periodo);
+  const consulta = usarSeguimientoTrabajosApi({ pagina, limite: SEGUIMIENTO_POR_PAGINA, ...(periodo ? { periodo } : {}) });
+  const periodoActas = periodoParaActas(periodo, consulta.filtros?.periodo);
+  const actas = usarActasPaginadasApi(
+    { pagina: paginaActas, limite: ACTAS_POR_PAGINA, ...(periodoActas ? { periodo: periodoActas } : {}) },
+    { esperar: periodo === null && !consulta.filtros },
+  );
+  const trabajos = consulta.trabajos;
+  const consolidaciones = consulta.consolidaciones.datos ?? {};
+  const metrica = (valor) => (resumen.estado === 'listo' ? valor(resumen.datos) : resumen.estado === 'cargando' ? '…' : 'No disponible');
+  const cambiarPeriodo = (valor) => { establecerPeriodo(valor); establecerPagina(1); establecerPaginaActas(1); };
   return (
     <div className="seguimiento-api-page">
       <EncabezadoPagina title="Seguimiento de Secretaría" description="Trabajos, estudiantes, agenda, resultados consolidados y actas archivadas." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Secretaría' }]} actions={<Link className="button button-outline" to="/consulta">Buscar en Consulta e historial</Link>} />
       <AlertaInstitucional titulo="Consulta sin edición académica">Esta pantalla no evalúa, reabre notas, oficializa resultados ni emite actas.</AlertaInstitucional>
-      {datos.trabajos.estado !== 'error' && <AvisoConsolidacion recurso={datos.consolidaciones} alReintentar={datos.recargar} />}
-      {datos.trabajos.estado === 'cargando' ? <Cargando /> : datos.trabajos.estado === 'error' ? <ErrorRecurso recurso={datos.trabajos} alReintentar={datos.recargar} nombre="trabajos" /> : (
+      {consulta.estado !== 'error' && <AvisoConsolidacion recurso={consulta.consolidaciones} alReintentar={consulta.recargar} />}
+      {consulta.estado === 'cargando' ? <Cargando /> : consulta.estado === 'error' ? <ErrorRecurso recurso={consulta} alReintentar={consulta.recargar} nombre="trabajos" /> : (
         <>
+          <section className="seguimiento-api-section seguimiento-api-filters" aria-label="Período de Secretaría">
+            <FiltroPeriodo id="secretaria-api-periodo" periodo={periodo} filtros={consulta.filtros} alCambiar={cambiarPeriodo} />
+            <p role="status">{consulta.actualizando ? 'Actualizando…' : `${consulta.paginacion?.total ?? 0} trabajo(s)`}</p>
+          </section>
+          <ResultadoParcial resumen={resumen} />
           <section className="seguimiento-api-section" aria-label="Resumen de Secretaría">
             <div className="seguimiento-api-metrics">
-              <Indicador etiqueta="Trabajos" valor={trabajos.length} />
-              <Indicador etiqueta="Resultados individuales completos" valor={datos.consolidaciones.estado === 'listo' || datos.consolidaciones.estado === 'parcial' ? finalizados : 'No disponible'} />
-              <Indicador etiqueta="Programaciones" valor={datos.programaciones.estado === 'listo' ? datos.programaciones.datos.length : 'No disponible'} detalle={datos.programaciones.estado === 'listo' && !datos.programaciones.datos.length ? 'Sin registros; consulta correcta' : undefined} />
-              <Indicador etiqueta="Actas archivadas" valor={datos.actas.estado === 'listo' ? datos.actas.datos.length : 'No disponible'} detalle={datos.actas.estado === 'listo' && !datos.actas.datos.length ? 'Sin registros; consulta correcta' : undefined} />
+              <Indicador etiqueta="Trabajos" valor={metrica((d) => d.trabajos.total)} />
+              <Indicador etiqueta="Resultados individuales completos" valor={metrica((d) => d.resultados.completos)} />
+              <Indicador etiqueta="Programaciones" valor={metrica((d) => d.programaciones)} detalle={resumen.datos?.programaciones === 0 ? 'Sin registros; consulta correcta' : undefined} />
+              <Indicador etiqueta="Actas archivadas" valor={metrica((d) => d.actas)} detalle={resumen.datos?.actas === 0 ? 'Sin registros; consulta correcta' : undefined} />
             </div>
           </section>
-          {trabajos.length ? <section className="seguimiento-api-section" aria-labelledby="secretaria-api-trabajos"><header className="seguimiento-api-section-heading"><div><h2 id="secretaria-api-trabajos">Trabajos y resultados</h2><p>El resultado aparece cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Expedientes académicos y documentos</caption><thead><tr><th>Trabajo, carrera y modalidad</th><th>Estudiantes y resultados</th><th>Tutoría y tribunal</th><th>Programación</th><th>Consulta</th></tr></thead><tbody>{trabajos.map((trabajo) => { const consolidacion = obtenerConsolidacion(consolidaciones, trabajo.id); return <tr key={trabajo.id}><td data-label="Trabajo"><strong>{trabajo.codigo} · {trabajo.titulo}</strong><span className="cell-subtitle">{trabajo.codigoCarrera} · {trabajo.carrera} · {trabajo.modalidad} · {trabajo.periodo}</span><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" /></td><td data-label="Estudiantes y resultados"><ul className="seguimiento-api-nested-list">{trabajo.estudiantes.map((estudiante) => { const resultado = obtenerResultadoEstudiante(consolidaciones, trabajo.id, estudiante.id); return <li key={estudiante.id}><strong>{nombrePersona(estudiante)}</strong><span>{resultado?.resultadoFinal ? `${resultado.resultadoFinal.calificacion} / ${resultado.resultadoFinal.calificacionMaxima}` : resultado ? etiquetaEstadoResultado(resultado.estado) : consolidacion ? 'Sin consolidación para este estudiante' : 'Resultado no disponible'}</span></li>; })}</ul></td><td data-label="Tutoría y tribunal"><span><strong>Tutores:</strong> {trabajo.tutores.length ? trabajo.tutores.map((tutor) => `${nombrePersona(tutor)}${tutor.finalizadoEn ? ' (anterior)' : ''}`).join(' · ') : 'Sin tutor registrado'}</span><span className="cell-subtitle"><strong>Tribunal:</strong> {trabajo.estadoTribunal === 'CONFIRMADO' ? trabajo.miembrosTribunal.map((miembro) => nombrePersona(miembro)).join(' · ') : 'No confirmado'}</span></td><td data-label="Programación"><Programacion trabajo={trabajo} /></td><td data-label="Consulta"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{trabajo.estudiantes.map((estudiante) => <EnlacesEstudiante key={estudiante.id} trabajo={trabajo} estudiante={estudiante} porTrabajo={consolidaciones} />)}</div></td></tr>; })}</tbody></table></div></section> : (
+          {trabajos.length ? <section className="seguimiento-api-section" aria-labelledby="secretaria-api-trabajos"><header className="seguimiento-api-section-heading"><div><h2 id="secretaria-api-trabajos">Trabajos y resultados</h2><p>El resultado aparece cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Expedientes académicos y documentos</caption><thead><tr><th>Trabajo, carrera y modalidad</th><th>Estudiantes y resultados</th><th>Tutoría y tribunal</th><th>Programación</th><th>Consulta</th></tr></thead><tbody>{trabajos.map((trabajo) => { const consolidacion = obtenerConsolidacion(consolidaciones, trabajo.id); return <tr key={trabajo.id}><td data-label="Trabajo"><strong>{trabajo.codigo} · {trabajo.titulo}</strong><span className="cell-subtitle">{trabajo.codigoCarrera} · {trabajo.carrera} · {trabajo.modalidad} · {trabajo.periodo}</span><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" /></td><td data-label="Estudiantes y resultados"><ul className="seguimiento-api-nested-list">{trabajo.estudiantes.map((estudiante) => { const resultado = obtenerResultadoEstudiante(consolidaciones, trabajo.id, estudiante.id); return <li key={estudiante.id}><strong>{nombrePersona(estudiante)}</strong><span>{resultado?.resultadoFinal ? `${resultado.resultadoFinal.calificacion} / ${resultado.resultadoFinal.calificacionMaxima}` : resultado ? etiquetaEstadoResultado(resultado.estado) : consolidacion ? 'Sin consolidación para este estudiante' : 'Resultado no disponible'}</span></li>; })}</ul></td><td data-label="Tutoría y tribunal"><span><strong>Tutores:</strong> {trabajo.tutores.length ? trabajo.tutores.map((tutor) => `${nombrePersona(tutor)}${tutor.finalizadoEn ? ' (anterior)' : ''}`).join(' · ') : 'Sin tutor registrado'}</span><span className="cell-subtitle"><strong>Tribunal:</strong> {trabajo.estadoTribunal === 'CONFIRMADO' ? trabajo.miembrosTribunal.map((miembro) => nombrePersona(miembro)).join(' · ') : 'No confirmado'}</span></td><td data-label="Programación"><Programacion trabajo={trabajo} /></td><td data-label="Consulta"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{trabajo.estudiantes.map((estudiante) => <EnlacesEstudiante key={estudiante.id} trabajo={trabajo} estudiante={estudiante} porTrabajo={consolidaciones} />)}</div></td></tr>; })}</tbody></table></div><Paginador paginacion={consulta.paginacion} alCambiar={establecerPagina} deshabilitado={consulta.actualizando} etiqueta="Páginas de trabajos" /></section> : (
             <section className="seguimiento-api-section" aria-labelledby="secretaria-api-trabajos">
               <header className="seguimiento-api-section-heading"><div><h2 id="secretaria-api-trabajos">Trabajos y resultados</h2><p>El resultado aparece cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header>
-              <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar." />
+              <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar en este período." />
             </section>
           )}
-          <section className="seguimiento-api-section" aria-labelledby="secretaria-api-actas"><header className="seguimiento-api-section-heading"><div><h2 id="secretaria-api-actas">Actas archivadas</h2><p>Consulta de documentos existentes. La emisión y reimpresión continúan en Documentos.</p></div><Link className="button button-outline" to="/documentos">Ir a Documentos</Link></header><ResumenActas actas={datos.actas} recargar={datos.recargar} /></section>
-          {datos.programaciones.estado === 'error' && <ErrorRecurso recurso={datos.programaciones} alReintentar={datos.recargar} nombre="programaciones" />}
-          {datos.programaciones.estado === 'no_disponible' && <EstadoNoDisponible recurso={datos.programaciones} />}
+          <section className="seguimiento-api-section" aria-labelledby="secretaria-api-actas"><header className="seguimiento-api-section-heading"><div><h2 id="secretaria-api-actas">Actas archivadas</h2><p>Consulta de documentos existentes. La emisión y reimpresión continúan en Documentos.</p></div><Link className="button button-outline" to="/documentos">Ir a Documentos</Link></header><ResumenActas actas={actas} recargar={actas.recargar} alCambiarPagina={establecerPaginaActas} /></section>
         </>
       )}
     </div>
@@ -301,44 +336,51 @@ export function SecretariaSeguimientoApi() {
 }
 
 export function CoordinacionSeguimientoApi() {
-  const datos = usarSeguimientoApi();
   const { carreras } = usarCarrerasApi();
   const [carrera, establecerCarrera] = useState('TODAS');
   const [estado, establecerEstado] = useState('TODOS');
-  const [periodo, establecerPeriodo] = useState('TODOS');
+  const [periodo, establecerPeriodo] = useState(null);
   const [texto, establecerTexto] = useState('');
-  const trabajos = datos.trabajos.datos;
-  // Las carreras disponibles en el filtro provienen del catálogo de la base;
-  // no se listan códigos fijos. Solo se incluyen las carreras activas.
+  const [pagina, establecerPagina] = useState(1);
+  const busqueda = usarValorDiferido(texto);
+  const consulta = usarSeguimientoTrabajosApi({
+    pagina, limite: SEGUIMIENTO_POR_PAGINA,
+    ...(periodo ? { periodo } : {}),
+    ...(carrera !== 'TODAS' ? { carrera } : {}),
+    ...(estado !== 'TODOS' ? { estado } : {}),
+    ...(busqueda.trim() ? { buscar: busqueda.trim() } : {}),
+  });
+  const trabajos = consulta.trabajos;
+  const consolidaciones = consulta.consolidaciones.datos ?? {};
+  // Las carreras del filtro provienen del catálogo de la base; solo las activas.
   const carrerasDisponibles = carreras.filter((c) => c.estaActivo);
-  const periodosDisponibles = [...new Set(trabajos.map((trabajo) => trabajo.periodo))];
-  const trabajosFiltrados = useMemo(() => filtrarTrabajosApi(trabajos, { carrera, estado, periodo, texto }), [trabajos, carrera, estado, periodo, texto]);
-  const estadosDisponibles = [...new Set(trabajos.map((trabajo) => trabajo.estado))];
-  const limpiar = () => { establecerCarrera('TODAS'); establecerEstado('TODOS'); establecerPeriodo('TODOS'); establecerTexto(''); };
-  // Construye el resumen de carreras para el encabezado (ej. "TI · SOFT").
-  const etiquetaCarreras = carrerasDisponibles.length
-    ? carrerasDisponibles.map((c) => c.codigo).join(' · ')
-    : 'Sin carreras registradas';
+  const estadosDisponibles = consulta.filtros?.estados ?? [];
+  const filtrosActivos = carrera !== 'TODAS' || estado !== 'TODOS' || periodo !== null || Boolean(texto);
+  const cambiar = (establecer) => (valor) => { establecer(valor); establecerPagina(1); };
+  const limpiar = () => { establecerCarrera('TODAS'); establecerEstado('TODOS'); establecerPeriodo(null); establecerTexto(''); establecerPagina(1); };
+  const etiquetaCarreras = carrerasDisponibles.length ? carrerasDisponibles.map((c) => c.codigo).join(' · ') : 'Sin carreras registradas';
   return (
     <div className="seguimiento-api-page">
       <EncabezadoPagina title="Seguimiento de Coordinación" description="Seguimiento de los trabajos de titulación con relaciones académicas confirmadas." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Coordinación' }]} actions={<InsigniaEstado estado={etiquetaCarreras} tono="info" />} />
-          {datos.trabajos.estado !== 'error' && <AvisoConsolidacion recurso={datos.consolidaciones} alReintentar={datos.recargar} />}
-      {datos.trabajos.estado === 'cargando' ? <Cargando /> : datos.trabajos.estado === 'error' ? <ErrorRecurso recurso={datos.trabajos} alReintentar={datos.recargar} nombre="trabajos" /> : trabajos.length === 0 ? (
-        <section className="seguimiento-api-section" aria-labelledby="coordinacion-api-resultados">
-          <header className="seguimiento-api-section-heading"><div><h2 id="coordinacion-api-resultados">Expedientes de titulación</h2><p>Estudiantes, tutorías, tribunal, agenda y resultados.</p></div></header>
-          <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar." />
-        </section>
-      ) : (
+      {consulta.estado !== 'error' && <AvisoConsolidacion recurso={consulta.consolidaciones} alReintentar={consulta.recargar} />}
+      {consulta.estado === 'cargando' ? <Cargando /> : consulta.estado === 'error' ? <ErrorRecurso recurso={consulta} alReintentar={consulta.recargar} nombre="trabajos" /> : (
         <>
           <section className="seguimiento-api-section seguimiento-api-filters" aria-label="Filtros de Coordinación">
-            <div className="field"><label htmlFor="coordinacion-api-carrera">Carrera</label><select id="coordinacion-api-carrera" className="select" value={carrera} onChange={(evento) => establecerCarrera(evento.target.value)}><option value="TODAS">Todas las carreras</option>{carrerasDisponibles.map((c) => <option key={c.id} value={c.codigo}>{c.codigo}</option>)}</select></div>
-            <div className="field"><label htmlFor="coordinacion-api-estado">Estado del trabajo</label><select id="coordinacion-api-estado" className="select" value={estado} onChange={(evento) => establecerEstado(evento.target.value)}><option value="TODOS">Todos</option>{estadosDisponibles.map((valor) => <option key={valor} value={valor}>{etiquetaEstadoTrabajo(valor)}</option>)}</select></div>
-            <div className="field"><label htmlFor="coordinacion-api-periodo">Período</label><select id="coordinacion-api-periodo" className="select" value={periodo} onChange={(evento) => establecerPeriodo(evento.target.value)}><option value="TODOS">Todos</option>{periodosDisponibles.map((valor) => <option key={valor} value={valor}>{valor}</option>)}</select></div>
-            <div className="field"><label htmlFor="coordinacion-api-buscar">Buscar trabajo, estudiante o tutor</label><input id="coordinacion-api-buscar" className="input" value={texto} onChange={(evento) => establecerTexto(evento.target.value)} /></div>
-            <p role="status">{trabajosFiltrados.length} de {trabajos.length} trabajos</p>
-            <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>
+            <div className="field"><label htmlFor="coordinacion-api-carrera">Carrera</label><select id="coordinacion-api-carrera" className="select" value={carrera} onChange={(evento) => cambiar(establecerCarrera)(evento.target.value)}><option value="TODAS">Todas las carreras</option>{carrerasDisponibles.map((c) => <option key={c.id} value={c.codigo}>{c.codigo}</option>)}</select></div>
+            <div className="field"><label htmlFor="coordinacion-api-estado">Estado del trabajo</label><select id="coordinacion-api-estado" className="select" value={estado} onChange={(evento) => cambiar(establecerEstado)(evento.target.value)}><option value="TODOS">Todos</option>{estadosDisponibles.map((valor) => <option key={valor} value={valor}>{etiquetaEstadoTrabajo(valor)}</option>)}</select></div>
+            <FiltroPeriodo id="coordinacion-api-periodo" periodo={periodo} filtros={consulta.filtros} alCambiar={cambiar(establecerPeriodo)} />
+            <div className="field"><label htmlFor="coordinacion-api-buscar">Buscar trabajo, estudiante o tutor</label><input id="coordinacion-api-buscar" className="input" type="search" value={texto} onChange={(evento) => cambiar(establecerTexto)(evento.target.value)} /></div>
+            <p role="status">{consulta.actualizando ? 'Actualizando…' : `${consulta.paginacion?.total ?? 0} trabajo(s)`}</p>
+            {filtrosActivos && <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>}
           </section>
-          {trabajosFiltrados.length ? <section className="seguimiento-api-section" aria-labelledby="coordinacion-api-resultados"><header className="seguimiento-api-section-heading"><div><h2 id="coordinacion-api-resultados">Expedientes de titulación</h2><p>Estudiantes, tutorías, tribunal, agenda y resultados.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Trabajos y relaciones académicas de coordinación</caption><thead><tr><th>Trabajo y estudiantes</th><th>Tutores</th><th>Tribunal y programación</th><th>Estado y resultados</th><th>Consulta</th></tr></thead><tbody>{trabajosFiltrados.map((trabajo) => { const consolidacion = obtenerConsolidacion(datos.consolidaciones.datos, trabajo.id); return <tr key={trabajo.id}><td data-label="Trabajo y estudiantes"><strong>{trabajo.codigo} · {trabajo.titulo}</strong><span className="cell-subtitle">{trabajo.codigoCarrera} · {trabajo.periodo} · {trabajo.modalidad}</span><ul className="seguimiento-api-nested-list">{trabajo.estudiantes.map((estudiante) => <li key={estudiante.id}>{nombrePersona(estudiante)}</li>)}</ul></td><td data-label="Tutores">{trabajo.tutores.length ? trabajo.tutores.map((tutor) => <span className="seguimiento-api-block" key={tutor.idAsignacion}>{nombrePersona(tutor)}{tutor.finalizadoEn ? ' · tutoría finalizada' : ''}</span>) : 'Sin tutor asociado'}</td><td data-label="Tribunal y programación"><span><strong>Tribunal:</strong> {trabajo.estadoTribunal === 'CONFIRMADO' ? trabajo.miembrosTribunal.map(nombrePersona).join(' · ') : 'No confirmado'}</span><span className="cell-subtitle"><strong>Agenda:</strong> <Programacion trabajo={trabajo} /></span></td><td data-label="Estado y resultados"><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" />{trabajo.estudiantes.map((estudiante) => { const resultado = obtenerResultadoEstudiante(datos.consolidaciones.datos, trabajo.id, estudiante.id); return <span className="seguimiento-api-block" key={estudiante.id}>{nombrePersona(estudiante)}: {resultado?.resultadoFinal ? `${resultado.resultadoFinal.calificacion} / 10.00` : resultado ? etiquetaEstadoResultado(resultado.estado) : consolidacion ? 'Sin resultado individual' : 'Resultado no disponible'}</span>; })}</td><td data-label="Consulta"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{trabajo.estudiantes.map((estudiante) => <EnlacesEstudiante key={estudiante.id} trabajo={trabajo} estudiante={estudiante} porTrabajo={datos.consolidaciones.datos} />)}</div></td></tr>; })}</tbody></table></div></section> : <EstadoVacio title="No hay coincidencias" description="No existen trabajos con los filtros seleccionados." accion={<button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>} />}
+          {trabajos.length ? <section className="seguimiento-api-section" aria-labelledby="coordinacion-api-resultados"><header className="seguimiento-api-section-heading"><div><h2 id="coordinacion-api-resultados">Expedientes de titulación</h2><p>Estudiantes, tutorías, tribunal, agenda y resultados.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Trabajos y relaciones académicas de coordinación</caption><thead><tr><th>Trabajo y estudiantes</th><th>Tutores</th><th>Tribunal y programación</th><th>Estado y resultados</th><th>Consulta</th></tr></thead><tbody>{trabajos.map((trabajo) => { const consolidacion = obtenerConsolidacion(consolidaciones, trabajo.id); return <tr key={trabajo.id}><td data-label="Trabajo y estudiantes"><strong>{trabajo.codigo} · {trabajo.titulo}</strong><span className="cell-subtitle">{trabajo.codigoCarrera} · {trabajo.periodo} · {trabajo.modalidad}</span><ul className="seguimiento-api-nested-list">{trabajo.estudiantes.map((estudiante) => <li key={estudiante.id}>{nombrePersona(estudiante)}</li>)}</ul></td><td data-label="Tutores">{trabajo.tutores.length ? trabajo.tutores.map((tutor) => <span className="seguimiento-api-block" key={tutor.idAsignacion}>{nombrePersona(tutor)}{tutor.finalizadoEn ? ' · tutoría finalizada' : ''}</span>) : 'Sin tutor asociado'}</td><td data-label="Tribunal y programación"><span><strong>Tribunal:</strong> {trabajo.estadoTribunal === 'CONFIRMADO' ? trabajo.miembrosTribunal.map(nombrePersona).join(' · ') : 'No confirmado'}</span><span className="cell-subtitle"><strong>Agenda:</strong> <Programacion trabajo={trabajo} /></span></td><td data-label="Estado y resultados"><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" />{trabajo.estudiantes.map((estudiante) => { const resultado = obtenerResultadoEstudiante(consolidaciones, trabajo.id, estudiante.id); return <span className="seguimiento-api-block" key={estudiante.id}>{nombrePersona(estudiante)}: {resultado?.resultadoFinal ? `${resultado.resultadoFinal.calificacion} / 10.00` : resultado ? etiquetaEstadoResultado(resultado.estado) : consolidacion ? 'Sin resultado individual' : 'Resultado no disponible'}</span>; })}</td><td data-label="Consulta"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{trabajo.estudiantes.map((estudiante) => <EnlacesEstudiante key={estudiante.id} trabajo={trabajo} estudiante={estudiante} porTrabajo={consolidaciones} />)}</div></td></tr>; })}</tbody></table></div><Paginador paginacion={consulta.paginacion} alCambiar={establecerPagina} deshabilitado={consulta.actualizando} etiqueta="Páginas de expedientes" /></section> : filtrosActivos
+            ? <EstadoVacio title="No hay coincidencias" description="No existen trabajos con los filtros seleccionados." accion={<button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>} />
+            : (
+              <section className="seguimiento-api-section" aria-labelledby="coordinacion-api-resultados">
+                <header className="seguimiento-api-section-heading"><div><h2 id="coordinacion-api-resultados">Expedientes de titulación</h2><p>Estudiantes, tutorías, tribunal, agenda y resultados.</p></div></header>
+                <EstadoVacio title="No hay trabajos registrados" description="No hay expedientes para mostrar en el período actual." />
+              </section>
+            )}
         </>
       )}
     </div>
@@ -346,42 +388,53 @@ export function CoordinacionSeguimientoApi() {
 }
 
 export function ConsultaSeguimientoApi() {
-  const datos = usarSeguimientoApi();
   const carrerasApi = usarCarrerasApi();
   const [texto, establecerTexto] = useState('');
   const [carrera, establecerCarrera] = useState('TODAS');
   const [estadoTrabajo, establecerEstadoTrabajo] = useState('TODOS');
-  const trabajos = datos.trabajos.datos;
+  const [periodo, establecerPeriodo] = useState(null);
+  const [pagina, establecerPagina] = useState(1);
+  const [paginaActas, establecerPaginaActas] = useState(1);
+  const busqueda = usarValorDiferido(texto);
+  const consulta = usarSeguimientoTrabajosApi({
+    pagina, limite: SEGUIMIENTO_POR_PAGINA,
+    ...(periodo ? { periodo } : {}),
+    ...(carrera !== 'TODAS' ? { carrera } : {}),
+    ...(estadoTrabajo !== 'TODOS' ? { estado: estadoTrabajo } : {}),
+    ...(busqueda.trim() ? { buscar: busqueda.trim() } : {}),
+  });
+  const periodoActas = periodoParaActas(periodo, consulta.filtros?.periodo);
+  const actas = usarActasPaginadasApi(
+    { pagina: paginaActas, limite: ACTAS_POR_PAGINA, ...(periodoActas ? { periodo: periodoActas } : {}) },
+    { esperar: periodo === null && !consulta.filtros },
+  );
+  const trabajos = consulta.trabajos;
   const registros = useMemo(() => trabajos.flatMap((trabajo) => trabajo.estudiantes.map((estudiante) => ({ trabajo, estudiante }))), [trabajos]);
-  const termino = texto.trim().toLocaleLowerCase('es');
-  const registrosFiltrados = useMemo(() => registros.filter(({ trabajo, estudiante }) => (
-    (carrera === 'TODAS' || trabajo.codigoCarrera === carrera)
-    && (estadoTrabajo === 'TODOS' || trabajo.estado === estadoTrabajo)
-    && (!termino || `${trabajo.codigo} ${trabajo.titulo} ${trabajo.carrera} ${trabajo.periodo} ${trabajo.modalidad} ${estudiante.nombres} ${estudiante.apellidos} ${trabajo.tutores.map(nombrePersona).join(' ')}`.toLocaleLowerCase('es').includes(termino))
-  )), [registros, carrera, estadoTrabajo, termino]);
-  const estadosDisponibles = [...new Set(trabajos.map((trabajo) => trabajo.estado))];
-  const consolidaciones = datos.consolidaciones.datos ?? {};
+  const estadosDisponibles = consulta.filtros?.estados ?? [];
+  const consolidaciones = consulta.consolidaciones.datos ?? {};
+  const cambiar = (establecer) => (valor) => { establecer(valor); establecerPagina(1); };
+  const limpiar = () => { establecerTexto(''); establecerCarrera('TODAS'); establecerEstadoTrabajo('TODOS'); establecerPeriodo(null); establecerPagina(1); };
   return (
     <div className="seguimiento-api-page">
       <EncabezadoPagina eyebrow="Consulta académica" title="Consulta e historial" description="Busque expedientes actuales, evaluaciones dinámicas, resultados y documentos archivados." breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Consulta' }]} actions={<Link className="button button-outline" to="/documentos">Documentos y actas</Link>} />
-      {datos.trabajos.estado !== 'error' && <AvisoConsolidacion recurso={datos.consolidaciones} alReintentar={datos.recargar} />}
-      {datos.trabajos.estado === 'cargando' ? <Cargando /> : datos.trabajos.estado === 'error' ? <ErrorRecurso recurso={datos.trabajos} alReintentar={datos.recargar} nombre="trabajos" /> : (
+      {consulta.estado !== 'error' && <AvisoConsolidacion recurso={consulta.consolidaciones} alReintentar={consulta.recargar} />}
+      {consulta.estado === 'cargando' ? <Cargando /> : consulta.estado === 'error' ? <ErrorRecurso recurso={consulta} alReintentar={consulta.recargar} nombre="trabajos" /> : (
         <>
           <section className="seguimiento-api-section seguimiento-api-filters" aria-label="Filtros de Consulta e historial">
-            <div className="field"><label htmlFor="consulta-api-buscar"><Search size={16} aria-hidden="true" /> Código, trabajo, estudiante, tutor o período</label><input id="consulta-api-buscar" className="input" type="search" value={texto} onChange={(evento) => establecerTexto(evento.target.value)} placeholder="Buscar en expedientes" /></div>
-            <div className="field"><label htmlFor="consulta-api-carrera">Carrera</label><select id="consulta-api-carrera" className="select" value={carrera} onChange={(evento) => establecerCarrera(evento.target.value)}><option value="TODAS">Todas</option>{carrerasApi.carreras.map((c) => <option key={c.id} value={c.codigo}>{c.nombre} ({c.codigo})</option>)}</select></div>
-            <div className="field"><label htmlFor="consulta-api-estado">Estado del trabajo</label><select id="consulta-api-estado" className="select" value={estadoTrabajo} onChange={(evento) => establecerEstadoTrabajo(evento.target.value)}><option value="TODOS">Todos</option>{estadosDisponibles.map((estado) => <option key={estado} value={estado}>{etiquetaEstadoTrabajo(estado)}</option>)}</select></div>
-            <p role="status">{registrosFiltrados.length} estudiante(s) en {new Set(registrosFiltrados.map(({ trabajo }) => trabajo.id)).size} trabajo(s)</p>
+            <div className="field"><label htmlFor="consulta-api-buscar"><Search size={16} aria-hidden="true" /> Código, trabajo, estudiante, tutor o período</label><input id="consulta-api-buscar" className="input" type="search" value={texto} onChange={(evento) => cambiar(establecerTexto)(evento.target.value)} placeholder="Buscar en expedientes" /></div>
+            <div className="field"><label htmlFor="consulta-api-carrera">Carrera</label><select id="consulta-api-carrera" className="select" value={carrera} onChange={(evento) => cambiar(establecerCarrera)(evento.target.value)}><option value="TODAS">Todas</option>{carrerasApi.carreras.map((c) => <option key={c.id} value={c.codigo}>{c.nombre} ({c.codigo})</option>)}</select></div>
+            <div className="field"><label htmlFor="consulta-api-estado">Estado del trabajo</label><select id="consulta-api-estado" className="select" value={estadoTrabajo} onChange={(evento) => cambiar(establecerEstadoTrabajo)(evento.target.value)}><option value="TODOS">Todos</option>{estadosDisponibles.map((estado) => <option key={estado} value={estado}>{etiquetaEstadoTrabajo(estado)}</option>)}</select></div>
+            <FiltroPeriodo id="consulta-api-periodo" periodo={periodo} filtros={consulta.filtros} alCambiar={(valor) => { cambiar(establecerPeriodo)(valor); establecerPaginaActas(1); }} />
+            <p role="status">{consulta.actualizando ? 'Actualizando…' : `${consulta.paginacion?.total ?? 0} trabajo(s) · ${registros.length} estudiante(s) en esta página`}</p>
           </section>
-          {registrosFiltrados.length ? <section className="seguimiento-api-section" aria-labelledby="consulta-api-expedientes"><header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-expedientes">Expedientes y evaluaciones</h2><p>Los resultados aparecen cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Estudiantes y trabajos</caption><thead><tr><th>Estudiante</th><th>Trabajo</th><th>Carrera · modalidad · período</th><th>Estado académico</th><th>Resultado</th><th>Enlaces</th></tr></thead><tbody>{registrosFiltrados.map(({ trabajo, estudiante }) => { const consolidacion = obtenerConsolidacion(consolidaciones, trabajo.id); const resultado = obtenerResultadoEstudiante(consolidaciones, trabajo.id, estudiante.id); const pendientes = resultado ? datosPendientes({ estudiantes: [resultado] }) : []; return <tr key={`${trabajo.id}-${estudiante.id}`}><td data-label="Estudiante"><strong>{nombrePersona(estudiante)}</strong></td><td data-label="Trabajo"><strong>{trabajo.codigo}</strong><span className="cell-subtitle">{trabajo.titulo}</span></td><td data-label="Carrera y período">{trabajo.codigoCarrera} · {trabajo.modalidad} · {trabajo.periodo}</td><td data-label="Estado académico"><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" />{resultado && <span className="seguimiento-api-block">{etiquetaEstadoResultado(resultado.estado)}</span>}{resultado && resultado.estado !== 'RESULTADO_COMPLETO' && pendientes.map((pendiente) => <small className="seguimiento-api-block" key={`${pendiente.etapa}-${pendiente.posicion}`}>{pendiente.etapa}: evaluador {pendiente.posicion} pendiente ({pendiente.causa === 'SIN_EVALUACION' ? 'sin evaluación' : 'sin cerrar'})</small>)}{!resultado && <span className="seguimiento-api-block">{consolidacion ? 'Sin consolidación individual' : 'Evaluación dinámica no disponible'}</span>}</td><td data-label="Resultado">{resultado?.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion} / {resultado.resultadoFinal.calificacionMaxima}</strong> : '—'}</td><td data-label="Enlaces"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{resultado && <Link className="button button-outline" to={`/resultados/${trabajo.id}/${estudiante.id}`}>Evaluaciones y resultado</Link>}<Link className="button button-outline" to={`/documentos?trabajoId=${encodeURIComponent(trabajo.id)}&estudianteId=${encodeURIComponent(estudiante.id)}`}>Documentos</Link></div></td></tr>; })}</tbody></table></div></section> : (
+          {registros.length ? <section className="seguimiento-api-section" aria-labelledby="consulta-api-expedientes"><header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-expedientes">Expedientes y evaluaciones</h2><p>Los resultados aparecen cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header><div className="table-wrap"><table className="data-table responsive-table seguimiento-api-table"><caption className="sr-only">Estudiantes y trabajos</caption><thead><tr><th>Estudiante</th><th>Trabajo</th><th>Carrera · modalidad · período</th><th>Estado académico</th><th>Resultado</th><th>Enlaces</th></tr></thead><tbody>{registros.map(({ trabajo, estudiante }) => { const consolidacion = obtenerConsolidacion(consolidaciones, trabajo.id); const resultado = obtenerResultadoEstudiante(consolidaciones, trabajo.id, estudiante.id); const pendientes = resultado ? datosPendientes({ estudiantes: [resultado] }) : []; return <tr key={`${trabajo.id}-${estudiante.id}`}><td data-label="Estudiante"><strong>{nombrePersona(estudiante)}</strong></td><td data-label="Trabajo"><strong>{trabajo.codigo}</strong><span className="cell-subtitle">{trabajo.titulo}</span></td><td data-label="Carrera y período">{trabajo.codigoCarrera} · {trabajo.modalidad} · {trabajo.periodo}</td><td data-label="Estado académico"><InsigniaEstado estado={etiquetaEstadoTrabajo(trabajo.estado)} tono="neutral" />{resultado && <span className="seguimiento-api-block">{etiquetaEstadoResultado(resultado.estado)}</span>}{resultado && resultado.estado !== 'RESULTADO_COMPLETO' && pendientes.map((pendiente) => <small className="seguimiento-api-block" key={`${pendiente.etapa}-${pendiente.posicion}`}>{pendiente.etapa}: evaluador {pendiente.posicion} pendiente ({pendiente.causa === 'SIN_EVALUACION' ? 'sin evaluación' : 'sin cerrar'})</small>)}{!resultado && <span className="seguimiento-api-block">{consolidacion ? 'Sin consolidación individual' : 'Evaluación dinámica no disponible'}</span>}</td><td data-label="Resultado">{resultado?.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion} / {resultado.resultadoFinal.calificacionMaxima}</strong> : '—'}</td><td data-label="Enlaces"><div className="seguimiento-api-links"><Link className="button button-outline" to={`/trabajos/${trabajo.id}`}>Expediente</Link>{resultado && <Link className="button button-outline" to={`/resultados/${trabajo.id}/${estudiante.id}`}>Evaluaciones y resultado</Link>}<Link className="button button-outline" to={`/documentos?trabajoId=${encodeURIComponent(trabajo.id)}&estudianteId=${encodeURIComponent(estudiante.id)}`}>Documentos</Link></div></td></tr>; })}</tbody></table></div><Paginador paginacion={consulta.paginacion} alCambiar={establecerPagina} deshabilitado={consulta.actualizando} etiqueta="Páginas de expedientes" /></section> : (
             <section className="seguimiento-api-section" aria-labelledby="consulta-api-expedientes">
               <header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-expedientes">Expedientes y evaluaciones</h2><p>Los resultados aparecen cuando todas las evaluaciones requeridas están cerradas y completas.</p></div></header>
-              <EstadoVacio title="No se encontraron expedientes" description={trabajos.length ? 'Cambie los filtros para consultar otros trabajos.' : 'No hay registros disponibles.'} accion={<button className="button button-outline" type="button" onClick={() => { establecerTexto(''); establecerCarrera('TODAS'); establecerEstadoTrabajo('TODOS'); }}>Limpiar filtros</button>} />
+              <EstadoVacio title="No se encontraron expedientes" description="Cambie los filtros o el período para consultar otros trabajos." accion={<button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>} />
             </section>
           )}
-          <section className="seguimiento-api-section" aria-labelledby="consulta-api-actas"><header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-actas">Documentos archivados</h2><p>Consulta del archivo de actas. Los documentos se abren desde Documentos.</p></div></header><ResumenActas actas={datos.actas} recargar={datos.recargar} /></section>
+          <section className="seguimiento-api-section" aria-labelledby="consulta-api-actas"><header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-actas">Documentos archivados</h2><p>Consulta del archivo de actas. Los documentos se abren desde Documentos.</p></div></header><ResumenActas actas={actas} recargar={actas.recargar} alCambiarPagina={establecerPaginaActas} /></section>
           <AuditoriaCambios />
-          {datos.programaciones.estado === 'error' && <ErrorRecurso recurso={datos.programaciones} alReintentar={datos.recargar} nombre="programaciones" />}
         </>
       )}
     </div>

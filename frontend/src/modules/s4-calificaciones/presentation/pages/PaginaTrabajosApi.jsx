@@ -5,11 +5,16 @@ import {
   RefreshCw, UserRound, UsersRound,
 } from 'lucide-react';
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
-import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
+import { usarPaginaTrabajosApi, usarTrabajoApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import { usarTrazabilidadTrabajoApi } from '../hooks/usarTrazabilidadTrabajoApi';
-import { filtrarTrabajosApi } from '../../domain/filtrarTrabajosApi';
+import { usarValorDiferido } from '../hooks/usarValorDiferido';
+import { Paginador } from '../components/Paginador';
+import { SelectorPeriodo } from '../components/SelectorPeriodo';
+
+export const TRABAJOS_POR_PAGINA = 25;
+const TRIBUNAL_SERVIDOR = { 'con-tribunal': 'con', 'sin-tribunal': 'sin' };
 
 const ETIQUETAS_ESTADO = Object.freeze({
   REGISTRADO: 'Registrado',
@@ -326,24 +331,37 @@ export function TrazabilidadTrabajoApi({ trabajoId }) {
 }
 
 export function PaginaTrabajosApi() {
-  const consultaApi = usarTrabajosApi();
   const [busqueda, establecerBusqueda] = useState('');
   const [estadoFiltro, establecerEstadoFiltro] = useState('Todos');
-  const [periodoFiltro, establecerPeriodoFiltro] = useState('Todos');
+  // null = el periodo que el servidor considera actual (activo).
+  const [periodoFiltro, establecerPeriodoFiltro] = useState(null);
   const [tribunalFiltro, establecerTribunalFiltro] = useState('Todos');
+  const [pagina, establecerPagina] = useState(1);
+  const busquedaDiferida = usarValorDiferido(busqueda);
 
-  const estados = useMemo(() => [...new Set(consultaApi.trabajos.map(({ estado }) => estado))], [consultaApi.trabajos]);
-  const periodos = useMemo(() => [...new Set(consultaApi.trabajos.map(({ periodo }) => periodo))], [consultaApi.trabajos]);
-  const filas = useMemo(() => filtrarTrabajosApi(consultaApi.trabajos, {
-    busqueda, estado: estadoFiltro, periodo: periodoFiltro, tribunal: tribunalFiltro,
-  }), [consultaApi.trabajos, busqueda, estadoFiltro, periodoFiltro, tribunalFiltro]);
+  const filtros = useMemo(() => ({
+    pagina, limite: TRABAJOS_POR_PAGINA,
+    ...(periodoFiltro && { periodo: periodoFiltro }),
+    ...(busquedaDiferida.trim() && { buscar: busquedaDiferida.trim() }),
+    ...(estadoFiltro !== 'Todos' && { estado: estadoFiltro }),
+    ...(TRIBUNAL_SERVIDOR[tribunalFiltro] && { tribunal: TRIBUNAL_SERVIDOR[tribunalFiltro] }),
+  }), [pagina, periodoFiltro, busquedaDiferida, estadoFiltro, tribunalFiltro]);
+  const consultaApi = usarPaginaTrabajosApi(filtros);
+  const filas = consultaApi.trabajos;
+  const total = consultaApi.paginacion?.total ?? 0;
+  const estados = consultaApi.filtros?.estados ?? [];
+  const periodos = consultaApi.filtros?.periodos ?? [];
+  const periodoVisible = periodoFiltro ?? consultaApi.filtros?.periodo ?? 'TODOS';
 
-  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== 'Todos' || tribunalFiltro !== 'Todos');
+  // Cualquier cambio de filtro vuelve a la primera página.
+  const conPrimeraPagina = (establecer) => (valor) => { establecer(valor); establecerPagina(1); };
+  const filtrosActivos = Boolean(busqueda || estadoFiltro !== 'Todos' || periodoFiltro !== null || tribunalFiltro !== 'Todos');
   const limpiar = () => {
     establecerBusqueda('');
     establecerEstadoFiltro('Todos');
-    establecerPeriodoFiltro('Todos');
+    establecerPeriodoFiltro(null);
     establecerTribunalFiltro('Todos');
+    establecerPagina(1);
   };
 
   return (
@@ -363,28 +381,26 @@ export function PaginaTrabajosApi() {
       <section className="trabajos-filters" aria-labelledby="trabajos-api-filtros">
         <header>
           <div><span className="section-kicker">Expedientes registrados</span><h2 id="trabajos-api-filtros">Buscar y filtrar</h2></div>
-          <span className="trabajos-result-count" aria-live="polite">{filas.length} de {consultaApi.trabajos.length}</span>
+          <span className="trabajos-result-count" aria-live="polite">{consultaApi.actualizando ? 'Actualizando…' : `${total} trabajo(s)`}</span>
         </header>
         <div className="trabajos-filter-grid">
           <div className="field trabajos-search-field">
             <label htmlFor="trabajos-api-busqueda">Buscar trabajo, estudiante, tutor o evaluador</label>
-            <input id="trabajos-api-busqueda" className="input" type="search" value={busqueda} onChange={(evento) => establecerBusqueda(evento.target.value)} placeholder="Código, título, carrera o nombre" />
+            <input id="trabajos-api-busqueda" className="input" type="search" value={busqueda} onChange={(evento) => conPrimeraPagina(establecerBusqueda)(evento.target.value)} placeholder="Código, título, carrera o nombre" />
           </div>
           <div className="field">
             <label htmlFor="trabajos-api-periodo">Período académico</label>
-            <select id="trabajos-api-periodo" className="select" value={periodoFiltro} onChange={(evento) => establecerPeriodoFiltro(evento.target.value)}>
-              <option>Todos</option>{periodos.map((periodo) => <option key={periodo}>{periodo}</option>)}
-            </select>
+            <SelectorPeriodo id="trabajos-api-periodo" valor={periodoVisible} periodos={periodos} alCambiar={conPrimeraPagina(establecerPeriodoFiltro)} />
           </div>
           <div className="field">
             <label htmlFor="trabajos-api-estado">Estado registrado</label>
-            <select id="trabajos-api-estado" className="select" value={estadoFiltro} onChange={(evento) => establecerEstadoFiltro(evento.target.value)}>
+            <select id="trabajos-api-estado" className="select" value={estadoFiltro} onChange={(evento) => conPrimeraPagina(establecerEstadoFiltro)(evento.target.value)}>
               <option>Todos</option>{estados.map((estado) => <option key={estado} value={estado}>{estadoLegible(estado)}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="trabajos-api-tribunal">Tribunal de S3</label>
-            <select id="trabajos-api-tribunal" className="select" value={tribunalFiltro} onChange={(evento) => establecerTribunalFiltro(evento.target.value)}>
+            <select id="trabajos-api-tribunal" className="select" value={tribunalFiltro} onChange={(evento) => conPrimeraPagina(establecerTribunalFiltro)(evento.target.value)}>
               <option value="Todos">Todos</option>
               <option value="con-tribunal">Con integrantes asignados</option>
               <option value="sin-tribunal">Sin integrantes asignados</option>
@@ -396,7 +412,7 @@ export function PaginaTrabajosApi() {
 
       <EstadoCarga estado={consultaApi.estado} error={consultaApi.error} reintentar={consultaApi.recargar} />
       {consultaApi.estado === 'listo' && filas.length === 0 && (
-        <EstadoVacio className="trabajos-empty card" icon={FileSearch} title={consultaApi.trabajos.length ? 'No hay coincidencias' : 'No hay trabajos registrados'} description={consultaApi.trabajos.length ? 'Cambie la búsqueda o los filtros.' : 'No hay expedientes para mostrar.'} accion={filtrosActivos ? <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button> : null} />
+        <EstadoVacio className="trabajos-empty card" icon={FileSearch} title={filtrosActivos ? 'No hay coincidencias' : 'No hay trabajos registrados'} description={filtrosActivos ? 'Cambie la búsqueda o los filtros.' : 'No hay expedientes para mostrar en el período actual.'} accion={filtrosActivos ? <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button> : null} />
       )}
       {consultaApi.estado === 'listo' && filas.length > 0 && (
         <section className="trabajos-results" aria-labelledby="trabajos-api-listado">
@@ -427,6 +443,7 @@ export function PaginaTrabajosApi() {
               );
             })}
           </div>
+          <Paginador paginacion={consultaApi.paginacion} alCambiar={establecerPagina} deshabilitado={consultaApi.actualizando} etiqueta="Páginas de trabajos" />
         </section>
       )}
     </div>

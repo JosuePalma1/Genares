@@ -7,6 +7,8 @@ vi.mock('../services/documentosApi', () => ({
   DOCUMENTOS_API_HABILITADA: false,
   consultarDocumentos: vi.fn(),
   guardarDocumento: vi.fn(),
+  listarPaginaActasApi: vi.fn(),
+  listarTrabajosDocumentosApi: vi.fn(),
   actualizarConfiguracionDocumental: vi.fn(),
   obtenerPdfDocumento: vi.fn(),
 }));

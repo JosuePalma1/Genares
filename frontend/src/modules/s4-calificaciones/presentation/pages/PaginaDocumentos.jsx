@@ -6,11 +6,16 @@ import {
   consultarDocumentos,
   DOCUMENTOS_API_HABILITADA,
   guardarDocumento,
+  listarPaginaActasApi,
+  listarTrabajosDocumentosApi,
   obtenerPdfDocumento,
 } from '../services/documentosApi';
+import { Paginador } from '../components/Paginador';
+import { SelectorPeriodo } from '../components/SelectorPeriodo';
 import './documentos.css';
 
 const FORMATO = 'PAT-01-F-019';
+export const ACTAS_DOCUMENTOS_POR_PAGINA = 25;
 
 function mensajeErrorDocumento(error, ruta) {
   if (!ruta.includes('/rubricas/')) return error.message;
@@ -34,12 +39,18 @@ export default function PaginaDocumentos() {
     };
   }
   const [trabajos, setTrabajos] = useState([]);
+  // ACTIVO: el servidor aplica el periodo actual. Un enlace a un trabajo concreto consulta todos los periodos.
+  const [periodoTrabajos, setPeriodoTrabajos] = useState(() => (solicitudInicial.current.trabajoId ? 'TODOS' : 'ACTIVO'));
+  const [catalogoPeriodos, setCatalogoPeriodos] = useState({ periodo: null, periodos: [] });
+  const solicitudRevisada = useRef(false);
   const [trabajoId, setTrabajoId] = useState('');
   const [contexto, setContexto] = useState(null);
   const [estudianteId, setEstudianteId] = useState('');
   const [miembroId, setMiembroId] = useState('');
   const [formato, setFormato] = useState(FORMATO);
   const [actas, setActas] = useState([]);
+  const [paginaActas, setPaginaActas] = useState(1);
+  const [paginacionActas, setPaginacionActas] = useState(null);
   const [filtros, setFiltros] = useState({ estudiante: '', carrera: '', periodo: '' });
   const [configuracion, setConfiguracion] = useState(null);
   const [notaMinima, setNotaMinima] = useState('7.00');
@@ -71,20 +82,29 @@ export default function PaginaDocumentos() {
   }
   useEffect(() => {
     if (!DOCUMENTOS_API_HABILITADA) return;
+    cargarConfiguracion().catch((e) => { if (e.name !== 'AbortError') setError(e.message); });
+  }, []);
+  useEffect(() => {
+    if (!DOCUMENTOS_API_HABILITADA) return;
     const controller = new AbortController();
-    consultarDocumentos('/trabajos', controller.signal).then((elementos) => {
+    listarTrabajosDocumentosApi(periodoTrabajos, { signal: controller.signal }).then(({ elementos, periodo, periodos }) => {
       setTrabajos(elementos);
+      setCatalogoPeriodos({ periodo, periodos });
       const solicitado = solicitudInicial.current.trabajoId;
-      if (!solicitado) return;
+      if (!solicitado || solicitudRevisada.current) {
+        // Al cambiar de periodo se descarta un trabajo que ya no está en la lista.
+        setTrabajoId((actual) => (elementos.some((trabajo) => trabajo.id === actual) ? actual : ''));
+        return;
+      }
+      solicitudRevisada.current = true;
       if (!elementos.some((trabajo) => trabajo.id === solicitado)) {
         setError('El trabajo solicitado no está disponible en la consulta de documentos.');
         return;
       }
       setTrabajoId(solicitado);
     }).catch((e) => { if (e.name !== 'AbortError') setError(e.message); });
-    cargarConfiguracion().catch((e) => { if (e.name !== 'AbortError') setError(e.message); });
     return () => controller.abort();
-  }, []);
+  }, [periodoTrabajos]);
   useEffect(() => {
     setContexto(null); setEstudianteId(''); setMiembroId(''); cerrarPdf();
     if (!trabajoId) return;
@@ -106,12 +126,11 @@ export default function PaginaDocumentos() {
   useEffect(() => {
     if (!DOCUMENTOS_API_HABILITADA) return;
     const controller = new AbortController();
-    const query = new URLSearchParams(Object.entries(filtros).filter(([, valor]) => valor));
-    const timer = setTimeout(() => consultarDocumentos(`/actas?${query}`, controller.signal).then(setActas).catch((e) => {
-      if (e.name !== 'AbortError') setError(e.message);
-    }), 250);
+    const timer = setTimeout(() => listarPaginaActasApi({ ...filtros, pagina: paginaActas, limite: ACTAS_DOCUMENTOS_POR_PAGINA }, { signal: controller.signal })
+      .then((pagina) => { setActas(pagina.elementos); setPaginacionActas(pagina.paginacion); })
+      .catch((e) => { if (e.name !== 'AbortError') setError(e.message); }), 250);
     return () => { clearTimeout(timer); controller.abort(); };
-  }, [filtros]);
+  }, [filtros, paginaActas]);
   async function abrirPdf(ruta, titulo) {
     const conservarImpresionAutomatica = imprimirRubricaPendiente.current;
     cerrarPdf();
@@ -147,8 +166,9 @@ export default function PaginaDocumentos() {
     try {
       const rutaActa = `/trabajos/${trabajoId}/estudiantes/${estudianteId}/actas`;
       const acta = await guardarDocumento(rutaActa, { formato });
-      const filtro = new URLSearchParams(Object.entries(filtros).filter(([, valor]) => valor));
-      setActas(await consultarDocumentos(`/actas?${filtro}`));
+      const paginaActual = await listarPaginaActasApi({ ...filtros, pagina: paginaActas, limite: ACTAS_DOCUMENTOS_POR_PAGINA });
+      setActas(paginaActual.elementos);
+      setPaginacionActas(paginaActual.paginacion);
       setMensaje(acta.reimpresa
         ? `El documento ${acta.numero} ya estaba archivado; se conserva el mismo PDF y número.`
         : `Documento interno ${acta.numero} archivado con calificación ${acta.notaFinal}/10.00.`);
@@ -173,6 +193,7 @@ export default function PaginaDocumentos() {
       </section>}
       <section className="card">
         <h2>Resultado consultivo y documentos</h2>
+        <label>Período académico<SelectorPeriodo id="documentos-periodo" valor={periodoTrabajos === 'ACTIVO' ? (catalogoPeriodos.periodo ?? 'TODOS') : periodoTrabajos} periodos={catalogoPeriodos.periodos} alCambiar={setPeriodoTrabajos} /></label>
         <label>Trabajo<select value={trabajoId} onChange={(e) => { imprimirRubricaPendiente.current = false; setError(''); setTrabajoId(e.target.value); }}><option value="">Seleccione un trabajo autorizado</option>{trabajos.map((t) => <option key={t.id} value={t.id}>{t.codigo} — {t.titulo}</option>)}</select></label>
         {contexto && <>
           <p>{contexto.trabajo.carrera} · {contexto.trabajo.periodo}</p>
@@ -196,8 +217,9 @@ export default function PaginaDocumentos() {
         </>}
       </section>
       <section className="card"><h2>Actas archivadas</h2>
-        <div className="documentos-filtros">{[['estudiante', 'Buscar estudiante'], ['carrera', 'Código de carrera'], ['periodo', 'Período académico']].map(([clave, etiqueta]) => <label key={clave}>{etiqueta}<input value={filtros[clave]} onChange={(e) => setFiltros({ ...filtros, [clave]: e.target.value })} /></label>)}</div>
+        <div className="documentos-filtros">{[['estudiante', 'Buscar estudiante'], ['carrera', 'Código de carrera'], ['periodo', 'Período académico']].map(([clave, etiqueta]) => <label key={clave}>{etiqueta}<input value={filtros[clave]} onChange={(e) => { setFiltros({ ...filtros, [clave]: e.target.value }); setPaginaActas(1); }} /></label>)}</div>
         {actas.length === 0 ? <p>No hay actas archivadas que coincidan con estos filtros y permisos.</p> : <div className="documentos-table-wrap" role="region" aria-label="Actas archivadas" tabIndex="0"><table><caption className="sr-only">Actas archivadas y resultados provisionales</caption><thead><tr><th scope="col">Número</th><th scope="col">Estudiante</th><th scope="col">Carrera</th><th scope="col">Período</th><th scope="col">Nota /10</th><th scope="col">Umbral aplicado</th><th scope="col">Resultado provisional</th><th scope="col">Documento archivado</th></tr></thead><tbody>{actas.map((a) => <tr key={a.id}><td><InsigniaEstadoRegistro estadoRegistro={a.estadoRegistro} /> {a.numero}</td><td>{a.estudiante}</td><td>{a.carrera}</td><td>{a.periodo}</td><td>{a.notaFinal ?? 'Histórica'}</td><td>{a.notaMinimaAplicada ?? '—'}</td><td>{a.aprobado === null ? 'No registrado' : a.aprobado ? 'APROBADO (provisional)' : 'REPROBADO (provisional)'}</td><td><button disabled={ocupado} onClick={() => abrirPdf(`/actas/${a.id}/pdf`, `Acta archivada · ${a.numero}`)}>Abrir acta archivada</button></td></tr>)}</tbody></table></div>}
+        <Paginador paginacion={paginacionActas} alCambiar={setPaginaActas} etiqueta="Páginas de actas archivadas" />
       </section>
       {ocupado && <p role="status">Preparando documento…</p>}
       {pdf && <section className="card"><h2>{pdf.titulo}</h2><div className="documentos-acciones"><a className="button button-primary" href={pdf.url} download={`${pdf.titulo}.pdf`}>Guardar PDF</a><a className="button button-secondary" href={pdf.url} target="_blank" rel="noreferrer">Abrir PDF en pestaña nueva</a><button className="button button-secondary" onClick={() => { imprimirRubricaPendiente.current = false; cerrarPdf(); }}>Cerrar vista previa</button></div><p>El documento original se conserva en el visor. Puede abrirlo en una pestaña nueva para ampliarlo o imprimirlo.</p><iframe ref={iframePdf} title={pdf.titulo} src={pdf.url} onLoad={() => {

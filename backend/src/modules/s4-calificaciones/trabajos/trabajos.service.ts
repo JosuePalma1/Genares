@@ -1,5 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
+import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from './paginacion-trabajos';
 
 export const CONSULTA_TRABAJOS_MER = `
 SELECT
@@ -126,11 +128,95 @@ LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
 LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
 LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
 WHERE ((($1::uuid IS NULL AND a.estado = 'VIGENTE') OR a.id = $1::uuid)
+  AND ($2::uuid[] IS NULL OR a.id = ANY($2::uuid[]))
   AND (p.id IS NULL OR p.estado_registro = 1)
   AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
   AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL))
 ORDER BY t.titulo, a.id
 `;
+
+/** Mismo universo que CONSULTA_TRABAJOS_MER; solo filtra y ordena para paginar en el servidor. */
+export const FILTRO_TRABAJOS_MER = `
+FROM s2.asignacion_tema a
+JOIN gen.tema t ON t.id = a.tema_id
+LEFT JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id
+LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
+LEFT JOIN gen.carrera c ON c.id = t.carrera_id
+LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
+LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
+LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+WHERE a.estado = 'VIGENTE'
+  AND (p.id IS NULL OR p.estado_registro = 1)
+  AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
+  AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL)
+  AND ($1::text IS NULL OR pa.codigo = $1::text)
+`;
+
+/**
+ * Texto buscable: código, título, carrera, modalidad, periodo, estudiantes, tutores y tribunal.
+ * Usa los alias a (asignación), t (tema), c (carrera), m (modalidad) y pa (periodo); también lo usa Finalización.
+ */
+export const TEXTO_BUSCABLE_TRABAJO = `
+translate(lower(concat_ws(' ', a.id::text, t.titulo, c.nombre, m.nombre, pa.codigo,
+  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+     FROM gen.estudiante est JOIN gen.persona per ON per.id = est.persona_id
+     WHERE est.id = a.estudiante_id
+       OR (a.grupo_id IS NOT NULL AND EXISTS (SELECT 1 FROM s2.grupo_integrante gi
+         WHERE gi.grupo_id = a.grupo_id AND gi.estudiante_id = est.id AND gi.estado = 'ACTIVO'))),
+  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+     FROM s2.asignacion_tutor tut JOIN gen.docente doc ON doc.id = tut.docente_id
+     JOIN gen.persona per ON per.id = doc.persona_id WHERE tut.asignacion_tema_id = a.id),
+  (SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
+     FROM s3.asignacion_tribunal at
+     JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
+     JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
+     JOIN gen.docente doc ON doc.id = dcp.docente_id JOIN gen.persona per ON per.id = doc.persona_id
+     WHERE at.asignacion_tema_id = a.id))),
+  'áàäâéèëêíìïîóòöôúùüûñçÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑÇ', 'aaaaeeeeiiiioooouuuuncaaaaeeeeiiiioooouuuunc')
+`;
+
+export const CONSULTA_PAGINA_TRABAJOS_MER = `
+WITH filtrados AS (
+  SELECT a.id, t.titulo
+  ${FILTRO_TRABAJOS_MER}
+    AND ($2::text IS NULL OR COALESCE(p.estado, 'REGISTRADO') = $2::text)
+    AND ($3::text IS NULL OR ($3::text = 'con') = EXISTS (
+      SELECT 1 FROM s3.asignacion_tribunal at
+      JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
+      JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
+      JOIN gen.docente doc ON doc.id = dcp.docente_id JOIN gen.persona per ON per.id = doc.persona_id
+      WHERE at.asignacion_tema_id = a.id))
+    AND ($4::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $4::text) > 0)
+    AND ($7::text IS NULL OR c.codigo = $7::text)
+)
+SELECT
+  (SELECT count(*)::integer FROM filtrados) AS total,
+  COALESCE((SELECT array_agg(pagina.id ORDER BY pagina.titulo, pagina.id) FROM (
+    SELECT id, titulo FROM filtrados ORDER BY titulo, id LIMIT $5 OFFSET $6
+  ) pagina), '{}'::uuid[]) AS ids
+`;
+
+const CONSULTA_ESTADOS_TRABAJOS_MER = `
+SELECT DISTINCT COALESCE(p.estado, 'REGISTRADO') AS estado
+${FILTRO_TRABAJOS_MER}
+ORDER BY 1
+`;
+
+export const CONSULTA_PERIODOS = `
+SELECT pa.codigo, pa.nombre, pa.activo
+FROM gen.periodo_academico pa
+ORDER BY pa.activo DESC, pa.fecha_inicio DESC NULLS LAST, pa.codigo DESC
+`;
+
+export interface PaginaTrabajosMer {
+  elementos: TrabajoMer[];
+  paginacion: { pagina: number; limite: number; total: number; paginas: number };
+  filtros: {
+    periodo: string;
+    periodos: Array<{ codigo: string; nombre: string | null; activo: boolean }>;
+    estados: string[];
+  };
+}
 
 interface PersonaMer {
   id: string;
@@ -188,6 +274,27 @@ export class TrabajosService {
     return { elementos: await this.consultar(null) };
   }
 
+  /** Una página filtrada en el servidor: evita descargar todos los trabajos acumulados. */
+  async listarPaginaDesarrolloLocal(actorId: string, filtros: ConsultarTrabajosDto): Promise<PaginaTrabajosMer> {
+    this.exigirActorLocal(actorId);
+    const { limite, pagina, desplazamiento } = leerPaginacion(filtros.limite, filtros.pagina);
+    const periodos = await this.dataSource.query<PaginaTrabajosMer['filtros']['periodos']>(CONSULTA_PERIODOS);
+    const periodo = periodoAplicado(filtros.periodo, periodos);
+    const [[{ total, ids }], estados] = await Promise.all([
+      this.dataSource.query<Array<{ total: number; ids: string[] }>>(CONSULTA_PAGINA_TRABAJOS_MER, [
+        periodo, filtros.estado ?? null, filtros.tribunal ?? null,
+        normalizarBusqueda(filtros.buscar), limite, desplazamiento, filtros.carrera ?? null,
+      ]),
+      this.dataSource.query<Array<{ estado: string }>>(CONSULTA_ESTADOS_TRABAJOS_MER, [periodo]),
+    ]);
+    const porId = new Map((ids.length ? await this.consultar(null, ids) : []).map((trabajo) => [trabajo.id, trabajo]));
+    return {
+      elementos: ids.map((id) => porId.get(id)).filter((trabajo): trabajo is TrabajoMer => Boolean(trabajo)),
+      paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
+      filtros: { periodo: periodo ?? TODOS_LOS_PERIODOS, periodos, estados: estados.map(({ estado }) => estado) },
+    };
+  }
+
   async detalleDesarrolloLocal(actorId: string, trabajoId: string): Promise<TrabajoMer> {
     this.exigirActorLocal(actorId);
     const [trabajo] = await this.consultar(trabajoId);
@@ -201,8 +308,8 @@ export class TrabajosService {
     }
   }
 
-  async consultar(trabajoId: string | null): Promise<TrabajoMer[]> {
-    const trabajos = await this.dataSource.query<TrabajoMer[]>(CONSULTA_TRABAJOS_MER, [trabajoId]);
+  async consultar(trabajoId: string | null, ids: string[] | null = null): Promise<TrabajoMer[]> {
+    const trabajos = await this.dataSource.query<TrabajoMer[]>(CONSULTA_TRABAJOS_MER, [trabajoId, ids]);
     return trabajos.map((trabajo) => {
       const ultimaSesion = trabajo.sesiones.at(-1);
       return {

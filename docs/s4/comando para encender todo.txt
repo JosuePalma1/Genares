@@ -1,0 +1,10 @@
+3 consolas:
+
+backend:
+npm --prefix .\backend run start:dev
+
+Frontend:
+npm --prefix .\frontend run dev
+
+Túnel del celular
+& "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe" reverse tcp:3001 tcp:3001

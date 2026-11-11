@@ -1,4 +1,5 @@
-import { Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Req } from '@nestjs/common';
+import { Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
+import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { TrabajosService } from './trabajos.service';
@@ -11,9 +12,11 @@ export class TrabajosController {
 
   @Get()
   @RequiereCapacidades('trabajos:leer')
-  listar(@Req() solicitud: SolicitudConIdentidad) {
+  listar(@Query() filtros: ConsultarTrabajosDto, @Req() solicitud: SolicitudConIdentidad) {
     this.exigirAccesoLocal(solicitud);
-    return this.trabajos.listarDesarrolloLocal(actorValidadoDe(solicitud));
+    // Sin `limite` se conserva la lista completa que usan cronograma, seguimiento y documentos.
+    if (filtros.limite === undefined) return this.trabajos.listarDesarrolloLocal(actorValidadoDe(solicitud));
+    return this.trabajos.listarPaginaDesarrolloLocal(actorValidadoDe(solicitud), filtros);
   }
 
   @Get(':trabajoId')
@@ -24,9 +27,14 @@ export class TrabajosController {
   }
 
   private exigirAccesoLocal(solicitud: SolicitudConIdentidad): void {
-    if (solicitud.identidadApi?.tipo !== 'DESARROLLO_LOCAL'
-      || !['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
-      throw new ForbiddenException('La consulta general de trabajos solo está disponible en el entorno local de desarrollo.');
-    }
+    exigirConsultaGeneralLocal(solicitud);
+  }
+}
+
+/** La consulta general de trabajos (y su resumen) solo existe en el entorno local de desarrollo. */
+export function exigirConsultaGeneralLocal(solicitud: SolicitudConIdentidad): void {
+  if (solicitud.identidadApi?.tipo !== 'DESARROLLO_LOCAL'
+    || !['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
+    throw new ForbiddenException('La consulta general de trabajos solo está disponible en el entorno local de desarrollo.');
   }
 }

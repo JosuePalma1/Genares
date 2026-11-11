@@ -5,12 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { TrabajoMer, TrabajosService } from '../trabajos/trabajos.service';
+import { TEXTO_BUSCABLE_TRABAJO, TrabajoMer, TrabajosService } from '../trabajos/trabajos.service';
+import { leerPaginacion, normalizarBusqueda } from '../trabajos/paginacion-trabajos';
 import { EstadoSustentacion } from '../../../common/domain/enums-dominio';
 import { ActualizarProgramacionDto } from './dto/actualizar-programacion.dto';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 import { CambiarEstadoProgramacionDto } from './dto/cambiar-estado-programacion.dto';
-import { ConsultarProgramacionesDto } from './dto/consultar-programaciones.dto';
+import { ConsultarProgramacionesDto, TODOS_LOS_PERIODOS_PROGRAMACION } from './dto/consultar-programaciones.dto';
 import { CrearProgramacionDto } from './dto/crear-programacion.dto';
 import {
   validarFechaProgramada,
@@ -20,6 +21,63 @@ import {
   DURACION_ESTIMADA_PREDETERMINADA_MINUTOS,
   permiteTransicionEstadoProgramacion,
 } from './reglas-programacion-sustentacion';
+
+/**
+ * Trabajos vigentes con proceso visible: mismos filtros de visibilidad que CONSULTA_TRABAJOS_MER.
+ * $1 carrera · $2 periodo · $3 búsqueda normalizada (como la de Trabajos, más el código de carrera).
+ */
+const FILTRO_TRABAJOS_PROGRAMACION = `
+FROM s2.asignacion_tema a
+JOIN gen.tema t ON t.id = a.tema_id
+JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id AND p.estado_registro = 1
+LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
+LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+LEFT JOIN gen.carrera c ON c.id = t.carrera_id
+LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
+LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
+WHERE a.estado = 'VIGENTE'
+  AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
+  AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL)
+  AND ($1::uuid IS NULL OR t.carrera_id = $1::uuid)
+  AND ($2::uuid IS NULL OR t.periodo_academico_id = $2::uuid)
+  AND ($3::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $3::text) > 0
+    OR strpos(lower(COALESCE(c.codigo, '')), $3::text) > 0)
+`;
+
+/**
+ * Programaciones visibles filtradas y ordenadas en PostgreSQL (fecha, hora, id).
+ * $4 estado (COMPLETADA se trata como FINALIZADA) · $5 límite (NULL = todas) · $6 desplazamiento.
+ */
+export const CONSULTA_PROGRAMACIONES = `
+WITH trabajos AS (
+  SELECT a.id AS "idTrabajo", p.id AS "idProceso"
+  ${FILTRO_TRABAJOS_PROGRAMACION}
+), filtradas AS (
+  SELECT ses.id, trabajos."idTrabajo", ses.fecha_programada AS fecha, TO_CHAR(ses.hora_programada, 'HH24:MI') AS hora
+  FROM trabajos
+  JOIN s4.programaciones_sustentacion ses ON ses.id_proceso_evaluacion = trabajos."idProceso" AND ses.estado_registro = 1
+  WHERE ($4::text IS NULL
+    OR (CASE WHEN ses.estado::text = 'COMPLETADA' THEN 'FINALIZADA' ELSE ses.estado::text END) = $4::text)
+)
+SELECT
+  (SELECT count(*)::integer FROM filtradas) AS total,
+  COALESCE((SELECT jsonb_agg(jsonb_build_object('id', pagina.id, 'idTrabajo', pagina."idTrabajo")
+    ORDER BY pagina.fecha, pagina.hora, pagina.id::text) FROM (
+      SELECT id, "idTrabajo", fecha, hora FROM filtradas ORDER BY fecha, hora, id::text LIMIT $5 OFFSET $6
+    ) pagina), '[]'::jsonb) AS filas
+`;
+
+/** Candidatos a una nueva programación: sin programaciones (visibles u ocultas) y con dos miembros de tribunal. */
+export const CONSULTA_TRABAJOS_DISPONIBLES = `
+SELECT a.id
+${FILTRO_TRABAJOS_PROGRAMACION}
+  AND NOT EXISTS (
+    SELECT 1 FROM s4.programaciones_sustentacion programacion
+    JOIN s4.procesos_evaluacion proceso
+      ON proceso.id = programacion.id_proceso_evaluacion AND proceso.estado_registro = 1
+    WHERE proceso.asignacion_tema_id = a.id)
+  AND (SELECT count(*) FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id) = 2
+`;
 
 @Injectable()
 export class ProgramacionesSustentacionService {
@@ -35,16 +93,52 @@ export class ProgramacionesSustentacionService {
     return { puedeAdministrar: puedeAdministrar && Boolean(cuenta) };
   }
 
+  /**
+   * Filtra en PostgreSQL y solo arma el detalle de los trabajos necesarios. Con `limite` devuelve
+   * una página (por defecto del periodo activo); sin él, la lista completa como antes.
+   */
   async listar(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
-    const trabajos = await this.trabajos.consultar(null);
-    const estado = filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado;
-    const elementos = trabajos.filter((trabajo) => this.coincide(trabajo, filtros))
-      .flatMap((trabajo) => trabajo.sesiones
-        .filter((sesion) => !estado || (sesion.estado === 'COMPLETADA' ? 'FINALIZADA' : sesion.estado) === estado)
-        .map((sesion) => this.programacion(trabajo, sesion)))
-      .sort((a, b) => a.fechaProgramada.localeCompare(b.fechaProgramada)
-        || a.horaProgramada.localeCompare(b.horaProgramada) || a.id.localeCompare(b.id));
-    return { elementos, filtros: await this.listarCatalogos() };
+    const paginado = filtros.limite !== undefined;
+    const periodoId = paginado ? await this.periodoDelListado(filtros.periodoId) : this.periodoExplicito(filtros.periodoId);
+    const { limite, pagina, desplazamiento } = paginado
+      ? leerPaginacion(filtros.limite, filtros.pagina)
+      : { limite: null, pagina: 1, desplazamiento: 0 };
+    const estado = filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado ?? null;
+    const [[{ total, filas }], catalogos] = await Promise.all([
+      this.dataSource.query(CONSULTA_PROGRAMACIONES, [
+        filtros.carreraId ?? null, periodoId, normalizarBusqueda(filtros.buscar), estado, limite, desplazamiento,
+      ]) as Promise<Array<{ total: number; filas: Array<{ id: string; idTrabajo: string }> }>>,
+      this.listarCatalogos(),
+    ]);
+    const idsTrabajo = [...new Set(filas.map(({ idTrabajo }) => idTrabajo))];
+    const trabajos = new Map((idsTrabajo.length ? await this.trabajos.consultar(null, idsTrabajo) : [])
+      .map((trabajo) => [trabajo.id, trabajo]));
+    const elementos = filas.flatMap(({ id, idTrabajo }) => {
+      const trabajo = trabajos.get(idTrabajo);
+      const sesion = trabajo?.sesiones.find((item) => item.id === id);
+      return trabajo && sesion ? [this.programacion(trabajo, sesion)] : [];
+    });
+    if (!paginado || limite === null) return { elementos, filtros: catalogos };
+    return {
+      elementos,
+      filtros: catalogos,
+      periodoAplicado: periodoId,
+      paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
+    };
+  }
+
+  /** Periodo del listado paginado: el pedido, `TODOS` (ninguno) o, si se omite, el activo. */
+  private async periodoDelListado(solicitado?: string): Promise<string | null> {
+    if (solicitado) return this.periodoExplicito(solicitado);
+    const [activo] = await this.dataSource.query(`
+      SELECT id FROM gen.periodo_academico WHERE activo
+      ORDER BY fecha_inicio DESC NULLS LAST, codigo DESC LIMIT 1
+    `) as Array<{ id: string }>;
+    return activo?.id ?? null;
+  }
+
+  private periodoExplicito(solicitado?: string): string | null {
+    return solicitado && solicitado !== TODOS_LOS_PERIODOS_PROGRAMACION ? solicitado : null;
   }
 
   async obtener(id: string): Promise<Record<string, unknown>> {
@@ -61,12 +155,13 @@ export class ProgramacionesSustentacionService {
   }
 
   async listarParaImpresion(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
-    const resultado = await this.listar(filtros);
+    // El documento impreso incluye todas las programaciones filtradas, no una página.
+    const resultado = await this.listar({ ...filtros, limite: undefined, pagina: undefined });
     return {
       generadoEn: new Date().toISOString(),
       criterios: {
         carreraId: filtros.carreraId ?? null,
-        periodoId: filtros.periodoId ?? null,
+        periodoId: this.periodoExplicito(filtros.periodoId),
         estado: filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado ?? null,
         buscar: filtros.buscar?.trim() || null,
       },
@@ -75,23 +170,20 @@ export class ProgramacionesSustentacionService {
   }
 
   async trabajosDisponibles(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
-    const [trabajos, programacionesOcultas] = await Promise.all([
-      this.trabajos.consultar(null),
-      this.dataSource.query(`
-        SELECT DISTINCT proceso.asignacion_tema_id AS "idTrabajo"
-        FROM s4.programaciones_sustentacion programacion
-        JOIN s4.procesos_evaluacion proceso
-          ON proceso.id = programacion.id_proceso_evaluacion AND proceso.estado_registro = 1
-        WHERE programacion.estado_registro = 0
-      `) as Promise<Array<{ idTrabajo: string }>>,
+    // PostgreSQL descarta los trabajos ya programados (incluso con programación oculta) o sin tribunal completo;
+    // la regla de elegibilidad se vuelve a comprobar sobre el detalle.
+    const [candidatos, catalogos] = await Promise.all([
+      this.dataSource.query(CONSULTA_TRABAJOS_DISPONIBLES, [
+        filtros.carreraId ?? null, this.periodoExplicito(filtros.periodoId), normalizarBusqueda(filtros.buscar),
+      ]) as Promise<Array<{ id: string }>>,
+      this.listarCatalogos(),
     ]);
-    const trabajosConProgramacionOculta = new Set(programacionesOcultas.map(({ idTrabajo }) => idTrabajo));
+    const trabajos = candidatos.length ? await this.trabajos.consultar(null, candidatos.map(({ id }) => id)) : [];
     return {
-      elementos: trabajos.filter((t) => this.coincide(t, filtros) && t.procesoId
-        && t.sesiones.length === 0 && !trabajosConProgramacionOculta.has(t.id)
+      elementos: trabajos.filter((t) => t.procesoId && t.sesiones.length === 0
         && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
         .map((trabajo) => this.contexto(trabajo)),
-      filtros: await this.listarCatalogos(),
+      filtros: catalogos,
     };
   }
 
@@ -253,19 +345,10 @@ export class ProgramacionesSustentacionService {
     return this.obtener(id);
   }
 
-  private coincide(trabajo: TrabajoMer, filtros: ConsultarProgramacionesDto): boolean {
-    const texto = filtros.buscar?.trim().toLocaleLowerCase('es');
-    return (!filtros.carreraId || filtros.carreraId === trabajo.idCarrera)
-      && (!filtros.periodoId || filtros.periodoId === trabajo.idPeriodo)
-      && (!texto || [trabajo.codigo, trabajo.titulo, trabajo.carrera, trabajo.codigoCarrera, trabajo.periodo,
-        ...trabajo.estudiantes.map((p) => p.nombre), ...trabajo.evaluadores.map((p) => p.nombre)]
-        .join(' ').toLocaleLowerCase('es').includes(texto));
-  }
-
   private async listarCatalogos(): Promise<Record<string, unknown>> {
     const [carreras, periodos] = await Promise.all([
       this.dataSource.query('SELECT id, codigo, nombre FROM gen.carrera ORDER BY nombre, id'),
-      this.dataSource.query('SELECT id, codigo FROM gen.periodo_academico ORDER BY codigo DESC, id'),
+      this.dataSource.query('SELECT id, codigo, activo FROM gen.periodo_academico ORDER BY codigo DESC, id'),
     ]);
     return { carreras, periodos };
   }

@@ -12,6 +12,20 @@ export class BuscarActasDto {
   carrera?: string;
   @IsOptional() @IsString() @MaxLength(20)
   periodo?: string;
+  /** Con `limite` la respuesta es una página `{ elementos, paginacion }`; sin él, la lista completa. */
+  @IsOptional() @Matches(/^\d{1,3}$/)
+  limite?: string;
+  @IsOptional() @Matches(/^\d{1,6}$/)
+  pagina?: string;
+}
+
+export class BuscarTrabajosDocumentosDto {
+  /**
+   * Código del periodo, `TODOS` o `ACTIVO`. Si se envía, la respuesta incluye los periodos disponibles
+   * (`{ elementos, periodo, periodos }`); si se omite, se conserva la lista completa anterior.
+   */
+  @IsOptional() @IsString() @MaxLength(20)
+  periodo?: string;
 }
 
 export class ActualizarNotaMinimaDto {

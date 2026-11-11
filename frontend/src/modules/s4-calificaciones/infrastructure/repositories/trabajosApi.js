@@ -91,3 +91,35 @@ export function adaptarListaTrabajosApi(respuesta) {
   if (respuesta.elementos.some((trabajo) => !esEstadoRegistroValido(trabajo))) throw new ErrorRespuestaApi();
   return respuesta.elementos.filter(esRegistroVisible).map(adaptarTrabajoApi);
 }
+
+const entero = (valor, minimo) => Number.isInteger(valor) && valor >= minimo;
+
+/**
+ * Página de `GET /trabajos?limite=…`: valida paginación y filtros del servidor y adapta los
+ * elementos con el adaptador de la pantalla (trabajos o evaluaciones).
+ */
+export function adaptarPaginaTrabajosApi(respuesta, adaptarLista = adaptarListaTrabajosApi) {
+  exigir(objeto(respuesta) && objeto(respuesta.paginacion) && objeto(respuesta.filtros));
+  const { pagina, limite, total, paginas } = respuesta.paginacion;
+  exigir(entero(pagina, 1) && entero(limite, 1) && entero(total, 0) && entero(paginas, 1));
+  const { periodo, periodos, estados } = respuesta.filtros;
+  exigir(typeof periodo === 'string' && Array.isArray(periodos) && Array.isArray(estados)
+    && periodos.every((p) => objeto(p) && typeof p.codigo === 'string' && typeof p.activo === 'boolean')
+    && estados.every((estado) => typeof estado === 'string'));
+  return {
+    trabajos: adaptarLista({ elementos: respuesta.elementos }),
+    paginacion: { pagina, limite, total, paginas },
+    filtros: { periodo, periodos: periodos.map(({ codigo, nombre, activo }) => ({ codigo, nombre: nombre ?? null, activo })), estados },
+  };
+}
+
+/** Ruta de la página pedida; omite los filtros vacíos o «Todos». */
+export function rutaPaginaTrabajos({ pagina = 1, limite = 25, periodo, buscar, estado, tribunal, carrera } = {}) {
+  const parametros = new URLSearchParams({ limite: String(limite), pagina: String(pagina) });
+  if (periodo) parametros.set('periodo', periodo);
+  if (buscar?.trim()) parametros.set('buscar', buscar.trim());
+  if (estado) parametros.set('estado', estado);
+  if (tribunal) parametros.set('tribunal', tribunal);
+  if (carrera) parametros.set('carrera', carrera);
+  return `/trabajos?${parametros}`;
+}

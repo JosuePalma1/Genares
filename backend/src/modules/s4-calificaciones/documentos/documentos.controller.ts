@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Header, Param, ParseUUIDPipe, Post, Put, Query, Req, StreamableFile } from '@nestjs/common';
 import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
-import { ActualizarNotaMinimaDto, BuscarActasDto, FormatoActaDto } from './documentos.dto';
+import { ActualizarNotaMinimaDto, BuscarActasDto, BuscarTrabajosDocumentosDto, FormatoActaDto } from './documentos.dto';
 import { DocumentosService } from './documentos.service';
 
 // PostgreSQL UUID fields accept any UUID version; do not narrow document reads to v4.
@@ -12,9 +12,9 @@ const archivo = (pdf: Buffer) => new StreamableFile(pdf, { type: 'application/pd
 @RequiereCapacidades('evaluaciones:leer')
 export class DocumentosController {
   constructor(private readonly servicio: DocumentosService) {}
-  @Get('trabajos') trabajos(@Req() r: SolicitudConIdentidad) {
+  @Get('trabajos') trabajos(@Query() dto: BuscarTrabajosDocumentosDto, @Req() r: SolicitudConIdentidad) {
     const puedeConsultar = puedeConsultarDemostracion(r);
-    return this.servicio.trabajos(actorValidadoDe(r), puedeConsultar);
+    return this.servicio.trabajosPorPeriodo(actorValidadoDe(r), dto, puedeConsultar);
   }
   @Get('trabajos/:trabajoId') contexto(@Param('trabajoId', uuid) t: string, @Req() r: SolicitudConIdentidad) {
     const capacidades = r.identidadApi?.capacidades ?? [];

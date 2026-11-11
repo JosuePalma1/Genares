@@ -1,6 +1,6 @@
 import { crearClienteHttp, ErrorRespuestaApi } from './clienteHttp';
 import { FUENTE_TRABAJOS } from '../../infrastructure/config/trabajos';
-import { adaptarListaTrabajosApi, adaptarTrabajoApi } from '../../infrastructure/repositories/trabajosApi';
+import { adaptarListaTrabajosApi, adaptarPaginaTrabajosApi, adaptarTrabajoApi, rutaPaginaTrabajos } from '../../infrastructure/repositories/trabajosApi';
 import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';
 
 export function crearServicioTrabajosApi({ getJson, habilitado = true } = {}) {
@@ -12,6 +12,16 @@ export function crearServicioTrabajosApi({ getJson, habilitado = true } = {}) {
   return {
     async listar({ signal } = {}) {
       return adaptarListaTrabajosApi(await pedir('/trabajos', signal));
+    },
+    /** Una página filtrada en el servidor; adaptarLista permite reutilizarla en Mis evaluaciones. */
+    async listarPagina(filtros = {}, { signal, adaptarLista } = {}) {
+      const resultado = adaptarPaginaTrabajosApi(await pedir(rutaPaginaTrabajos(filtros), signal), adaptarLista);
+      const { pagina, paginas, total } = resultado.paginacion;
+      // Si los resultados se redujeron y la página pedida ya no existe, se devuelve la última.
+      if (total > 0 && pagina > paginas) {
+        return adaptarPaginaTrabajosApi(await pedir(rutaPaginaTrabajos({ ...filtros, pagina: paginas }), signal), adaptarLista);
+      }
+      return resultado;
     },
     async detalle(trabajoId, { signal } = {}) {
       if (!esUuidPostgres(trabajoId)) throw new Error('El identificador del trabajo no es un UUID válido.');
@@ -44,5 +54,6 @@ const servicio = crearServicioTrabajosApi({
 });
 
 export const listarTrabajosApi = (...argumentos) => servicio.listar(...argumentos);
+export const listarPaginaTrabajosApi = (...argumentos) => servicio.listarPagina(...argumentos);
 export const obtenerTrabajoApi = (...argumentos) => servicio.detalle(...argumentos);
 export const obtenerTrazabilidadTrabajoApi = (...argumentos) => servicio.trazabilidad(...argumentos);

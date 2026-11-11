@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ESTADO_LOCAL, claveBorrador, eliminarBorrador, etiquetaSincronizacion, guardarBorrador, guardarExpediente,
   leerBorrador, leerExpediente, listarPendientes, mismasNotas, resolverRecuperacion,
-  RESULTADO_SINCRONIZACION, sincronizarBorrador,
+  RESULTADO_SINCRONIZACION, sincronizarBorrador, estadoAlConsultarExpediente,
 } from './borradoresLocales';
 
 /** Imita localStorage: persiste entre "recargas" mientras se reutilice la misma instancia. */
@@ -181,5 +181,19 @@ describe('sincronización con el servidor', () => {
   it('propaga los errores de validación del servidor', async () => {
     const invalido = Object.assign(new Error('Puntaje fuera de rango'), { status: 400 });
     await expect(sincronizarBorrador({ registro, enviar: vi.fn().mockRejectedValue(invalido), consultarEvaluacion: vi.fn(), esErrorConexion })).rejects.toBe(invalido);
+  });
+});
+
+describe('nueva consulta del expediente abierto', () => {
+  it('conserva el formulario visible al volver a consultar el mismo expediente', () => {
+    const visible = { status: 'listo', datos: { tema: 'T' }, error: null, asignacionId: 'a1' };
+    expect(estadoAlConsultarExpediente(visible, 'a1')).toBe(visible);
+  });
+
+  it('muestra la carga en la primera consulta o al cambiar de expediente', () => {
+    const cargando = { status: 'cargando', datos: null, error: null, asignacionId: 'a2' };
+    expect(estadoAlConsultarExpediente({ status: 'cargando', datos: null, error: null }, 'a2')).toEqual(cargando);
+    expect(estadoAlConsultarExpediente({ status: 'listo', datos: { tema: 'T' }, asignacionId: 'a1' }, 'a2')).toEqual(cargando);
+    expect(estadoAlConsultarExpediente({ status: 'error', datos: null, error: new Error('x'), asignacionId: 'a2' }, 'a2')).toEqual(cargando);
   });
 });

@@ -38,6 +38,27 @@
 /* Los estilos compartidos no distinguen un botón deshabilitado; aquí debe notarse. */
 .finalizacion-acciones .button:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 
+/* Filtros: búsqueda, periodo, situación, conteo y limpiar; una columna en pantallas angostas. */
+.finalizacion-filtros {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto auto;
+  align-items: end;
+  gap: var(--space-3) var(--space-4);
+}
+.finalizacion-filtros .field { min-width: 0; }
+.finalizacion-filtros > p { margin: 0 0 .6rem; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .finalizacion-filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .finalizacion-filtros .field:first-child { grid-column: 1 / -1; }
+  .finalizacion-filtros > p { margin: 0; }
+  .finalizacion-filtros .button { justify-self: start; }
+}
+
+@media (max-width: 600px) {
+  .finalizacion-filtros { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 480px) {
   .finalizacion-acciones .button { width: 100%; justify-content: center; }
 }

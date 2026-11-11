@@ -1,20 +1,33 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Ban, CalendarDays, CheckCircle2, Clock3, FilePlus2, MapPin, Pencil, Play, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstadoRegistro } from '../components/interfaz';
+import { Paginador } from '../components/Paginador';
 import {
   actualizarProgramacionApi,
   capacidadesProgramacionesApi,
   cambiarEstadoProgramacionApi,
   crearProgramacionApi,
-  listarProgramacionesApi,
+  listarPaginaProgramacionesApi,
   listarTrabajosDisponiblesApi,
   obtenerImpresionProgramacionesApi,
 } from '../services/programacionesApi';
 import './cronograma.css';
 
 const FILTROS_VACIOS = { carreras: [], periodos: [] };
+export const CRONOGRAMA_POR_PAGINA = 25;
+const TODOS_LOS_PERIODOS = 'TODOS';
+
+/**
+ * Periodo que se envía a impresión y a trabajos disponibles: el elegido o el que aplicó el listado.
+ * Antes de la primera respuesta se omite (todos, como antes).
+ */
+export function periodoEfectivoCronograma(periodoElegido, periodoAplicado) {
+  if (periodoElegido) return periodoElegido;
+  if (periodoAplicado === undefined) return '';
+  return periodoAplicado ?? TODOS_LOS_PERIODOS;
+}
 
 function fechaHoyLocal() {
   const fecha = new Date();
@@ -82,7 +95,12 @@ export default function PaginaCronograma() {
 
   const [estado, establecerEstado] = useState('PROGRAMADA');
   const [carreraId, establecerCarreraId] = useState('');
-  const [periodoId, establecerPeriodoId] = useState('');
+  // null: el servidor aplica el periodo activo; TODOS: todos los periodos.
+  const [periodoId, establecerPeriodoId] = useState(null);
+  const [periodoAplicado, establecerPeriodoAplicado] = useState(undefined);
+  const [pagina, establecerPagina] = useState(1);
+  const [paginacion, establecerPaginacion] = useState(null);
+  const consultaActual = useRef(0);
   const [buscar, establecerBuscar] = useState(buscarUrl);
   const [buscarServidor, establecerBuscarServidor] = useState(buscarUrl);
   const [elementos, establecerElementos] = useState([]);
@@ -100,13 +118,14 @@ export default function PaginaCronograma() {
   const [actualizandoEstadoId, establecerActualizandoEstadoId] = useState(null);
   const [impresion, establecerImpresion] = useState(null);
 
-  const filtros = useMemo(() => ({ carreraId, periodoId, estado, buscar: buscarServidor }), [carreraId, periodoId, estado, buscarServidor]);
+  const periodoEfectivo = periodoEfectivoCronograma(periodoId, periodoAplicado);
+  const filtros = useMemo(() => ({ carreraId, periodoId: periodoEfectivo, estado, buscar: buscarServidor }), [carreraId, periodoEfectivo, estado, buscarServidor]);
   const filtrosCandidatos = useMemo(() => {
     if (idTrabajo) {
       return {};
     }
-    return { carreraId, periodoId, buscar: buscarServidor };
-  }, [idTrabajo, carreraId, periodoId, buscarServidor]);
+    return { carreraId, periodoId: periodoEfectivo, buscar: buscarServidor };
+  }, [idTrabajo, carreraId, periodoEfectivo, buscarServidor]);
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
   const puedeEditar = Boolean(capacidad?.puedeAdministrar);
@@ -128,34 +147,46 @@ export default function PaginaCronograma() {
   }, [parametrosUrl]);
 
   useEffect(() => {
-    const temporizador = window.setTimeout(() => establecerBuscarServidor(buscar.trim()), 250);
+    const temporizador = window.setTimeout(() => {
+      establecerBuscarServidor(buscar.trim());
+      establecerPagina(1);
+    }, 250);
     return () => window.clearTimeout(temporizador);
   }, [buscar]);
 
   async function cargarListado() {
+    // Solo se aplica la respuesta de la última consulta, aunque lleguen fuera de orden.
+    const numero = ++consultaActual.current;
     establecerCargando(true);
     establecerErrorCarga(null);
     try {
       const [respuesta, capacidades] = await Promise.all([
-        listarProgramacionesApi(filtros),
+        listarPaginaProgramacionesApi({
+          carreraId, periodoId: periodoId ?? '', estado, buscar: buscarServidor, pagina, limite: CRONOGRAMA_POR_PAGINA,
+        }),
         capacidadesProgramacionesApi(),
       ]);
+      if (numero !== consultaActual.current) return;
       establecerElementos(respuesta.elementos);
       establecerCatalogos(respuesta.filtros);
+      establecerPaginacion(respuesta.paginacion);
+      establecerPeriodoAplicado(respuesta.periodoAplicado);
       establecerCapacidad(capacidades);
     } catch (error) {
+      if (numero !== consultaActual.current) return;
       establecerErrorCarga(error);
       establecerElementos([]);
+      establecerPaginacion(null);
     } finally {
-      establecerCargando(false);
+      if (numero === consultaActual.current) establecerCargando(false);
     }
   }
 
   useEffect(() => {
     void cargarListado();
-    // Se vuelve a consultar al cambiar filtros para que la API sea la fuente de verdad.
+    // Se vuelve a consultar al cambiar filtros o página para que la API sea la fuente de verdad.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carreraId, periodoId, estado, buscarServidor]);
+  }, [carreraId, periodoId, estado, buscarServidor, pagina]);
 
   useEffect(() => {
     if (!mostrarFormulario || idEdicion) return undefined;
@@ -395,7 +426,7 @@ export default function PaginaCronograma() {
         <section className="card cronograma-list-card" aria-labelledby="cronograma-list-title">
           <header className="cronograma-list-header">
             <div><span className="section-kicker">Agenda institucional</span><h2 id="cronograma-list-title">Sustentaciones programadas</h2></div>
-            <span className="cronograma-count">{cargando ? 'Cargando…' : `${elementos.length} registros`}</span>
+            <span className="cronograma-count" aria-live="polite">{cargando ? 'Cargando…' : `${paginacion?.total ?? elementos.length} registros`}</span>
           </header>
 
           <div className="cronograma-filters">
@@ -404,19 +435,19 @@ export default function PaginaCronograma() {
               <span className="cronograma-search-input"><Search size={17} aria-hidden="true" /><input id="cronograma-buscar" className="input" value={buscar} onChange={(evento) => establecerBuscar(evento.target.value)} /></span>
             </label>
             <label className="field" htmlFor="cronograma-carrera"><span>Carrera</span>
-              <select id="cronograma-carrera" className="input" value={carreraId} onChange={(evento) => establecerCarreraId(evento.target.value)}>
+              <select id="cronograma-carrera" className="input" value={carreraId} onChange={(evento) => { establecerCarreraId(evento.target.value); establecerPagina(1); }}>
                 <option value="">Todas las carreras</option>
                 {catalogos.carreras.map((carrera) => <option key={carrera.id} value={carrera.id}>{carrera.nombre}</option>)}
               </select>
             </label>
             <label className="field" htmlFor="cronograma-periodo"><span>Período</span>
-              <select id="cronograma-periodo" className="input" value={periodoId} onChange={(evento) => establecerPeriodoId(evento.target.value)}>
-                <option value="">Todos los períodos</option>
-                {catalogos.periodos.map((periodo) => <option key={periodo.id} value={periodo.id}>{periodo.codigo}</option>)}
+              <select id="cronograma-periodo" className="input" value={periodoId ?? (periodoAplicado || TODOS_LOS_PERIODOS)} onChange={(evento) => { establecerPeriodoId(evento.target.value); establecerPagina(1); }}>
+                <option value={TODOS_LOS_PERIODOS}>Todos los períodos</option>
+                {catalogos.periodos.map((periodo) => <option key={periodo.id} value={periodo.id}>{periodo.activo ? `${periodo.codigo} (actual)` : periodo.codigo}</option>)}
               </select>
             </label>
             <label className="field" htmlFor="cronograma-estado"><span>Estado</span>
-              <select id="cronograma-estado" className="input" value={estado} onChange={(evento) => establecerEstado(evento.target.value)}>
+              <select id="cronograma-estado" className="input" value={estado} onChange={(evento) => { establecerEstado(evento.target.value); establecerPagina(1); }}>
                 <option value="PROGRAMADA">Programadas</option>
                 <option value="EN_SUSTENTACION">En sustentación</option>
                 <option value="FINALIZADA">Finalizadas</option>
@@ -426,11 +457,11 @@ export default function PaginaCronograma() {
             </label>
           </div>
 
-          {cargando ? <p className="cronograma-loading" role="status">Cargando cronograma…</p> : null}
+          {cargando && elementos.length === 0 ? <p className="cronograma-loading" role="status">Cargando cronograma…</p> : null}
           {!cargando && !errorCarga && elementos.length === 0 ? (
             <div className="cronograma-empty"><CalendarDays size={30} aria-hidden="true" /><h3>No hay sustentaciones para estos filtros</h3><p>Pruebe otro período, carrera o estado, o agregue un trabajo elegible.</p></div>
           ) : null}
-          {!cargando && elementos.length > 0 ? (
+          {elementos.length > 0 ? (
             <div className="cronograma-table-wrap" role="region" aria-label="Tabla de sustentaciones programadas" tabIndex="0">
               <table className="cronograma-table">
                 <caption className="sr-only">Sustentaciones programadas y acciones disponibles</caption>
@@ -460,6 +491,7 @@ export default function PaginaCronograma() {
               </table>
             </div>
           ) : null}
+          {!errorCarga && <Paginador paginacion={paginacion} alCambiar={establecerPagina} deshabilitado={cargando} etiqueta="Páginas del cronograma" />}
         </section>
       </div>
 

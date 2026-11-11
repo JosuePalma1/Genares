@@ -1,11 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
-import { usarSeguimientoApi } from '../hooks/usarSeguimientoApi';
+import { usarActasPaginadasApi, usarResumenSeguimientoApi, usarSeguimientoTrabajosApi } from '../hooks/usarSeguimientoApi';
+import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarAuditoriaApi } from '../hooks/usarAuditoriaApi';
-import { CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi } from './SeguimientoApi';
+import {
+  CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi, periodoParaActas,
+} from './SeguimientoApi';
 
-vi.mock('../hooks/usarSeguimientoApi', () => ({ usarSeguimientoApi: vi.fn() }));
+vi.mock('../hooks/usarSeguimientoApi', () => ({
+  usarSeguimientoTrabajosApi: vi.fn(), usarResumenSeguimientoApi: vi.fn(), usarActasPaginadasApi: vi.fn(),
+}));
+vi.mock('../hooks/usarTrabajosApi', () => ({ usarPaginaTrabajosApi: vi.fn() }));
 vi.mock('../hooks/usarAuditoriaApi', () => ({ usarAuditoriaApi: vi.fn() }));
 vi.mock('../hooks/usarCarrerasApi', () => ({
   usarCarrerasApi: () => ({
@@ -76,12 +82,24 @@ const consolidacion = {
 };
 
 const recargar = vi.fn();
-const datosBase = () => ({
-  trabajos: { estado: 'listo', datos: [trabajoTi, trabajoSoft], error: null },
-  programaciones: { estado: 'listo', datos: [], error: null },
-  actas: { estado: 'listo', datos: [{ id: 'b1111111-1111-4111-8111-111111111111', numero: '001-2026-2-TI', estudiante: 'Andrea Mendoza', carrera: 'TI', periodo: '2026-2', notaFinal: '9.00', generadoEn: '2026-10-24' }], error: null },
+const periodos = [{ codigo: '2026-2', nombre: null, activo: true }, { codigo: '2026-1', nombre: null, activo: false }];
+const paginaBase = (paginacion = { pagina: 1, limite: 25, total: 2, paginas: 1 }) => ({
+  estado: 'listo', actualizando: false, trabajos: [trabajoTi, trabajoSoft], paginacion, error: null, recargar,
+  filtros: { periodo: '2026-2', periodos, estados: ['EVALUACION_COMPLETADA', 'REGISTRADO'] },
   consolidaciones: { estado: 'listo', datos: consolidacion, error: null },
-  recargar,
+});
+const resumenBase = () => ({
+  estado: 'listo', actualizando: false, error: null, recargar,
+  datos: {
+    periodo: '2026-2', periodos,
+    trabajos: { total: 2, porCarrera: [{ codigo: 'TI', cantidad: 1 }, { codigo: 'SOFT', cantidad: 1 }], porEstado: [{ estado: 'EVALUACION_COMPLETADA', cantidad: 1 }, { estado: 'REGISTRADO', cantidad: 1 }] },
+    programaciones: 0, actas: 1,
+    resultados: { estado: 'listo', completos: 1, trabajosConsultados: 1, trabajosConError: 0 },
+  },
+});
+const actasBase = () => ({
+  estado: 'listo', error: null, recargar, paginacion: { pagina: 1, limite: 10, total: 1, paginas: 1 },
+  datos: [{ id: 'b1111111-1111-4111-8111-111111111111', numero: '001-2026-2-TI', estudiante: 'Andrea Mendoza', carrera: 'TI', periodo: '2026-2', notaFinal: '9.00', generadoEn: '2026-10-24' }],
 });
 
 function renderizar(elemento) {
@@ -91,7 +109,10 @@ function renderizar(elemento) {
 describe('pantallas de seguimiento integradas con la API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    usarSeguimientoApi.mockReturnValue(datosBase());
+    usarSeguimientoTrabajosApi.mockReturnValue(paginaBase());
+    usarPaginaTrabajosApi.mockReturnValue(paginaBase());
+    usarResumenSeguimientoApi.mockReturnValue(resumenBase());
+    usarActasPaginadasApi.mockReturnValue(actasBase());
     usarAuditoriaApi.mockReturnValue({ estado: 'listo', elementos: [], siguienteCursor: null, recargar: vi.fn(), cargarMas: vi.fn() });
   });
 
@@ -103,6 +124,9 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('1 acta(s) archivada(s).');
     expect(html).not.toContain('No fue posible consultar programaciones');
     expect(html).toContain(`/trabajos/${ids.ti}`);
+    expect(html).toContain('2026-2 (actual)');
+    expect(usarResumenSeguimientoApi).toHaveBeenCalledWith(null);
+    expect(usarPaginaTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 8 });
   });
 
   it('Secretaría muestra el mismo expediente, tutores, programación, resultado y acta API', () => {
@@ -116,6 +140,16 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain(`/trabajos/${ids.ti}`);
     expect(html).toContain('href="/documentos"');
     expect(html).toContain(`trabajoId=${ids.ti}`);
+    expect(usarSeguimientoTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 25 });
+    expect(usarActasPaginadasApi).toHaveBeenCalledWith({ pagina: 1, limite: 10, periodo: '2026-2' }, { esperar: false });
+  });
+
+  it('Secretaría pagina los trabajos en el servidor', () => {
+    usarSeguimientoTrabajosApi.mockReturnValue(paginaBase({ pagina: 1, limite: 25, total: 60, paginas: 3 }));
+    const html = renderizar(<SecretariaSeguimientoApi />);
+    expect(html).toContain('aria-label="Páginas de trabajos"');
+    expect(html).toContain('1–25 de 60');
+    expect(html).toContain('60 trabajo(s)');
   });
 
   it('Coordinación filtra TI y SOFT sin cambiar el universo de registros recibido', () => {
@@ -124,7 +158,8 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('DEV-SOFT-001');
     expect(html).toContain('<option value="TI">TI</option>');
     expect(html).toContain('<option value="SOFT">SOFT</option>');
-    expect(html).toContain('2 de 2 trabajos');
+    expect(html).toContain('2 trabajo(s)');
+    expect(usarSeguimientoTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 25 });
     expect(html).toContain('coordinacion-api-carrera');
   });
 
@@ -139,6 +174,7 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('001-2026-2-TI');
     expect(html).toContain('href="/documentos"');
     expect(html).toContain('Auditoría de cambios');
+    expect(html).toContain('2 trabajo(s) · 3 estudiante(s) en esta página');
   });
 
   it('muestra responsable, fecha y cambios anteriores y nuevos en la bitácora', () => {
@@ -163,9 +199,8 @@ describe('pantallas de seguimiento integradas con la API', () => {
   });
 
   it('muestra errores API en lugar de recuperar expedientes locales', () => {
-    usarSeguimientoApi.mockReturnValue({
-      ...datosBase(),
-      trabajos: { estado: 'error', datos: [], error: new Error('Sin conexión') },
+    usarSeguimientoTrabajosApi.mockReturnValue({
+      ...paginaBase(), estado: 'error', trabajos: [], filtros: null, paginacion: null, error: new Error('Sin conexión'),
     });
     const html = renderizar(<ConsultaSeguimientoApi />);
     expect(html).toContain('Sin conexión');
@@ -174,16 +209,19 @@ describe('pantallas de seguimiento integradas con la API', () => {
   });
 
   it('Dashboard no presenta indicadores vacíos cuando falla la lectura de trabajos', () => {
-    usarSeguimientoApi.mockReturnValue({
-      ...datosBase(),
-      trabajos: { estado: 'error', datos: [], error: new Error('NestJS no responde') },
-      consolidaciones: { estado: 'no_disponible', datos: {}, error: null, mensaje: 'No hay trabajos disponibles.' },
-    });
+    usarResumenSeguimientoApi.mockReturnValue({ estado: 'error', datos: null, error: new Error('NestJS no responde'), recargar });
     const html = renderizar(<DashboardSeguimientoApi />);
     expect(html).toContain('No fue posible consultar trabajos.');
     expect(html.match(/role="alert"/g)).toHaveLength(1);
     expect(html).not.toContain('No hay trabajos disponibles.');
     expect(html).not.toContain('No hay trabajos registrados');
     expect(html).not.toContain('Sin estados para mostrar');
+  });
+
+  it('filtra las actas por el periodo elegido o el aplicado; Todos no filtra', () => {
+    expect(periodoParaActas(null, '2026-2')).toBe('2026-2');
+    expect(periodoParaActas('2026-1', '2026-2')).toBe('2026-1');
+    expect(periodoParaActas('TODOS', '2026-2')).toBeUndefined();
+    expect(periodoParaActas(null, undefined)).toBeUndefined();
   });
 });

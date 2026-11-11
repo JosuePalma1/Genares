@@ -1,0 +1,14 @@
+{
+  "appId": "dev.genares.s4.tribunal",
+  "appName": "Genares S4 Tribunal",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "hostname": "localhost",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": true
+  }
+}

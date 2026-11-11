@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { cargarSeguimientoApi } from './usarSeguimientoApi';
+import { consolidarTrabajosApi } from './usarSeguimientoApi';
 
 const trabajoTi = {
   id: '11111111-1111-4111-8111-111111111111',
@@ -9,30 +9,10 @@ const trabajoTi = {
   estudiantes: [{ id: '31111111-1111-4111-8111-111111111111' }, { id: '41111111-1111-4111-8111-111111111111' }],
 };
 
-const acta = {
-  id: '51111111-1111-4111-8111-111111111111',
-  numero: '001-2026-2-TI',
-  estudiante: 'Andrea Mendoza',
-  carrera: 'Tecnologías de la Información',
-  periodo: '2026-2',
-  notaFinal: '9.00',
-  generadoEn: '2026-10-24T12:00:00.000Z',
-};
+const opciones = (consolidarTrabajo) => ({ consolidarTrabajo, habilitada: true });
 
-function servicios(overrides = {}) {
-  return {
-    listarTrabajos: vi.fn().mockResolvedValue([trabajoTi]),
-    listarProgramaciones: vi.fn().mockResolvedValue({ elementos: [] }),
-    consolidarTrabajo: vi.fn().mockResolvedValue({ trabajoId: trabajoTi.id, estudiantes: [] }),
-    listarActas: vi.fn().mockResolvedValue([]),
-    ...overrides,
-  };
-}
-
-const fuentes = { programaciones: true, evaluaciones: true, documentos: true };
-
-describe('cargarSeguimientoApi', () => {
-  it('reutiliza trabajos, programaciones, consolidación y actas sin recalcular resultados', async () => {
+describe('consolidarTrabajosApi (solo la página visible)', () => {
+  it('reutiliza la consolidación del servidor sin recalcular resultados', async () => {
     const consolidacion = {
       trabajoId: trabajoTi.id,
       estudiantes: [
@@ -40,72 +20,59 @@ describe('cargarSeguimientoApi', () => {
         { estudiante: { id: trabajoTi.estudiantes[1].id }, estado: 'EVALUACIONES_CERRADAS_INCOMPLETAS', resultadoFinal: null },
       ],
     };
-    const api = servicios({
-      consolidarTrabajo: vi.fn().mockResolvedValue(consolidacion),
-      listarActas: vi.fn().mockResolvedValue([acta]),
-    });
+    const consolidarTrabajo = vi.fn().mockResolvedValue(consolidacion);
 
-    const resultado = await cargarSeguimientoApi({ servicios: api, fuentes });
+    const resultado = await consolidarTrabajosApi([trabajoTi], opciones(consolidarTrabajo));
 
-    expect(resultado.trabajos).toMatchObject({ estado: 'listo', datos: [trabajoTi] });
-    expect(resultado.programaciones).toMatchObject({ estado: 'listo', datos: [] });
-    expect(resultado.actas).toMatchObject({ estado: 'listo', datos: [acta] });
-    expect(resultado.consolidaciones.datos[trabajoTi.id]).toMatchObject({ estado: 'listo', datos: consolidacion });
-    expect(api.consolidarTrabajo).toHaveBeenCalledWith(trabajoTi.id, { signal: undefined });
+    expect(resultado).toMatchObject({ estado: 'listo', datos: { [trabajoTi.id]: { estado: 'listo', datos: consolidacion } } });
+    expect(consolidarTrabajo).toHaveBeenCalledWith(trabajoTi.id, { signal: undefined });
   });
 
   it('no consulta consolidación cuando falta rúbrica o tribunal confirmado', async () => {
-    const api = servicios({ listarTrabajos: vi.fn().mockResolvedValue([
+    const consolidarTrabajo = vi.fn();
+    const resultado = await consolidarTrabajosApi([
       { ...trabajoTi, id: '61111111-1111-4111-8111-111111111111', idVersionRubrica: null },
       { ...trabajoTi, id: '71111111-1111-4111-8111-111111111111', estadoTribunal: 'BORRADOR', miembrosTribunal: [] },
-    ]) });
+    ], opciones(consolidarTrabajo));
 
-    const resultado = await cargarSeguimientoApi({ servicios: api, fuentes });
-
-    expect(api.consolidarTrabajo).not.toHaveBeenCalled();
-    expect(Object.values(resultado.consolidaciones.datos).every((r) => r.estado === 'no_disponible')).toBe(true);
-    expect(resultado.consolidaciones.estado).toBe('no_disponible');
+    expect(consolidarTrabajo).not.toHaveBeenCalled();
+    expect(Object.values(resultado.datos).every((r) => r.estado === 'no_disponible')).toBe(true);
+    expect(resultado.estado).toBe('no_disponible');
   });
 
-  it('distingue un resultado vacío de una consulta fallida y no presenta fallback local', async () => {
-    const api = servicios({
-      listarTrabajos: vi.fn().mockResolvedValue([]),
-      listarProgramaciones: vi.fn().mockResolvedValue({ elementos: [] }),
-      listarActas: vi.fn().mockResolvedValue([]),
-    });
-    const vacio = await cargarSeguimientoApi({ servicios: api, fuentes });
-    expect(vacio.trabajos).toMatchObject({ estado: 'listo', datos: [] });
-    expect(vacio.programaciones).toMatchObject({ estado: 'listo', datos: [] });
-    expect(vacio.actas).toMatchObject({ estado: 'listo', datos: [] });
-
-    const desconectado = await cargarSeguimientoApi({
-      servicios: servicios({ listarTrabajos: vi.fn().mockRejectedValue(new Error('Sin conexión')) }),
-      fuentes,
-    });
-    expect(desconectado.trabajos).toMatchObject({ estado: 'error', datos: [] });
-    expect(desconectado.consolidaciones.estado).toBe('no_disponible');
-  });
-
-  it('señala un listado de actas con contrato inválido como error de API', async () => {
-    const resultado = await cargarSeguimientoApi({
-      servicios: servicios({ listarActas: vi.fn().mockResolvedValue([{ numero: 'sin-id' }]) }),
-      fuentes,
-    });
-    expect(resultado.actas.estado).toBe('error');
-    expect(resultado.actas.datos).toEqual([]);
+  it('una página vacía queda lista y la fuente deshabilitada no se presenta como datos', async () => {
+    await expect(consolidarTrabajosApi([], opciones(vi.fn()))).resolves.toMatchObject({ estado: 'listo', datos: {} });
+    await expect(consolidarTrabajosApi([trabajoTi], { consolidarTrabajo: vi.fn(), habilitada: false }))
+      .resolves.toMatchObject({ estado: 'no_disponible' });
   });
 
   it('trata la consolidación no disponible como información faltante y otros fallos como error', async () => {
-    const conflicto = await cargarSeguimientoApi({
-      servicios: servicios({ consolidarTrabajo: vi.fn().mockRejectedValue({ status: 409 }) }),
-      fuentes,
-    });
-    expect(conflicto.consolidaciones.datos[trabajoTi.id]).toMatchObject({ estado: 'no_disponible', datos: null });
+    const conflicto = await consolidarTrabajosApi([trabajoTi], opciones(vi.fn().mockRejectedValue({ status: 409 })));
+    expect(conflicto.datos[trabajoTi.id]).toMatchObject({ estado: 'no_disponible', datos: null });
 
-    const fallo = await cargarSeguimientoApi({
-      servicios: servicios({ consolidarTrabajo: vi.fn().mockRejectedValue(new Error('Falló API')) }),
-      fuentes,
-    });
-    expect(fallo.consolidaciones).toMatchObject({ estado: 'error', datos: { [trabajoTi.id]: { estado: 'error' } } });
+    const fallo = await consolidarTrabajosApi([trabajoTi], opciones(vi.fn().mockRejectedValue(new Error('Falló API'))));
+    expect(fallo).toMatchObject({ estado: 'error', datos: { [trabajoTi.id]: { estado: 'error' } } });
+
+    const otro = { ...trabajoTi, id: '81111111-1111-4111-8111-111111111111' };
+    const parcial = await consolidarTrabajosApi([trabajoTi, otro], opciones(vi.fn((id) => (id === otro.id
+      ? Promise.reject(new Error('Falló API'))
+      : Promise.resolve({ trabajoId: trabajoTi.id, estudiantes: [] })))));
+    expect(parcial.estado).toBe('parcial');
+  });
+
+  it('rechaza una consolidación de otro trabajo y limita las consultas simultáneas', async () => {
+    const ajeno = await consolidarTrabajosApi([trabajoTi], opciones(vi.fn().mockResolvedValue({ trabajoId: 'otro', estudiantes: [] })));
+    expect(ajeno.datos[trabajoTi.id].estado).toBe('error');
+
+    let simultaneas = 0;
+    let maximo = 0;
+    const trabajos = Array.from({ length: 10 }, (_, i) => ({ ...trabajoTi, id: `t-${i}` }));
+    await consolidarTrabajosApi(trabajos, opciones(async (id) => {
+      simultaneas += 1; maximo = Math.max(maximo, simultaneas);
+      await new Promise((resolver) => setTimeout(resolver, 2));
+      simultaneas -= 1;
+      return { trabajoId: id, estudiantes: [] };
+    }));
+    expect(maximo).toBeLessThanOrEqual(4);
   });
 });

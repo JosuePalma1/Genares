@@ -150,11 +150,29 @@ export function crearMiddlewareProteccionEscrituraLocal(origenesPermitidos: stri
     const fetchSite = encabezado(solicitud, 'sec-fetch-site');
     const contenido = encabezado(solicitud, 'content-type')?.split(';')[0].trim().toLowerCase();
     const intencion = encabezado(solicitud, 'x-genares-write-intent');
-    if (!origen || !permitidos.has(origen) || fetchSite !== 'same-origin'
+    // same-site: la APK de desarrollo (http://localhost) llama al backend en localhost:3001.
+    // Solo se acepta si el origen está en la lista; cross-site sigue rechazándose.
+    if (!origen || !permitidos.has(origen) || !['same-origin', 'same-site'].includes(fetchSite ?? '')
       || !aceptaContenido(solicitud, contenido) || intencion !== 'local-development') {
       return rechazar(respuesta, 403, 'LOCAL_WRITE_ORIGIN_REJECTED', 'Solicitud de escritura local rechazada.');
     }
     continuar();
+  };
+}
+
+/**
+ * CORS solo para el modo local y solo para los orígenes exactos de LOCAL_DEV_WRITE_ORIGINS
+ * (por ejemplo, la APK de desarrollo en http://localhost). Fuera del modo local no se habilita.
+ */
+export function opcionesCorsDesarrolloLocal(origenesPermitidos: string[]) {
+  const permitidos = new Set(origenesPermitidos);
+  return {
+    origin: (origen: string | undefined, responder: (error: Error | null, permitir?: boolean) => void) =>
+      responder(null, Boolean(origen) && permitidos.has(origen as string)),
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Accept', 'Content-Type', 'X-Genares-Write-Intent', 'X-Correlation-Id'],
+    credentials: false,
+    maxAge: 600,
   };
 }
 
@@ -179,7 +197,10 @@ export async function instalarIdentidadDesarrolloLocal(
       // RF-36: solicitar y autorizar correcciones extraordinarias (Paso 2, Anexo A.2).
       'evaluaciones:solicitar-correccion', 'evaluaciones:autorizar-correccion']
     : CAPACIDADES_DESARROLLO_LOCAL;
+  const origenes = resolverOrigenesEscrituraLocal(entorno);
+  // Antes de la protección, para que también un rechazo 403 llegue con cabeceras CORS.
+  aplicacion.enableCors(opcionesCorsDesarrolloLocal(origenes));
   aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(capacidades));
-  aplicacion.use(crearMiddlewareProteccionEscrituraLocal(resolverOrigenesEscrituraLocal(entorno)));
+  aplicacion.use(crearMiddlewareProteccionEscrituraLocal(origenes));
   return true;
 }

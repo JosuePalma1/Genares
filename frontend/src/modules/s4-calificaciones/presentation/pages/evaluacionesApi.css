@@ -9,6 +9,9 @@
 .evaluaciones-api-section-title p { margin: .35rem 0 0; color: var(--text-muted, #617067); }
 .evaluaciones-api-search { display: grid; gap: .6rem; max-width: 48rem; }
 .evaluaciones-api-search label { font-weight: 650; }
+.evaluaciones-api-filtros { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; align-items: end; gap: .75rem 1rem; margin-bottom: 1rem; }
+.evaluaciones-api-filtros > p { margin: 0 0 .6rem; white-space: nowrap; }
+@media (max-width: 760px) { .evaluaciones-api-filtros { grid-template-columns: minmax(0, 1fr); } .evaluaciones-api-filtros > p { margin: 0; } }
 .evaluaciones-api-search input { width: 100%; min-width: 0; min-height: 2.8rem; padding: .7rem .8rem; border: 1px solid var(--border, #dfe5e1); border-radius: .6rem; font: inherit; }
 .evaluaciones-api-search p { margin: 0; color: var(--text-muted, #617067); overflow-wrap: anywhere; }
 .evaluaciones-api-search .evaluaciones-api-error { color: #a82c27; }

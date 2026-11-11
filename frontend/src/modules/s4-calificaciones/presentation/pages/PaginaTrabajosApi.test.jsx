@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './PaginaTrabajosApi';
-import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
+import { usarPaginaTrabajosApi, usarTrabajoApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { ErrorConexionApi } from '../services/clienteHttp';
 import { filtrarTrabajosApi } from '../../domain/filtrarTrabajosApi';
@@ -10,6 +10,7 @@ import { filtrarTrabajosApi } from '../../domain/filtrarTrabajosApi';
 vi.mock('../hooks/usarTrabajosApi', () => ({
   usarTrabajosApi: vi.fn(),
   usarTrabajoApi: vi.fn(),
+  usarPaginaTrabajosApi: vi.fn(),
 }));
 vi.mock('../hooks/usarEvaluacionesApi', () => ({
   usarEvaluacionesTrabajoApi: vi.fn(),
@@ -33,6 +34,16 @@ const trabajo = {
   programacion: null,
 };
 
+function paginaDe(trabajos, paginacion = { pagina: 1, limite: 25, total: trabajos.length, paginas: 1 }) {
+  return {
+    estado: 'listo', actualizando: false, trabajos, paginacion, error: null, recargar: vi.fn(),
+    filtros: {
+      periodo: '2026-2', estados: ['TRIBUNAL_ASIGNADO'],
+      periodos: [{ codigo: '2026-2', nombre: null, activo: true }, { codigo: '2026-1', nombre: null, activo: false }],
+    },
+  };
+}
+
 function renderEnRuta(path, element) {
   return renderToStaticMarkup(
     <MemoryRouter initialEntries={[path]}>
@@ -44,7 +55,7 @@ function renderEnRuta(path, element) {
 describe('recorrido API de trabajos', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    usarTrabajosApi.mockReturnValue({ estado: 'listo', trabajos: [trabajo], recargar: vi.fn() });
+    usarPaginaTrabajosApi.mockReturnValue(paginaDe([trabajo]));
     usarTrabajoApi.mockReturnValue({ estado: 'listo', trabajo, recargar: vi.fn() });
     usarEvaluacionesTrabajoApi.mockReturnValue({
       estado: 'listo', recargar: vi.fn(),
@@ -69,6 +80,23 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain('Sesiones');
   });
 
+  it('pide al servidor la primera página del período actual', () => {
+    const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
+    expect(usarPaginaTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 25 });
+    expect(html).toContain('1 trabajo(s)');
+    expect(html).toContain('<option value="2026-2" selected="">2026-2 (actual)</option>');
+    expect(html).toContain('<option value="TODOS">Todos</option>');
+    expect(html).not.toContain('Páginas de trabajos');
+  });
+
+  it('muestra el paginador cuando el servidor informa varias páginas', () => {
+    usarPaginaTrabajosApi.mockReturnValue(paginaDe([trabajo], { pagina: 2, limite: 25, total: 60, paginas: 3 }));
+    const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
+    expect(html).toContain('aria-label="Páginas de trabajos"');
+    expect(html).toContain('26–50 de 60');
+    expect(html).toContain('60 trabajo(s)');
+  });
+
   it('busca evaluadores y filtra por existencia de tribunal', () => {
     const sinTribunal = { ...trabajo, id: '11000000-0000-4000-8000-000000000002', miembrosTribunal: [] };
     expect(filtrarTrabajosApi([trabajo, sinTribunal], { busqueda: 'Jurado Uno', tribunal: 'con-tribunal' }))
@@ -78,8 +106,8 @@ describe('recorrido API de trabajos', () => {
   });
 
   it('presenta el fallo API como error recuperable sin un estado vacío de trabajos', () => {
-    usarTrabajosApi.mockReturnValue({
-      estado: 'error', trabajos: [], error: new ErrorConexionApi(), recargar: vi.fn(),
+    usarPaginaTrabajosApi.mockReturnValue({
+      estado: 'error', trabajos: [], paginacion: null, filtros: null, error: new ErrorConexionApi(), recargar: vi.fn(),
     });
     const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
     expect(html.match(/role="alert"/g)).toHaveLength(1);

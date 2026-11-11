@@ -1,7 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EvaluacionesService } from '../evaluaciones/evaluaciones.service';
-import { ActualizarNotaMinimaDto, BuscarActasDto, FormatoActaDto } from './documentos.dto';
+import { ActualizarNotaMinimaDto, BuscarActasDto, BuscarTrabajosDocumentosDto, FormatoActaDto } from './documentos.dto';
+import { CONSULTA_PERIODOS } from '../trabajos/trabajos.service';
+import { leerPaginacion, periodoAplicado, TODOS_LOS_PERIODOS } from '../trabajos/paginacion-trabajos';
 import { pendientesActa, resultadoFinalActa, rubricaDocumental } from './modelo-documental';
 import { archivarActaEn } from './archivo-actas';
 import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental';
@@ -21,7 +23,19 @@ const acceso = `EXISTS (
 export class DocumentosService {
   constructor(private readonly db: DataSource, private readonly evaluaciones: EvaluacionesService) {}
 
-  trabajos(actor: string, puedeConsultarDemostracion = false) {
+  /** Selector de trabajos. Con `periodo` filtra (por defecto `ACTIVO`) y devuelve también los periodos. */
+  async trabajosPorPeriodo(actor: string, filtro: BuscarTrabajosDocumentosDto, puedeConsultarDemostracion = false) {
+    if (filtro.periodo === undefined) return this.trabajos(actor, puedeConsultarDemostracion);
+    const periodos: Array<{ codigo: string; nombre: string | null; activo: boolean }> = await this.db.query(CONSULTA_PERIODOS);
+    const periodo = periodoAplicado(filtro.periodo === 'ACTIVO' ? undefined : filtro.periodo, periodos);
+    return {
+      elementos: await this.trabajos(actor, puedeConsultarDemostracion, periodo),
+      periodo: periodo ?? TODOS_LOS_PERIODOS,
+      periodos,
+    };
+  }
+
+  trabajos(actor: string, puedeConsultarDemostracion = false, periodo: string | null = null) {
     return this.db.query(`SELECT t.id, t.id::text AS codigo, tema.titulo, c.nombre AS carrera, p.codigo AS periodo
       FROM s2.asignacion_tema t JOIN gen.tema tema ON tema.id = t.tema_id
       JOIN s4.procesos_evaluacion proceso ON proceso.asignacion_tema_id = t.id
@@ -30,7 +44,8 @@ export class DocumentosService {
       JOIN gen.carrera c ON c.id = tema.carrera_id
       JOIN gen.periodo_academico p ON p.id = tema.periodo_academico_id
       WHERE t.estado = 'VIGENTE' AND proceso.estado_registro = 1 AND proceso.id_version_rubrica IS NOT NULL
-        AND ($2::boolean OR ${acceso}) ORDER BY tema.titulo, t.id`, [actor, puedeConsultarDemostracion]);
+        AND ($2::boolean OR ${acceso}) AND ($3::text IS NULL OR p.codigo = $3::text)
+      ORDER BY tema.titulo, t.id`, [actor, puedeConsultarDemostracion, periodo]);
   }
 
   async contexto(trabajoId: string, actor: string, puedeEmitirDocumentos = false, puedeConsultarDemostracion = false) {
@@ -122,8 +137,27 @@ export class DocumentosService {
     });
   }
 
-  listar(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion = false) {
-    return this.db.query(`SELECT ar.id,ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
+  /** Actas archivadas, de la más reciente a la más antigua. Con `limite` devuelve una página. */
+  async listar(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion = false) {
+    if (filtro.limite === undefined) return this.consultarActas(actor, filtro, puedeConsultarDemostracion, null, 0);
+    const { limite, pagina, desplazamiento } = leerPaginacion(filtro.limite, filtro.pagina);
+    const filas: Array<Record<string, unknown> & { total: number }> = await this.consultarActas(
+      actor, filtro, puedeConsultarDemostracion, limite, desplazamiento, true);
+    let total = filas[0]?.total;
+    if (total === undefined) {
+      // Página vacía: se cuenta aparte para informar el total real.
+      const [conteo] = await this.consultarActas(actor, filtro, puedeConsultarDemostracion, 1, 0, true);
+      total = conteo?.total ?? 0;
+    }
+    return {
+      elementos: filas.map(({ total: _total, ...acta }) => acta),
+      paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
+    };
+  }
+
+  private consultarActas(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion: boolean,
+    limite: number | null, desplazamiento: number, conTotal = false) {
+    return this.db.query(`SELECT ar.id,${conTotal ? 'count(*) OVER()::integer AS total,' : ''}ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
       ar.nota_final::text AS "notaFinal",ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado,
       p.nombres || ' ' || p.apellidos AS estudiante,c.nombre AS carrera,ar.periodo
       FROM s4.actas_archivadas ar
@@ -133,7 +167,8 @@ export class DocumentosService {
       JOIN gen.carrera c ON c.id=ar.id_carrera WHERE ar.estado_registro = 1 AND ($5::boolean OR ${acceso})
       AND ($2::text IS NULL OR strpos(lower(p.nombres || ' ' || p.apellidos),lower($2))>0)
       AND ($3::text IS NULL OR c.codigo=$3) AND ($4::text IS NULL OR ar.periodo=$4)
-      ORDER BY ar.generado_en DESC`, [actor, filtro.estudiante ?? null, filtro.carrera ?? null, filtro.periodo ?? null, puedeConsultarDemostracion]);
+      ORDER BY ar.generado_en DESC, ar.id LIMIT $6 OFFSET $7`,
+    [actor, filtro.estudiante ?? null, filtro.carrera ?? null, filtro.periodo ?? null, puedeConsultarDemostracion, limite, desplazamiento]);
   }
 
   async archivada(id: string, actor: string, conPdf = false, puedeConsultarDemostracion = false) {

@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, CircleAlert, Lock, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
 import { etiquetaEstadoTrabajo } from '../../domain/seguimientoAcademico';
-import { finalizarTrabajoApi, listarFinalizacionTrabajosApi } from '../services/finalizacionApi';
+import { Paginador } from '../components/Paginador';
+import { SelectorPeriodo } from '../components/SelectorPeriodo';
+import { usarValorDiferido } from '../hooks/usarValorDiferido';
+import { finalizarTrabajoApi, listarPaginaFinalizacionApi } from '../services/finalizacionApi';
 import './seguimientoApi.css';
 import './finalizacionTrabajos.css';
 
@@ -67,27 +70,66 @@ export function TarjetaFinalizacion({ elemento, puedeFinalizarIdentidad, ocupado
   );
 }
 
-export default function PaginaFinalizacionTrabajos() {
-  const [estado, establecerEstado] = useState({ cargando: true, error: null, elementos: [], puedeFinalizar: false });
-  const [ocupado, establecerOcupado] = useState(false);
+/** Cada trabajo exige calcular sus condiciones en el servidor: páginas cortas. */
+export const FINALIZACION_POR_PAGINA = 10;
 
-  const cargar = useCallback(async (signal) => {
-    establecerEstado((actual) => ({ ...actual, cargando: true, error: null }));
+export const SITUACIONES_FINALIZACION = [
+  { valor: '', etiqueta: 'Todos' },
+  { valor: 'pendientes', etiqueta: 'Sin finalizar' },
+  { valor: 'finalizados', etiqueta: 'Finalizados' },
+];
+
+/** Filtros que se envían al servidor; los vacíos se omiten. */
+export function filtrosFinalizacion({ pagina, periodo, busqueda, situacion }) {
+  return {
+    pagina,
+    limite: FINALIZACION_POR_PAGINA,
+    ...(periodo ? { periodo } : {}),
+    ...(busqueda.trim() ? { buscar: busqueda.trim() } : {}),
+    ...(situacion ? { situacion } : {}),
+  };
+}
+
+export default function PaginaFinalizacionTrabajos() {
+  const [estado, establecerEstado] = useState({
+    cargando: true, actualizando: false, error: null, elementos: [], puedeFinalizar: false, paginacion: null, filtros: null,
+  });
+  const [ocupado, establecerOcupado] = useState(false);
+  const [busqueda, establecerBusqueda] = useState('');
+  const [periodo, establecerPeriodo] = useState(null);
+  const [situacion, establecerSituacion] = useState('');
+  const [pagina, establecerPagina] = useState(1);
+  const busquedaDiferida = usarValorDiferido(busqueda);
+  const filtros = useMemo(() => filtrosFinalizacion({ pagina, periodo, busqueda: busquedaDiferida, situacion }),
+    [pagina, periodo, busquedaDiferida, situacion]);
+  const clave = JSON.stringify(filtros);
+  const controlador = useRef(null);
+
+  // Mientras llega otra página o filtro se conservan las tarjetas visibles.
+  const cargar = useCallback(async () => {
+    controlador.current?.abort();
+    const nuevo = new AbortController();
+    controlador.current = nuevo;
+    establecerEstado((actual) => (actual.paginacion
+      ? { ...actual, actualizando: true, error: null }
+      : { ...actual, cargando: true, error: null }));
     try {
-      const respuesta = await listarFinalizacionTrabajosApi({ signal });
-      if (!signal?.aborted) establecerEstado({ cargando: false, error: null, ...respuesta });
+      const respuesta = await listarPaginaFinalizacionApi(JSON.parse(clave), { signal: nuevo.signal });
+      if (!nuevo.signal.aborted) establecerEstado({ cargando: false, actualizando: false, error: null, ...respuesta });
     } catch (error) {
-      if (!signal?.aborted && error?.name !== 'AbortError') {
-        establecerEstado((actual) => ({ ...actual, cargando: false, error }));
+      if (!nuevo.signal.aborted && error?.name !== 'AbortError') {
+        establecerEstado((actual) => ({ ...actual, cargando: false, actualizando: false, error }));
       }
     }
-  }, []);
+  }, [clave]);
 
   useEffect(() => {
-    const controlador = new AbortController();
-    cargar(controlador.signal);
-    return () => controlador.abort();
+    void cargar();
+    return () => controlador.current?.abort();
   }, [cargar]);
+
+  const filtrosActivos = Boolean(busqueda || periodo !== null || situacion);
+  const limpiar = () => { establecerBusqueda(''); establecerPeriodo(null); establecerSituacion(''); establecerPagina(1); };
 
   const finalizar = async (elemento) => {
     const confirmacion = await Swal.fire({
@@ -123,8 +165,30 @@ export default function PaginaFinalizacionTrabajos() {
         title="Finalización del trabajo"
         description="Cierre administrativo cuando todos los estudiantes tienen su evaluación completa, su acta archivada y ninguna validación institucional pendiente."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Seguimiento' }, { etiqueta: 'Finalización del trabajo' }]}
-        actions={<button className="button button-outline" type="button" disabled={estado.cargando} onClick={() => cargar()}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>}
+        actions={<button className="button button-outline" type="button" disabled={estado.cargando || estado.actualizando} onClick={() => cargar()}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>}
       />
+
+      <section className="seguimiento-api-section finalizacion-filtros" aria-label="Buscar trabajos para finalizar">
+        <div className="field">
+          <label htmlFor="finalizacion-busqueda">Buscar trabajo, estudiante o evaluador</label>
+          <input id="finalizacion-busqueda" className="input" type="search" value={busqueda} placeholder="Título, carrera o nombre"
+            onChange={(evento) => { establecerBusqueda(evento.target.value); establecerPagina(1); }} />
+        </div>
+        <div className="field">
+          <label htmlFor="finalizacion-periodo">Período académico</label>
+          <SelectorPeriodo id="finalizacion-periodo" valor={periodo ?? estado.filtros?.periodo ?? 'TODOS'}
+            periodos={estado.filtros?.periodos ?? []} alCambiar={(valor) => { establecerPeriodo(valor); establecerPagina(1); }} />
+        </div>
+        <div className="field">
+          <label htmlFor="finalizacion-situacion">Situación</label>
+          <select id="finalizacion-situacion" className="select" value={situacion}
+            onChange={(evento) => { establecerSituacion(evento.target.value); establecerPagina(1); }}>
+            {SITUACIONES_FINALIZACION.map(({ valor, etiqueta }) => <option key={valor} value={valor}>{etiqueta}</option>)}
+          </select>
+        </div>
+        <p aria-live="polite">{estado.actualizando ? 'Actualizando…' : `${estado.paginacion?.total ?? 0} trabajo(s)`}</p>
+        {filtrosActivos && <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>}
+      </section>
 
       {!estado.cargando && !estado.error && !estado.puedeFinalizar && (
         <AlertaInstitucional tono="warning" titulo="Consulta sin permiso de cierre">
@@ -138,8 +202,9 @@ export default function PaginaFinalizacionTrabajos() {
           {estado.error.message}
         </AlertaInstitucional>
       )}
-      {!estado.cargando && !estado.error && estado.elementos.length === 0 && (
-        <EstadoVacio title="No hay trabajos para finalizar" description="No existen trabajos vigentes con proceso de evaluación." />
+      {!estado.cargando && !estado.error && estado.elementos.length === 0 && (filtrosActivos
+        ? <EstadoVacio title="No hay coincidencias" description="Cambie la búsqueda, el período o la situación." />
+        : <EstadoVacio title="No hay trabajos para finalizar" description="No existen trabajos vigentes con proceso de evaluación en el período actual." />
       )}
       {!estado.error && estado.elementos.map((elemento) => (
         <TarjetaFinalizacion
@@ -150,6 +215,9 @@ export default function PaginaFinalizacionTrabajos() {
           alFinalizar={finalizar}
         />
       ))}
+      {!estado.cargando && !estado.error && (
+        <Paginador paginacion={estado.paginacion} alCambiar={establecerPagina} deshabilitado={estado.actualizando} etiqueta="Páginas de finalización" />
+      )}
     </div>
   );
 }

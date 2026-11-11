@@ -7,6 +7,7 @@ import { EvaluacionesModule } from './evaluaciones/evaluaciones.module';
 import { FinalizacionModule } from './finalizacion/finalizacion.module';
 import { ModalidadesModule } from './modalidades/modalidades.module';
 import { RubricasModule } from './rubricas/rubricas.module';
+import { SeguimientoModule } from './seguimiento/seguimiento.module';
 import { ProgramacionesSustentacionModule } from './sustentaciones/programaciones-sustentacion.module';
 import { TrabajosModule } from './trabajos/trabajos.module';
 
@@ -21,6 +22,7 @@ import { TrabajosModule } from './trabajos/trabajos.module';
     ModalidadesModule,
     ProgramacionesSustentacionModule,
     RubricasModule,
+    SeguimientoModule,
     TrabajosModule,
   ],
 })

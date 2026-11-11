@@ -98,6 +98,17 @@ export function guardarExpediente(asignacionId, datos, almacen = almacenPorDefec
   }
 }
 
+/**
+ * Estado de la página al (re)consultar un expediente. Si ya se muestra ese mismo expediente, se
+ * conserva tal cual mientras llega la respuesta: el formulario no se desmonta ni pierde el foco
+ * (antes cada guardado automático volvía a «Consultando…»).
+ */
+export function estadoAlConsultarExpediente(previo, asignacionId) {
+  return previo?.datos && previo.asignacionId === asignacionId
+    ? previo
+    : { status: 'cargando', datos: null, error: null, asignacionId };
+}
+
 export function leerExpediente(asignacionId, almacen = almacenPorDefecto()) {
   try {
     const copia = JSON.parse(almacen?.getItem(`${PREFIJO_EXPEDIENTE}${asignacionId}`));

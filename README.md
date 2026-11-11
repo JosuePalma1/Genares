@@ -132,6 +132,7 @@ Estas protecciones cubren la API y las sesiones SQL normales. Un superusuario o 
 | --- | --- |
 | [`docs/s4/instalacion`](docs/s4/instalacion) | Instalación local paso a paso, con verificación de puertos y permisos. |
 | [`docs/s4/base-datos-dev`](docs/s4/base-datos-dev/README.md) | Creación de la base local (MER completo) y datos de prueba ficticios, con su orden de ejecución. |
+| [`docs/s4/apk-tribunal.md`](docs/s4/apk-tribunal.md) | APK de desarrollo para tablets del tribunal (S4-15): compilación, conexión por USB, verificaciones y pruebas pendientes en tablet. |
 | [`docs/s4/decisiones`](docs/s4/decisiones) | Decisiones de diseño aprobadas (retención, visibilidad y auditoría). |
 | [`docs/s4/planificacion-integracion-s4`](docs/s4/planificacion-integracion-s4) | Plan de integración con el MER unificado, por pasos. |
 | [`docs/s4/procedimientos`](docs/s4/procedimientos) | Consultas SQL de comprobación manual. |

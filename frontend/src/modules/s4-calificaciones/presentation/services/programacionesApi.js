@@ -83,7 +83,8 @@ function adaptarCatalogos(valor) {
   valor.carreras.forEach((carrera) => exigir(esObjeto(carrera)
     && esUuidPostgres(carrera.id ?? '') && typeof carrera.codigo === 'string' && typeof carrera.nombre === 'string'));
   valor.periodos.forEach((periodo) => exigir(esObjeto(periodo)
-    && esUuidPostgres(periodo.id ?? '') && typeof periodo.codigo === 'string'));
+    && esUuidPostgres(periodo.id ?? '') && typeof periodo.codigo === 'string'
+    && (periodo.activo === undefined || typeof periodo.activo === 'boolean')));
   return valor;
 }
 
@@ -92,6 +93,18 @@ export function adaptarListadoProgramacionesApi(respuesta) {
   const filtros = adaptarCatalogos(respuesta.filtros);
   exigir(respuesta.elementos.every(esEstadoRegistroValido));
   return { elementos: respuesta.elementos.filter(esRegistroVisible).map(adaptarProgramacionApi), filtros };
+}
+
+const entero = (valor, minimo) => Number.isInteger(valor) && valor >= minimo;
+
+/** Página del cronograma: incluye la paginación y el periodo que aplicó el servidor (null = todos). */
+export function adaptarPaginaProgramacionesApi(respuesta) {
+  const listado = adaptarListadoProgramacionesApi(respuesta);
+  exigir(esObjeto(respuesta.paginacion)
+    && (respuesta.periodoAplicado === null || esUuidPostgres(respuesta.periodoAplicado ?? '')));
+  const { pagina, limite, total, paginas } = respuesta.paginacion;
+  exigir(entero(pagina, 1) && entero(limite, 1) && entero(total, 0) && entero(paginas, 1));
+  return { ...listado, paginacion: { pagina, limite, total, paginas }, periodoAplicado: respuesta.periodoAplicado };
 }
 
 export function adaptarTrabajosDisponiblesApi(respuesta) {
@@ -146,8 +159,8 @@ export function mapearActualizacionProgramacion(datos) {
 
 export function crearQueryProgramacion(filtros = {}) {
   const parametros = new URLSearchParams();
-  for (const campo of ['carreraId', 'periodoId', 'estado', 'buscar']) {
-    const valor = filtros[campo];
+  for (const campo of ['carreraId', 'periodoId', 'estado', 'buscar', 'limite', 'pagina']) {
+    const valor = typeof filtros[campo] === 'number' ? String(filtros[campo]) : filtros[campo];
     if (typeof valor === 'string' && valor.trim()) parametros.set(campo, valor.trim());
   }
   const consulta = parametros.toString();
@@ -161,6 +174,14 @@ export function crearServicioProgramacionesApi(cliente) {
     },
     async listar(filtros, options) {
       return adaptarListadoProgramacionesApi(await cliente.getJson(`${RUTA}${crearQueryProgramacion(filtros)}`, options));
+    },
+    /** Una página; si la pedida ya no existe se devuelve la última. */
+    async listarPagina(filtros = {}, options) {
+      const pedir = async (consulta) => adaptarPaginaProgramacionesApi(
+        await cliente.getJson(`${RUTA}${crearQueryProgramacion(consulta)}`, options));
+      const resultado = await pedir({ limite: 25, pagina: 1, ...filtros });
+      const { pagina, paginas, total } = resultado.paginacion;
+      return total > 0 && pagina > paginas ? pedir({ limite: 25, ...filtros, pagina: paginas }) : resultado;
     },
     async trabajosDisponibles(filtros, options) {
       return adaptarTrabajosDisponiblesApi(await cliente.getJson(`${RUTA}/trabajos-disponibles${crearQueryProgramacion(filtros)}`, options));
@@ -196,6 +217,7 @@ const cliente = crearClienteHttp({
 const programacionesApi = crearServicioProgramacionesApi(cliente);
 export const capacidadesProgramacionesApi = (...args) => programacionesApi.capacidades(...args);
 export const listarProgramacionesApi = (...args) => programacionesApi.listar(...args);
+export const listarPaginaProgramacionesApi = (...args) => programacionesApi.listarPagina(...args);
 export const listarTrabajosDisponiblesApi = (...args) => programacionesApi.trabajosDisponibles(...args);
 export const obtenerProgramacionApi = (...args) => programacionesApi.obtener(...args);
 export const obtenerImpresionProgramacionesApi = (...args) => programacionesApi.impresion(...args);

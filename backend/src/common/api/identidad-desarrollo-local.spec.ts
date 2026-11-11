@@ -2,6 +2,7 @@ import {
   CAPACIDADES_DESARROLLO_LOCAL,
   crearMiddlewareAccesoDesarrolloLocal,
   crearMiddlewareProteccionEscrituraLocal,
+  opcionesCorsDesarrolloLocal,
   direccionEsLoopback,
   IDENTIDAD_TECNICA_DESARROLLO,
   resolverOrigenesEscrituraLocal,
@@ -87,6 +88,34 @@ describe('acceso local abierto sin cuentas', () => {
     const continuarValido = jest.fn();
     middleware({ method: 'POST', headers: { origin: 'http://127.0.0.1:5173', 'sec-fetch-site': 'same-origin', 'content-type': 'application/json; charset=utf-8', 'x-genares-write-intent': 'local-development' } }, respuestaValida, continuarValido);
     expect(continuarValido).toHaveBeenCalledTimes(1);
+  });
+
+  it('acepta same-site solo desde un origen permitido (APK de desarrollo) y sigue rechazando cross-site', () => {
+    const middleware = crearMiddlewareProteccionEscrituraLocal(['http://127.0.0.1:5173', 'http://localhost']);
+    const probar = (origin: string, fetchSite: string | undefined) => {
+      const respuesta = { statusCode: 0, setHeader: jest.fn(), end: jest.fn() };
+      const continuar = jest.fn();
+      middleware({ method: 'POST', headers: { origin, 'sec-fetch-site': fetchSite, 'content-type': 'application/json', 'x-genares-write-intent': 'local-development' } }, respuesta, continuar);
+      return continuar.mock.calls.length === 1 ? 'aceptada' : respuesta.statusCode;
+    };
+    expect(probar('http://localhost', 'same-site')).toBe('aceptada');
+    expect(probar('http://localhost', 'cross-site')).toBe(403);
+    expect(probar('http://localhost', undefined)).toBe(403);
+    expect(probar('http://localhost:8100', 'same-site')).toBe(403);
+  });
+
+  it('CORS de desarrollo solo responde a los orígenes exactos configurados', () => {
+    const opciones = opcionesCorsDesarrolloLocal(['http://localhost']);
+    const decide = (origen: string | undefined) => {
+      let resultado: boolean | undefined;
+      opciones.origin(origen, (_error, permitir) => { resultado = permitir; });
+      return resultado;
+    };
+    expect(decide('http://localhost')).toBe(true);
+    expect(decide('http://localhost:8100')).toBe(false);
+    expect(decide('https://evil.example')).toBe(false);
+    expect(decide(undefined)).toBe(false);
+    expect(opciones.credentials).toBe(false);
   });
 
   it('acepta formularios con archivo solo en la solicitud de corrección (RF-36), con las mismas garantías', () => {

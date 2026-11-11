@@ -6,6 +6,7 @@ import {
   crearQueryProgramacion,
   crearServicioProgramacionesApi,
 } from './programacionesApi';
+import { periodoEfectivoCronograma } from '../pages/PaginaCronograma';
 
 const ids = {
   schedule: '11111111-1111-4111-8111-111111111111',
@@ -128,5 +129,36 @@ describe('servicio API de cronogramas', () => {
 
   it('rechaza respuestas inválidas y mantiene permisos/errores de la API sin convertirlos en datos simulados', () => {
     expect(() => adaptarListadoProgramacionesApi({ elementos: [programacion], filtros: null })).toThrow(/información recibida no es válida/i);
+  });
+
+  it('pide una página del cronograma y vuelve a la última si la pedida ya no existe', async () => {
+    const pagina = (numero) => ({ elementos: [programacion], filtros, periodoAplicado: ids.period, paginacion: { pagina: numero, limite: 25, total: 30, paginas: 2 } });
+    const getJson = vi.fn().mockResolvedValueOnce(pagina(1)).mockResolvedValueOnce(pagina(5)).mockResolvedValueOnce(pagina(2));
+    const servicio = crearServicioProgramacionesApi({ getJson });
+
+    await expect(servicio.listarPagina({ estado: 'PROGRAMADA', periodoId: '' })).resolves.toMatchObject({
+      periodoAplicado: ids.period, paginacion: { pagina: 1, total: 30 }, elementos: [{ id: ids.schedule }],
+    });
+    expect(getJson.mock.calls[0][0]).toBe('/programaciones-sustentacion?estado=PROGRAMADA&limite=25&pagina=1');
+
+    await expect(servicio.listarPagina({ periodoId: 'TODOS', pagina: 5 })).resolves.toMatchObject({ paginacion: { pagina: 2 } });
+    expect(getJson.mock.calls[2][0]).toBe('/programaciones-sustentacion?periodoId=TODOS&limite=25&pagina=2');
+  });
+
+  it('rechaza una página sin paginación válida o con un periodo aplicado inválido', async () => {
+    for (const respuesta of [
+      { elementos: [], filtros },
+      { elementos: [], filtros, periodoAplicado: null, paginacion: { pagina: 0, limite: 25, total: 0, paginas: 1 } },
+      { elementos: [], filtros, periodoAplicado: 'DEV-2026B', paginacion: { pagina: 1, limite: 25, total: 0, paginas: 1 } },
+    ]) {
+      await expect(crearServicioProgramacionesApi({ getJson: vi.fn().mockResolvedValue(respuesta) }).listarPagina()).rejects.toThrow();
+    }
+  });
+
+  it('usa en impresión y trabajos disponibles el periodo elegido o el aplicado por el listado', () => {
+    expect(periodoEfectivoCronograma(null, undefined)).toBe('');
+    expect(periodoEfectivoCronograma(null, ids.period)).toBe(ids.period);
+    expect(periodoEfectivoCronograma(null, null)).toBe('TODOS');
+    expect(periodoEfectivoCronograma('TODOS', ids.period)).toBe('TODOS');
   });
 });
