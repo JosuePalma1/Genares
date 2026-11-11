@@ -11,6 +11,7 @@ SELECT
   t.periodo_academico_id AS "idPeriodo", pa.codigo AS periodo,
   t.modalidad_id AS "idModalidad", m.codigo AS "codigoModalidad", m.nombre AS modalidad,
   vr.id AS "idVersionRubrica", vr.estado AS "estadoVersionRubrica", r.nombre AS rubrica,
+  COALESCE(p.estado_registro, 1)::smallint AS "estadoRegistro",
   a.id AS "asignacionId",
   t.titulo AS "tema",
   CASE WHEN a.grupo_id IS NOT NULL THEN 'Bina o grupo' ELSE 'Individual' END AS "tipoTrabajo",
@@ -47,6 +48,7 @@ SELECT
       AND at.asignacion_tema_id = a.id
     WHERE e.id_proceso_evaluacion = p.id
       AND e.id_version_rubrica = p.id_version_rubrica
+      AND e.estado_registro = 1
       AND e.etapa = 'ESCRITA' AND e.estado = 'CERRADA'
   ) AS "escritasCerradas",
   (
@@ -70,6 +72,7 @@ SELECT
     SELECT COALESCE(jsonb_agg(
       jsonb_build_object(
         'id', ses.id,
+        'estadoRegistro', ses.estado_registro,
         'fecha', TO_CHAR(ses.fecha_programada, 'YYYY-MM-DD'),
         'inicio', TO_CHAR(ses.hora_programada, 'HH24:MI'),
         'fin', TO_CHAR(ses.hora_fin_programada, 'HH24:MI'),
@@ -80,13 +83,14 @@ SELECT
         'participantes', COALESCE((
           SELECT jsonb_agg(pe.id_estudiante)
           FROM s4.programacion_estudiante pe WHERE pe.programacion_sustentacion_id = ses.id
+            AND pe.estado_registro = 1
         ), '[]'::jsonb),
         'tipo', ses.tipo,
         'estado', ses.estado,
         'cantidadParticipantes', (
           SELECT COUNT(*)::integer
           FROM s4.programacion_estudiante pe
-          WHERE pe.programacion_sustentacion_id = ses.id
+          WHERE pe.programacion_sustentacion_id = ses.id AND pe.estado_registro = 1
         )
       ) ORDER BY ses.fecha_programada, ses.hora_programada
     ), '[]'::jsonb)
@@ -99,7 +103,7 @@ SELECT
         AND e.entidad_tipo = 'programacion' AND e.fuente_tipo = 'programacion_cambio'
         AND e.detalles->>'estado_nuevo' IS DISTINCT FROM e.detalles->>'estado_anterior'
     ) real ON true
-    WHERE ses.id_proceso_evaluacion = p.id
+    WHERE ses.id_proceso_evaluacion = p.id AND ses.estado_registro = 1
   ) AS "sesiones",
   (
     SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -116,12 +120,15 @@ SELECT
 FROM s2.asignacion_tema a
 JOIN gen.tema t ON t.id = a.tema_id
 LEFT JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id
-LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica
+LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
 LEFT JOIN gen.carrera c ON c.id = t.carrera_id
 LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
 LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
-LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica
-WHERE ($1::uuid IS NULL AND a.estado = 'VIGENTE') OR a.id = $1::uuid
+LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+WHERE ((($1::uuid IS NULL AND a.estado = 'VIGENTE') OR a.id = $1::uuid)
+  AND (p.id IS NULL OR p.estado_registro = 1)
+  AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
+  AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL))
 ORDER BY t.titulo, a.id
 `;
 
@@ -147,6 +154,7 @@ export interface TrabajoMer extends Record<string, unknown> {
   estadoAsignacion: string;
   procesoId: string | null;
   estadoProceso: string | null;
+  estadoRegistro: 0 | 1;
   versionRubrica: string | null;
   evaluadoresAsignados: number;
   evaluadores: PersonaMer[];
@@ -160,6 +168,7 @@ export interface TrabajoMer extends Record<string, unknown> {
     sala: string | null;
     tipo: string | null;
     estado: string | null;
+    estadoRegistro: 0 | 1;
     cantidadParticipantes: number;
     duracionEstimadaMinutos: number;
     participantes: string[];

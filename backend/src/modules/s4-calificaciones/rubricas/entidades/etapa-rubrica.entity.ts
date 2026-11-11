@@ -1,17 +1,17 @@
 import {
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
-  Unique,
 } from 'typeorm';
 import { EtapaEvaluacion, AlcanceEtapaRubrica } from '../../../../common/domain/enums-dominio';
 import { VersionRubrica } from './version-rubrica.entity';
 
 @Entity({ schema: 's4', name: 'etapas_rubrica' })
-@Unique('uq_etapas_rubrica_version_code', ['rubricVersion', 'codigo'])
-@Unique('uq_etapas_rubrica_version_order', ['rubricVersion', 'orden'])
+@Index('uq_etapas_rubrica_version_code', ['rubricVersion', 'codigo'], { unique: true, where: '"estado_registro" = 1' })
+@Index('uq_etapas_rubrica_version_order', ['rubricVersion', 'orden'], { unique: true, where: '"estado_registro" = 1' })
 export class EtapaRubrica {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -44,4 +44,16 @@ export class EtapaRubrica {
 
   @Column({ type: 'smallint' })
   orden!: number;
+
+  @Column({ name: 'estado_registro', type: 'smallint', default: 1 })
+  estadoRegistro!: 0 | 1;
+
+  @Column({ name: 'creado_por', type: 'varchar', length: 255, nullable: true })
+  creadoPor!: string | null;
+
+  @Column({ name: 'actualizado_por', type: 'varchar', length: 255, nullable: true })
+  actualizadoPor!: string | null;
+
+  @Column({ name: 'actualizado_en', type: 'timestamptz', nullable: true })
+  actualizadoEn!: Date | null;
 }

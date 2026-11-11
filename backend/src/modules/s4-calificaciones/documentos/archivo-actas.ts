@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { createHash } from 'node:crypto';
 import { PLANTILLAS } from './plantillas-institucionales';
@@ -24,16 +25,21 @@ export async function archivarActaEn(manager: EntityManager, datos: {
     JOIN gen.tema t ON t.id = a.tema_id
     JOIN gen.carrera c ON c.id = t.carrera_id
     JOIN gen.periodo_academico p ON p.id = t.periodo_academico_id
-    WHERE a.id=$1 AND s4.estudiante_pertenece_asignacion(a.id, $2)
+    WHERE a.id=$1 AND proceso.estado_registro = 1 AND s4.estudiante_pertenece_asignacion(a.id, $2)
       AND c.id=$3 AND p.id=$4 AND c.codigo=$5 AND p.codigo=$6 FOR UPDATE OF proceso`,
   [datos.trabajoId, datos.estudianteId, datos.carreraId, datos.periodoId, datos.carreraCodigo, datos.periodo]);
   if (!origen) throw new Error('La identidad documental no coincide con el trabajo y su estudiante.');
 
   const [existente] = await manager.query(`SELECT id,numero,formato,consecutivo,generado_en AS "generadoEn",sha256,
     nota_final::text AS "notaFinal",nota_minima_aplicada::text AS "notaMinimaAplicada",aprobado
-    FROM s4.actas_archivadas WHERE id_proceso_evaluacion=$1 AND id_estudiante=$2 AND formato=$3`,
+    FROM s4.actas_archivadas WHERE id_proceso_evaluacion=$1 AND id_estudiante=$2 AND formato=$3 AND estado_registro=1`,
   [origen.id, datos.estudianteId, datos.formato]);
   if (existente) return { ...existente, reimpresa: true };
+
+  const [actaRetirada] = await manager.query(`SELECT 1 FROM s4.actas_archivadas
+    WHERE id_proceso_evaluacion=$1 AND id_estudiante=$2 AND formato=$3 AND estado_registro=0`,
+  [origen.id, datos.estudianteId, datos.formato]);
+  if (actaRetirada) throw new ConflictException('El acta está retirada de la consulta. Restáurela antes de volver a emitirla.');
 
   // Una sola secuencia por carrera y período, compartida por ambos formatos.
   const [contador] = await manager.query(`INSERT INTO s4.consecutivos_acta(id_carrera,periodo,ultimo)

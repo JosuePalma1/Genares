@@ -57,6 +57,23 @@ describe('servicio API de trabajos', () => {
     expect(getJson.mock.calls.map(([path]) => path)).toEqual(['/trabajos', `/trabajos/${idTrabajo}`]);
   });
 
+  it('omite trabajos y sesiones con estado de registro 0 y conserva visibles con estado 1', async () => {
+    const getJson = vi.fn().mockResolvedValue({ elementos: [
+      { ...trabajo, estadoRegistro: 1,
+        sesiones: [{ ...trabajo.sesiones[0], estadoRegistro: 0 }],
+        programacion: { ...trabajo.programacion, estadoRegistro: 0 } },
+      { ...trabajo, id: '11000000-0000-4000-8000-000000000002', estadoRegistro: 0 },
+    ] });
+    const servicio = crearServicioTrabajosApi({ getJson });
+
+    const respuesta = await servicio.listar();
+
+    expect(respuesta).toHaveLength(1);
+    expect(respuesta[0].estadoRegistro).toBe(1);
+    expect(respuesta[0].sesiones).toEqual([]);
+    expect(respuesta[0].programacion).toBeNull();
+  });
+
   it('rechaza IDs locales antes de enviar una solicitud API', async () => {
     const getJson = vi.fn();
     const servicio = crearServicioTrabajosApi({ getJson });

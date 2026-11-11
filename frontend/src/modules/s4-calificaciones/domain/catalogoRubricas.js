@@ -24,6 +24,8 @@ export function crearFilasCatalogoRubricas(versiones, fuente) {
         id: `${version.id}:${carrera?.id ?? 'sin-carrera'}`,
         versionId: version.id,
         rubricaId: version.idRubrica,
+        estadoRegistro: version.estadoRegistro ?? 1,
+        estadoRubricaRegistro: version.estadoRubricaRegistro ?? 1,
         nombreRubrica: version.titulo,
         modalidadId: version.modalidadId ?? '',
         modalidad: version.modalidad,

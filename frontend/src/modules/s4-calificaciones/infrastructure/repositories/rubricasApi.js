@@ -1,4 +1,5 @@
 import { esUuidPostgres } from './uuidPostgres';
+import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DECIMAL = /^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/;
 const ESTADOS = new Set(['BORRADOR', 'CONFIGURADA', 'ACTIVA', 'ARCHIVADA']);
@@ -39,8 +40,32 @@ function validarFecha(valor, nullable = false) {
   return valor;
 }
 
+function validarVisibilidad(registro) {
+  if (!esEstadoRegistroValido(registro)) throw new ErrorDtoRubricas();
+  return esRegistroVisible(registro);
+}
+
+function estructuraVisible(version) {
+  if (!Array.isArray(version?.etapas)) throw new ErrorDtoRubricas();
+  return {
+    ...version,
+    etapas: version.etapas.filter(validarVisibilidad).map((etapa) => ({
+      ...etapa,
+      categorias: Array.isArray(etapa.categorias)
+        ? etapa.categorias.filter(validarVisibilidad).map((categoria) => ({
+          ...categoria,
+          indicadores: Array.isArray(categoria.indicadores)
+            ? categoria.indicadores.filter(validarVisibilidad)
+            : categoria.indicadores,
+        }))
+        : etapa.categorias,
+    })),
+  };
+}
+
 function validarResumen(resumen) {
   if (!objeto(resumen)) throw new ErrorDtoRubricas();
+  validarVisibilidad(resumen);
   validarUuid(resumen.id);
   if (!texto(resumen.version) || !ESTADOS.has(resumen.estado)) throw new ErrorDtoRubricas();
   if (!Number.isInteger(resumen.revision) || resumen.revision < 1) throw new ErrorDtoRubricas();
@@ -53,7 +78,8 @@ function validarResumen(resumen) {
 
 function validarCarreras(version) {
   if (!Array.isArray(version.carreras)) throw new ErrorDtoRubricas();
-  return version.carreras.map((carrera) => {
+  version.carreras.forEach(validarVisibilidad);
+  return version.carreras.filter(esRegistroVisible).map((carrera) => {
     if (!objeto(carrera) || !texto(carrera.codigo) || !texto(carrera.nombre) || typeof carrera.vigente !== 'boolean') {
       throw new ErrorDtoRubricas();
     }
@@ -81,6 +107,7 @@ function validarListado(rubrica) {
 }
 
 function validarDetalle(etapa) {
+  if (!validarVisibilidad(etapa)) return null;
   if (!objeto(etapa) || !ETAPAS.has(etapa.tipo) || !ALCANCES.has(etapa.alcance)) throw new ErrorDtoRubricas();
   validarUuid(etapa.id);
   if (!texto(etapa.codigo) || !texto(etapa.nombre) || !(etapa.descripcion === null || typeof etapa.descripcion === 'string')) {
@@ -90,7 +117,8 @@ function validarDetalle(etapa) {
   const maximo = validarDecimal(etapa.calificacionMaxima);
   const porcentaje = validarDecimal(etapa.porcentaje, true);
 
-  const categorias = etapa.categorias.map((categoria) => {
+  etapa.categorias.forEach(validarVisibilidad);
+  const categorias = etapa.categorias.filter(esRegistroVisible).map((categoria) => {
     if (!objeto(categoria)) throw new ErrorDtoRubricas();
     validarUuid(categoria.id);
     if (!texto(categoria.codigo) || !texto(categoria.nombre) || !Number.isInteger(categoria.orden) || categoria.orden < 1) {
@@ -98,7 +126,8 @@ function validarDetalle(etapa) {
     }
     if (!Array.isArray(categoria.indicadores)) throw new ErrorDtoRubricas();
     const maximoCategoria = validarDecimal(categoria.calificacionMaxima);
-    const indicadores = categoria.indicadores.map((indicador) => {
+    categoria.indicadores.forEach(validarVisibilidad);
+    const indicadores = categoria.indicadores.filter(esRegistroVisible).map((indicador) => {
       if (!objeto(indicador)) throw new ErrorDtoRubricas();
       validarUuid(indicador.id);
       if (!texto(indicador.label)
@@ -152,7 +181,8 @@ function validarDetalle(etapa) {
 function validarVersionDetalle(version) {
   validarResumen(version);
   if (!Array.isArray(version.etapas)) throw new ErrorDtoRubricas();
-  const etapasValidadas = version.etapas.map(validarDetalle);
+  version.etapas.forEach(validarVisibilidad);
+  const etapasValidadas = version.etapas.filter(esRegistroVisible).map(validarDetalle).filter(Boolean);
   return {
     etapas: etapasValidadas.map(({ etapa }) => etapa),
     categorias: etapasValidadas.flatMap(({ categorias }) => categorias),
@@ -162,14 +192,18 @@ function validarVersionDetalle(version) {
 
 export function adaptarRubricaApi(rubricaDto, versionesDto) {
   validarListado(rubricaDto);
-  if (!objeto(versionesDto) || versionesDto.rubricaId !== rubricaDto.id || !Array.isArray(versionesDto.versiones)) {
+  if (!validarVisibilidad(rubricaDto) || !objeto(versionesDto)
+    || versionesDto.rubricaId !== rubricaDto.id || !Array.isArray(versionesDto.versiones)) {
     throw new ErrorDtoRubricas();
   }
-  if (versionesDto.versiones.length !== rubricaDto.versiones.length) throw new ErrorDtoRubricas();
+  versionesDto.versiones.forEach(validarVisibilidad);
+  const versionesVisibles = versionesDto.versiones.filter(esRegistroVisible).map(estructuraVisible);
+  const resumenesVisibles = rubricaDto.versiones.filter(esRegistroVisible);
+  if (versionesVisibles.length !== resumenesVisibles.length) throw new ErrorDtoRubricas();
 
-  const resumenes = new Map(rubricaDto.versiones.map((version) => [version.id, version]));
+  const resumenes = new Map(resumenesVisibles.map((version) => [version.id, version]));
   const idsVistos = new Set();
-  return versionesDto.versiones.map((versionDto) => {
+  return versionesVisibles.map((versionDto) => {
     const resumen = resumenes.get(versionDto.id);
     if (!resumen || idsVistos.has(versionDto.id)) throw new ErrorDtoRubricas();
     idsVistos.add(versionDto.id);
@@ -185,6 +219,8 @@ export function adaptarRubricaApi(rubricaDto, versionesDto) {
     return {
       id: versionDto.id,
       idRubrica: rubricaDto.id,
+      estadoRegistro: versionDto.estadoRegistro ?? resumen.estadoRegistro ?? 1,
+      estadoRubricaRegistro: rubricaDto.estadoRegistro ?? 1,
       modalidadId: rubricaDto.modalidad.id,
       titulo: rubricaDto.nombre,
       descripcion: rubricaDto.descripcion,
@@ -206,10 +242,17 @@ export function adaptarRubricaApi(rubricaDto, versionesDto) {
 
 export function adaptarListadoRubricasApi(listado) {
   if (!Array.isArray(listado)) throw new ErrorDtoRubricas();
-  listado.forEach(validarListado);
-  const ids = listado.map(({ id }) => id);
+  listado.forEach(validarVisibilidad);
+  const visibles = listado.filter(esRegistroVisible).map((rubrica) => ({
+    ...rubrica,
+    versiones: Array.isArray(rubrica?.versiones)
+      ? rubrica.versiones.filter(validarVisibilidad).filter(esRegistroVisible)
+      : rubrica?.versiones,
+  }));
+  visibles.forEach(validarListado);
+  const ids = visibles.map(({ id }) => id);
   if (new Set(ids).size !== ids.length) throw new ErrorDtoRubricas();
-  return listado;
+  return visibles;
 }
 
 export function adaptarCatalogosRubricaApi(catalogos) {

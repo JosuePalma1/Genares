@@ -22,8 +22,10 @@ El comando de desarrollo se puede iniciar junto con Vite desde la raíz usando `
 
 - `src/common`: API versionada, controles de identidad/capacidades y endpoint de salud.
 - `src/config`: conexión PostgreSQL y controles de entorno.
-- `src/modules/s4-calificaciones`: expedientes de consulta, rúbricas, evaluaciones, sustentaciones, resultados y documentos.
+- `src/modules/s4-calificaciones`: expedientes de consulta, rúbricas, evaluaciones, sustentaciones, resultados, documentos y consulta de la bitácora de cambios (`auditoria/`).
 - `src/modules/s1-requisitos`, `s2-temas` y `s3-documentos`: espacios reservados a los módulos de sus respectivos equipos.
-- `fixtures`: SQL local de prueba y permisos. Los archivos requieren ejecución manual y no son migraciones.
+- `fixtures`: SQL local de permisos, retención/auditoría y datos de prueba. Se ejecutan a mano y no son migraciones; el orden está en el [README principal](../README.md#scripts-sql-de-backendfixtures).
 
 TypeORM usa `synchronize: false` y `migrationsRun: false`. El backend no contiene comandos para aplicar el esquema antiguo. S4 no administra los registros de S1, S2 ni S3.
+
+Con el fixture de retención aplicado, la base rechaza `DELETE`/`TRUNCATE` en `s4`. Los servicios ocultan registros con `estado_registro = 0` y fijan `s4.actor_id` en cada transacción para que la bitácora `s4.eventos_cambio_registro` registre quién hizo cada cambio.

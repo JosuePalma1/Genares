@@ -4,7 +4,7 @@ import {
   ArrowRight, BookOpenCheck, CalendarClock, Check, CheckCircle2, FileClock, FileSearch, GraduationCap,
   RefreshCw, UserRound, UsersRound,
 } from 'lucide-react';
-import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
 import { usarTrabajoApi, usarTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
@@ -405,7 +405,7 @@ export function PaginaTrabajosApi() {
               const progreso = progresoVerificadoTrabajo(trabajo);
               return (
                 <article className="trabajo-list-card" key={trabajo.id}>
-                  <header><div className="trabajo-list-code"><GraduationCap size={17} /><span>{trabajo.codigo}</span></div><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></header>
+                  <header><div className="trabajo-list-code"><GraduationCap size={17} /><span>{trabajo.codigo}</span></div><div><InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></div></header>
                   <div className="trabajo-list-main"><h3>{trabajo.titulo}</h3><div className="trabajo-list-tags"><span>{trabajo.modalidad}</span><span>{trabajo.carrera}</span><span>{trabajo.periodo}</span></div></div>
                   <div className="trabajo-list-people">
                     <div><span className="trabajo-list-label"><UsersRound size={16} /> Estudiantes</span><strong>{trabajo.estudiantes.map(nombre).join(' / ') || 'Sin estudiantes asociados'}</strong></div>
@@ -473,7 +473,7 @@ export function PaginaDetalleTrabajoApi() {
         title={trabajo.codigo}
         description={trabajo.titulo}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Detalle' }]}
-        meta={<InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado>}
+        meta={<div className="trabajo-detail-statuses"><InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></div>}
         actions={(
           <>
             <BotonVolver respaldo="/trabajos" />

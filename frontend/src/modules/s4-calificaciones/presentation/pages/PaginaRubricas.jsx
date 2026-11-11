@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowDownUp, ArrowUp, Eye, History, Plus } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstadoRegistro } from '../components/interfaz';
 import { ModalVersionesRubrica } from '../components/ModalVersionesRubrica';
 import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { crearFilasCatalogoRubricas, filtrarRubricasCatalogo, FILTRO_NO_INFORMADA, FILTRO_SIN_ASOCIACION, ordenarRubricasCatalogo } from '../../domain/catalogoRubricas';
@@ -212,7 +212,7 @@ export default function PaginaRubricas() {
                 </thead>
                 <tbody>
                   {ordenadas.map((fila) => <tr key={fila.id}>
-                    <td><strong>{fila.modalidad}</strong><small>{fila.nombreRubrica}</small></td>
+                    <td><strong>{fila.modalidad}</strong><small>{fila.nombreRubrica}</small><InsigniaEstadoRegistro estadoRegistro={fila.estadoRegistro} /></td>
                     <td>{fila.carrera}<small>{fila.carreraCodigo}</small></td>
                     <td>{fila.periodo}</td>
                     <td>{fila.version}</td>

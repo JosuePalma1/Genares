@@ -116,6 +116,16 @@ describe('servicio API de cronogramas', () => {
     });
   });
 
+  it('omite una programación archivada de la lista y rechaza estados inválidos', () => {
+    expect(adaptarListadoProgramacionesApi({
+      elementos: [{ ...programacion, estadoRegistro: 1 }, { ...programacion, id: '11111111-1111-4111-8111-111111111112', estadoRegistro: 0 }],
+      filtros,
+    }).elementos).toHaveLength(1);
+    expect(() => adaptarListadoProgramacionesApi({
+      elementos: [{ ...programacion, estadoRegistro: 2 }], filtros,
+    })).toThrow(/información recibida no es válida/i);
+  });
+
   it('rechaza respuestas inválidas y mantiene permisos/errores de la API sin convertirlos en datos simulados', () => {
     expect(() => adaptarListadoProgramacionesApi({ elementos: [programacion], filtros: null })).toThrow(/información recibida no es válida/i);
   });

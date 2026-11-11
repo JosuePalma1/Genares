@@ -1,5 +1,6 @@
 import { ErrorRespuestaApi } from '../../presentation/services/clienteHttp';
 import { esUuidPostgres } from './uuidPostgres';
+import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 
 const ESTADOS_TRABAJO = new Set([
   'REGISTRADO', 'TRIBUNAL_ASIGNADO', 'REVISION_ESCRITA_PENDIENTE', 'REVISION_ESCRITA_COMPLETADA',
@@ -22,41 +23,49 @@ function esFechaOpcional(valor) {
 }
 
 export function adaptarTrabajoApi(trabajo) {
-  exigir(objeto(trabajo)
-    && esUuidPostgres(trabajo.id)
-    && typeof trabajo.codigo === 'string' && trabajo.codigo.length > 0
-    && typeof trabajo.titulo === 'string' && trabajo.titulo.length > 0
-    && ESTADOS_TRABAJO.has(trabajo.estado)
-    && esUuidPostgres(trabajo.idCarrera) && typeof trabajo.codigoCarrera === 'string'
-    && typeof trabajo.carrera === 'string'
-    && esUuidPostgres(trabajo.idPeriodo) && typeof trabajo.periodo === 'string'
-    && esUuidPostgres(trabajo.idModalidad) && typeof trabajo.codigoModalidad === 'string'
-    && typeof trabajo.modalidad === 'string'
-    && (trabajo.idVersionRubrica === null || esUuidPostgres(trabajo.idVersionRubrica))
-    && (trabajo.versionRubrica === null || typeof trabajo.versionRubrica === 'string')
-    && (trabajo.rubrica === null || typeof trabajo.rubrica === 'string')
-    && (trabajo.estadoVersionRubrica === null || ESTADOS_VERSION.has(trabajo.estadoVersionRubrica))
-    && Array.isArray(trabajo.estudiantes)
-    && trabajo.estudiantes.every((estudiante) => objeto(estudiante)
+  if (!esEstadoRegistroValido(trabajo) || !esRegistroVisible(trabajo)) throw new ErrorRespuestaApi();
+  if (!Array.isArray(trabajo?.sesiones)
+    || trabajo.sesiones.some((sesion) => !esEstadoRegistroValido(sesion))) throw new ErrorRespuestaApi();
+  if (!esEstadoRegistroValido(trabajo?.programacion)) throw new ErrorRespuestaApi();
+  const visible = {
+    ...trabajo,
+    sesiones: trabajo.sesiones.filter(esRegistroVisible),
+    programacion: trabajo.programacion && esRegistroVisible(trabajo.programacion) ? trabajo.programacion : null,
+  };
+  exigir(objeto(visible)
+    && esUuidPostgres(visible.id)
+    && typeof visible.codigo === 'string' && visible.codigo.length > 0
+    && typeof visible.titulo === 'string' && visible.titulo.length > 0
+    && ESTADOS_TRABAJO.has(visible.estado)
+    && esUuidPostgres(visible.idCarrera) && typeof visible.codigoCarrera === 'string'
+    && typeof visible.carrera === 'string'
+    && esUuidPostgres(visible.idPeriodo) && typeof visible.periodo === 'string'
+    && esUuidPostgres(visible.idModalidad) && typeof visible.codigoModalidad === 'string'
+    && typeof visible.modalidad === 'string'
+    && (visible.idVersionRubrica === null || esUuidPostgres(visible.idVersionRubrica))
+    && (visible.versionRubrica === null || typeof visible.versionRubrica === 'string')
+    && (visible.rubrica === null || typeof visible.rubrica === 'string')
+    && (visible.estadoVersionRubrica === null || ESTADOS_VERSION.has(visible.estadoVersionRubrica))
+    && Array.isArray(visible.estudiantes)
+    && visible.estudiantes.every((estudiante) => objeto(estudiante)
       && esUuidPostgres(estudiante.id)
       && typeof estudiante.nombres === 'string' && typeof estudiante.apellidos === 'string'
       && Number.isInteger(estudiante.ordenAutoria) && estudiante.ordenAutoria > 0)
-    && Array.isArray(trabajo.tutores)
-    && trabajo.tutores.every((tutor) => objeto(tutor)
+    && Array.isArray(visible.tutores)
+    && visible.tutores.every((tutor) => objeto(tutor)
       && esUuidPostgres(tutor.idAsignacion) && esUuidPostgres(tutor.idDocente)
       && typeof tutor.nombres === 'string' && typeof tutor.apellidos === 'string'
       && (tutor.carrera === null || typeof tutor.carrera === 'string')
       && typeof tutor.asignadoEn === 'string' && esFechaOpcional(tutor.finalizadoEn))
-    && (trabajo.estadoTribunal === null || ESTADOS_TRIBUNAL.has(trabajo.estadoTribunal))
-    && esFechaOpcional(trabajo.tribunalConfirmadoEn)
-    && Array.isArray(trabajo.miembrosTribunal)
-    && trabajo.miembrosTribunal.every((miembro) => objeto(miembro)
+    && (visible.estadoTribunal === null || ESTADOS_TRIBUNAL.has(visible.estadoTribunal))
+    && esFechaOpcional(visible.tribunalConfirmadoEn)
+    && Array.isArray(visible.miembrosTribunal)
+    && visible.miembrosTribunal.every((miembro) => objeto(miembro)
       && esUuidPostgres(miembro.idMiembroTribunal) && Number.isInteger(miembro.posicion) && miembro.posicion > 0
       && typeof miembro.nombres === 'string' && typeof miembro.apellidos === 'string')
-    && (trabajo.estadoTribunal === 'CONFIRMADO' || trabajo.miembrosTribunal.length === 0)
-    && Number.isInteger(trabajo.escritasCerradas) && trabajo.escritasCerradas >= 0
-    && Array.isArray(trabajo.sesiones)
-    && trabajo.sesiones.every((sesion) => objeto(sesion)
+    && (visible.estadoTribunal === 'CONFIRMADO' || visible.miembrosTribunal.length === 0)
+    && Number.isInteger(visible.escritasCerradas) && visible.escritasCerradas >= 0
+    && visible.sesiones.every((sesion) => objeto(sesion)
       && esUuidPostgres(sesion.id)
       && typeof sesion.fecha === 'string' && typeof sesion.inicio === 'string' && typeof sesion.fin === 'string'
       && (sesion.sala === null || typeof sesion.sala === 'string')
@@ -67,17 +76,18 @@ export function adaptarTrabajoApi(trabajo) {
       && (sesion.tipo === null || typeof sesion.tipo === 'string')
       && (sesion.estado === null || ESTADOS_SUSTENTACION.has(sesion.estado))
       && Number.isInteger(sesion.cantidadParticipantes) && sesion.cantidadParticipantes >= 0)
-    && (trabajo.programacion === null || (objeto(trabajo.programacion)
-      && esUuidPostgres(trabajo.programacion.id)
-      && typeof trabajo.programacion.fechaProgramada === 'string'
-      && typeof trabajo.programacion.horaProgramada === 'string'
-      && typeof trabajo.programacion.sala === 'string'
-      && Number.isInteger(trabajo.programacion.duracionEstimadaMinutos)
-      && ESTADOS_SUSTENTACION.has(trabajo.programacion.estado))));
-  return trabajo;
+    && (visible.programacion === null || (objeto(visible.programacion)
+      && esUuidPostgres(visible.programacion.id)
+      && typeof visible.programacion.fechaProgramada === 'string'
+      && typeof visible.programacion.horaProgramada === 'string'
+      && typeof visible.programacion.sala === 'string'
+      && Number.isInteger(visible.programacion.duracionEstimadaMinutos)
+      && ESTADOS_SUSTENTACION.has(visible.programacion.estado))));
+  return visible;
 }
 
 export function adaptarListaTrabajosApi(respuesta) {
   exigir(objeto(respuesta) && Array.isArray(respuesta.elementos));
-  return respuesta.elementos.map(adaptarTrabajoApi);
+  if (respuesta.elementos.some((trabajo) => !esEstadoRegistroValido(trabajo))) throw new ErrorRespuestaApi();
+  return respuesta.elementos.filter(esRegistroVisible).map(adaptarTrabajoApi);
 }

@@ -23,4 +23,16 @@ export class ActaArchivada {
   @Column({ name: 'nota_final', type: 'numeric', precision: 4, scale: 2, nullable: true }) notaFinal!: string | null;
   @Column({ name: 'nota_minima_aplicada', type: 'numeric', precision: 4, scale: 2, nullable: true }) notaMinimaAplicada!: string | null;
   @Column({ type: 'boolean', nullable: true }) aprobado!: boolean | null;
+
+  @Column({ name: 'estado_registro', type: 'smallint', default: 1 })
+  estadoRegistro!: 0 | 1;
+
+  @Column({ name: 'creado_por', type: 'varchar', length: 255, nullable: true })
+  creadoPor!: string | null;
+
+  @Column({ name: 'actualizado_por', type: 'varchar', length: 255, nullable: true })
+  actualizadoPor!: string | null;
+
+  @Column({ name: 'actualizado_en', type: 'timestamptz', nullable: true })
+  actualizadoEn!: Date | null;
 }

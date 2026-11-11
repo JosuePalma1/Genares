@@ -36,4 +36,20 @@ describe('servicio de actas archivadas', () => {
       credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/pdf' },
     });
   });
+
+  it('no presenta actas cuyo estado de registro sea 0', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', '/api/v1');
+    const visibles = [{
+      id: 'a1111111-1111-4111-8111-111111111111', estadoRegistro: 1, numero: '001-2026-2-SOFT',
+      estudiante: 'Estudiante visible', carrera: 'Ingeniería en Software', periodo: '2026-2', notaFinal: '9.00', generadoEn: '2026-11-10',
+    }];
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify([
+      ...visibles,
+      { ...visibles[0], id: 'a1111111-1111-4111-8111-111111111112', estadoRegistro: 0 },
+    ]), { status: 200, headers: { 'content-type': 'application/json' } }));
+    vi.stubGlobal('fetch', fetcher);
+
+    const { consultarDocumentos } = await import('./documentosApi');
+    await expect(consultarDocumentos('/actas')).resolves.toEqual(visibles);
+  });
 });

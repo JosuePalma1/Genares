@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { usarSeguimientoApi } from '../hooks/usarSeguimientoApi';
+import { usarAuditoriaApi } from '../hooks/usarAuditoriaApi';
 import { CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi } from './SeguimientoApi';
 
 vi.mock('../hooks/usarSeguimientoApi', () => ({ usarSeguimientoApi: vi.fn() }));
+vi.mock('../hooks/usarAuditoriaApi', () => ({ usarAuditoriaApi: vi.fn() }));
 vi.mock('../hooks/usarCarrerasApi', () => ({
   usarCarrerasApi: () => ({
     estado: 'listo',
@@ -90,6 +92,7 @@ describe('pantallas de seguimiento integradas con la API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     usarSeguimientoApi.mockReturnValue(datosBase());
+    usarAuditoriaApi.mockReturnValue({ estado: 'listo', elementos: [], siguienteCursor: null, recargar: vi.fn(), cargarMas: vi.fn() });
   });
 
   it('Dashboard usa el catálogo API y representa vacíos de agenda sin confundirlos con error', () => {
@@ -135,6 +138,28 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain(`/resultados/${ids.ti}/${ids.andrea}`);
     expect(html).toContain('001-2026-2-TI');
     expect(html).toContain('href="/documentos"');
+    expect(html).toContain('Auditoría de cambios');
+  });
+
+  it('muestra responsable, fecha y cambios anteriores y nuevos en la bitácora', () => {
+    usarAuditoriaApi.mockReturnValue({
+      estado: 'listo',
+      elementos: [{
+        id: 'a1111111-1111-4111-8111-111111111111',
+        ocurridoEn: '2026-11-10T12:00:00.000Z', actorId: 'GENARES:LOCAL_DEVELOPMENT', rolBase: 'genares',
+        tabla: 'rubricas', claveRegistro: { id: 'r-1' }, operacion: 'UPDATE',
+        antes: { estado_registro: 1 }, despues: { estado_registro: 0 },
+      }],
+      siguienteCursor: 'eyJvY3Vycmlkb0VuIjoiMjAyNiJ9',
+      cargarMas: vi.fn(),
+      recargar: vi.fn(),
+    });
+    const html = renderizar(<ConsultaSeguimientoApi />);
+    expect(html).toContain('GENARES:LOCAL_DEVELOPMENT');
+    expect(html).toContain('Antes');
+    expect(html).toContain('Después');
+    expect(html).toContain('estado_registro');
+    expect(html).toContain('Cargar más cambios');
   });
 
   it('muestra errores API en lugar de recuperar expedientes locales', () => {

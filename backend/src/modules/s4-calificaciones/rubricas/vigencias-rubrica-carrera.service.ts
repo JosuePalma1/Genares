@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { EventoAuditoriaRubrica } from './entidades/evento-auditoria-rubrica.entity';
 import { VersionRubricaCarrera } from './entidades/version-rubrica-carrera.entity';
 import { VigenciaRubricaCarrera } from './entidades/vigencia-rubrica-carrera.entity';
+import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 
 interface ContextoRubricaCarrera {
   id_version_rubrica: string;
@@ -27,15 +28,18 @@ export class VigenciasRubricaCarreraService {
 
   async asociarVersionCarrera(versionId: string, carreraId: string): Promise<VersionRubricaCarrera> {
     return this.dataSource.transaction(async (manager) => {
+      await establecerActorAuditoria(manager);
       const [contexto] = await this.contextoVersion(manager, versionId, carreraId);
       if (!contexto) await this.lanzarContextoInexistente(manager, versionId, carreraId);
       this.exigirCatalogosActivos(contexto);
 
       const [asociacion] = await manager.query(
-        `INSERT INTO s4."versiones_rubrica_carreras"
+        `INSERT INTO s4."versiones_rubrica_carreras" AS asociacion
           ("id_version_rubrica", "id_carrera", "id_rubrica", "id_modalidad", "periodo_academico_id")
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT ("id_version_rubrica", "id_carrera") DO NOTHING
+         ON CONFLICT ("id_version_rubrica", "id_carrera") DO UPDATE
+           SET estado_registro = 1
+           WHERE asociacion.estado_registro = 0
          RETURNING *`,
         [versionId, carreraId, contexto.id_rubrica, contexto.id_modalidad, contexto.periodo_academico_id],
       ) as VersionRubricaCarrera[];
@@ -53,6 +57,7 @@ export class VigenciasRubricaCarreraService {
     if (!actorId?.trim()) throw new BadRequestException('La identidad auditada es obligatoria.');
 
     return this.dataSource.transaction(async (manager) => {
+      await establecerActorAuditoria(manager, actorId, correlationId);
       // Este bloqueo serializa cambios de vigencia de la misma carrera; el índice único
       // parcial sigue protegiendo carrera/modalidad/período ante cualquier otra ruta.
       await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`rubrica:carrera:${carreraId}`]);
@@ -72,6 +77,7 @@ export class VigenciasRubricaCarreraService {
         .andWhere('vigencia.modalidadId = :modalidadId', { modalidadId: contexto.id_modalidad })
         .andWhere('vigencia.periodoAcademicoId = :periodoId', { periodoId: contexto.periodo_academico_id })
         .andWhere('vigencia.vigenteHasta IS NULL')
+        .andWhere('vigencia.estadoRegistro = 1')
         .setLock('pessimistic_write')
         .getOne();
 
@@ -128,7 +134,7 @@ export class VigenciasRubricaCarreraService {
        JOIN s4."rubricas" r ON r."id" = vr."id_rubrica"
        JOIN gen.carrera c ON c."id" = $2
        JOIN gen.modalidad m ON m."id" = r."id_modalidad"
-       WHERE vr."id" = $1`,
+       WHERE vr."id" = $1 AND vr."estado_registro" = 1 AND r."estado_registro" = 1`,
       [versionId, carreraId],
     ) as Promise<ContextoRubricaCarrera[]>;
   }
@@ -139,9 +145,11 @@ export class VigenciasRubricaCarreraService {
               vc."periodo_academico_id", c."activo" AS "carrera_activa",
               m."activo" AS "modalidad_activa"
        FROM s4."versiones_rubrica_carreras" vc
+       JOIN s4."versiones_rubrica" vr ON vr."id" = vc."id_version_rubrica" AND vr."estado_registro" = 1
+       JOIN s4."rubricas" r ON r."id" = vc."id_rubrica" AND r."estado_registro" = 1
        JOIN gen.carrera c ON c."id" = vc."id_carrera"
        JOIN gen.modalidad m ON m."id" = vc."id_modalidad"
-       WHERE vc."id_version_rubrica" = $1 AND vc."id_carrera" = $2`,
+       WHERE vc."id_version_rubrica" = $1 AND vc."id_carrera" = $2 AND vc."estado_registro" = 1`,
       [versionId, carreraId],
     ) as Promise<ContextoRubricaCarrera[]>;
   }
@@ -151,7 +159,7 @@ export class VigenciasRubricaCarreraService {
     versionId: string,
     carreraId: string,
   ): Promise<never> {
-    const [version] = await manager.query('SELECT 1 FROM s4."versiones_rubrica" WHERE "id" = $1', [versionId]);
+    const [version] = await manager.query('SELECT 1 FROM s4."versiones_rubrica" WHERE "id" = $1 AND estado_registro = 1', [versionId]);
     const [carrera] = await manager.query('SELECT 1 FROM gen.carrera WHERE "id" = $1', [carreraId]);
     if (!version) throw new NotFoundException('No existe la versión solicitada.');
     if (!carrera) throw new NotFoundException('No existe la carrera solicitada.');
@@ -174,6 +182,10 @@ export class VigenciasRubricaCarreraService {
       periodoAcademicoId: fila.periodo_academico_id,
       vigenteDesde: fila.vigente_desde,
       vigenteHasta: fila.vigente_hasta,
+      estadoRegistro: fila.estado_registro ?? 1,
+      creadoPor: fila.creado_por ?? null,
+      actualizadoPor: fila.actualizado_por ?? null,
+      actualizadoEn: fila.actualizado_en ?? null,
     });
   }
 }

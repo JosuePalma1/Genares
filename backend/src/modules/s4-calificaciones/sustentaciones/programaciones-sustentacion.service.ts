@@ -8,6 +8,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { TrabajoMer, TrabajosService } from '../trabajos/trabajos.service';
 import { EstadoSustentacion } from '../../../common/domain/enums-dominio';
 import { ActualizarProgramacionDto } from './dto/actualizar-programacion.dto';
+import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 import { CambiarEstadoProgramacionDto } from './dto/cambiar-estado-programacion.dto';
 import { ConsultarProgramacionesDto } from './dto/consultar-programaciones.dto';
 import { CrearProgramacionDto } from './dto/crear-programacion.dto';
@@ -50,8 +51,8 @@ export class ProgramacionesSustentacionService {
     const [relacion] = await this.dataSource.query(`
       SELECT p.asignacion_tema_id AS "idTrabajo"
       FROM s4.programaciones_sustentacion s
-      JOIN s4.procesos_evaluacion p ON p.id = s.id_proceso_evaluacion
-      WHERE s.id = $1
+      JOIN s4.procesos_evaluacion p ON p.id = s.id_proceso_evaluacion AND p.estado_registro = 1
+      WHERE s.id = $1 AND s.estado_registro = 1
     `, [id]);
     const [trabajo] = relacion ? await this.trabajos.consultar(relacion.idTrabajo) : [];
     const sesion = trabajo?.sesiones.find((item) => item.id === id);
@@ -74,10 +75,21 @@ export class ProgramacionesSustentacionService {
   }
 
   async trabajosDisponibles(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
-    const trabajos = await this.trabajos.consultar(null);
+    const [trabajos, programacionesOcultas] = await Promise.all([
+      this.trabajos.consultar(null),
+      this.dataSource.query(`
+        SELECT DISTINCT proceso.asignacion_tema_id AS "idTrabajo"
+        FROM s4.programaciones_sustentacion programacion
+        JOIN s4.procesos_evaluacion proceso
+          ON proceso.id = programacion.id_proceso_evaluacion AND proceso.estado_registro = 1
+        WHERE programacion.estado_registro = 0
+      `) as Promise<Array<{ idTrabajo: string }>>,
+    ]);
+    const trabajosConProgramacionOculta = new Set(programacionesOcultas.map(({ idTrabajo }) => idTrabajo));
     return {
       elementos: trabajos.filter((t) => this.coincide(t, filtros) && t.procesoId
-        && t.sesiones.length === 0 && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
+        && t.sesiones.length === 0 && !trabajosConProgramacionOculta.has(t.id)
+        && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
         .map((trabajo) => this.contexto(trabajo)),
       filtros: await this.listarCatalogos(),
     };
@@ -93,6 +105,7 @@ export class ProgramacionesSustentacionService {
 
     try {
       const id = await this.dataSource.transaction('READ COMMITTED', async (manager) => {
+        await establecerActorAuditoria(manager, actorId);
         const cuentas = accesoLocal ? [] : await manager.query(`
           SELECT "id" FROM gen.usuario
           WHERE "sujeto_autenticacion" = $1 AND "activo" = true
@@ -103,7 +116,7 @@ export class ProgramacionesSustentacionService {
         const [proceso] = await manager.query(`
           SELECT p.id FROM s4.procesos_evaluacion p
           JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id AND a.estado = 'VIGENTE'
-          WHERE a.id = $1 FOR UPDATE OF p
+          WHERE a.id = $1 AND p.estado_registro = 1 FOR UPDATE OF p
         `, [dto.idTrabajo]);
         if (!proceso) throw new NotFoundException('No existe un proceso vigente para el trabajo solicitado.');
 
@@ -114,7 +127,7 @@ export class ProgramacionesSustentacionService {
               JOIN s3.asignacion_tribunal a ON a.asignacion_tribunal_id = e.id_asignacion_tribunal
               JOIN s4.procesos_evaluacion p ON p.id = e.id_proceso_evaluacion
               WHERE p.id = $1 AND a.asignacion_tema_id = $2 AND e.id_version_rubrica = p.id_version_rubrica
-                AND e.etapa = 'ESCRITA' AND e.estado = 'CERRADA') AS cerradas,
+                AND e.estado_registro = 1 AND e.etapa = 'ESCRITA' AND e.estado = 'CERRADA') AS cerradas,
             EXISTS (SELECT 1 FROM s4.programaciones_sustentacion WHERE id_proceso_evaluacion = $1) AS programada
         `, [proceso.id, dto.idTrabajo]);
         if (trabajo.programada) {
@@ -157,14 +170,15 @@ export class ProgramacionesSustentacionService {
 
     try {
       await this.dataSource.transaction('READ COMMITTED', async (manager) => {
+        await establecerActorAuditoria(manager, actorId);
         await manager.query(`
           SELECT p.id FROM s4.procesos_evaluacion p
           JOIN s4.programaciones_sustentacion s ON s.id_proceso_evaluacion = p.id
-          WHERE s.id = $1 FOR UPDATE OF p
+          WHERE s.id = $1 AND s.estado_registro = 1 AND p.estado_registro = 1 FOR UPDATE OF p
         `, [id]);
         const [actual] = await manager.query(`
           SELECT "id", id_proceso_evaluacion AS "idTrabajo", "estado", "duracion_estimada_minutos" AS "duracionEstimadaMinutos"
-          FROM s4.programaciones_sustentacion WHERE "id" = $1 FOR UPDATE
+          FROM s4.programaciones_sustentacion WHERE "id" = $1 AND estado_registro = 1 FOR UPDATE
         `, [id]) as Array<{ id: string; idTrabajo: string; estado: EstadoSustentacion; duracionEstimadaMinutos: number }>;
         if (!actual) throw new NotFoundException('No existe la programación solicitada.');
         if (actual.estado !== EstadoSustentacion.PROGRAMADA) {
@@ -213,6 +227,7 @@ export class ProgramacionesSustentacionService {
     accesoLocal = false,
   ): Promise<Record<string, unknown>> {
     await this.dataSource.transaction(async (manager) => {
+      await establecerActorAuditoria(manager, actorId);
       const cuentas = accesoLocal ? [] : await manager.query(`
         SELECT "id" FROM gen.usuario
         WHERE "sujeto_autenticacion" = $1 AND "activo" = true
@@ -220,7 +235,8 @@ export class ProgramacionesSustentacionService {
       if (!accesoLocal && !cuentas[0]) throw new ForbiddenException('La identidad no está vinculada a una cuenta institucional activa.');
 
       const [actual] = await manager.query(`
-        SELECT "estado" FROM s4.programaciones_sustentacion WHERE "id" = $1 FOR UPDATE
+        SELECT "estado" FROM s4.programaciones_sustentacion
+        WHERE "id" = $1 AND estado_registro = 1 FOR UPDATE
       `, [id]) as Array<{ estado: EstadoSustentacion }>;
       if (!actual) throw new NotFoundException('No existe la programación solicitada.');
       if (!permiteTransicionEstadoProgramacion(actual.estado, dto.estado)) {
@@ -260,6 +276,7 @@ export class ProgramacionesSustentacionService {
       trabajo: { id: trabajo.id, codigo: trabajo.codigo, titulo: trabajo.titulo },
       carrera: { id: trabajo.idCarrera, codigo: trabajo.codigoCarrera, nombre: trabajo.carrera },
       periodo: { id: trabajo.idPeriodo, codigo: trabajo.periodo },
+      estadoRegistro: trabajo.estadoRegistro ?? 1,
       estudiantes: trabajo.estudiantes,
       tribunal: trabajo.evaluadores.map((evaluador, indice) => ({ ...evaluador, posicion: indice + 1 })),
     };
@@ -275,6 +292,7 @@ export class ProgramacionesSustentacionService {
       sala: sesion.sala,
       tipo: sesion.tipo,
       estado: sesion.estado,
+      estadoRegistro: sesion.estadoRegistro ?? 1,
       duracionEstimadaMinutos: sesion.duracionEstimadaMinutos,
       creadoEn: sesion.creadoEn,
       actualizadoEn: sesion.actualizadoEn,
@@ -313,6 +331,7 @@ export class ProgramacionesSustentacionService {
       WHERE programacion."fecha_programada" + programacion."hora_programada" < "solicitado"."fin"
         AND "solicitado"."inicio" < programacion.fecha_programada + programacion.hora_fin_programada
         AND lower(btrim(programacion."sala")) = lower(btrim($3))
+        AND programacion.estado_registro = 1
         AND programacion."estado" <> 'CANCELADA'
         AND ($5::uuid IS NULL OR programacion."id" <> $5::uuid)
       LIMIT 1

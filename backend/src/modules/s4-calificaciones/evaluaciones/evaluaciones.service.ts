@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
-import { InstantaneaRubrica } from '../rubricas/instantanea-rubrica';
+import { InstantaneaRubrica, filtrarInstantaneaVisible } from '../rubricas/instantanea-rubrica';
 import { TrabajosService } from '../trabajos/trabajos.service';
 import { EvaluacionesMerService } from './mer/evaluaciones-mer.service';
 
@@ -38,7 +38,7 @@ export class EvaluacionesService {
         LEFT JOIN gen.carrera c ON c.id = t.carrera_id
         LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
         LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
-        WHERE a.id = $1
+        WHERE a.id = $1 AND p.estado_registro = 1
       `, [trabajoId]);
       const estudiantes: Array<{ id: string; nombres: string; apellidos: string; identificacion: string }> = await manager.query(`
         SELECT e.id, p.nombres, p.apellidos, p.identificacion
@@ -68,17 +68,27 @@ export class EvaluacionesService {
             AND jsonb_typeof(e.instantanea_rubrica->'categories') = 'array'
             THEN e.instantanea_rubrica END AS "instantaneaRubrica",
           COALESCE((SELECT jsonb_agg(jsonb_build_object('idIndicador', c.id_indicador, 'puntaje', c.score::text, 'observacion', c.observation))
-            FROM s4.calificaciones_evaluacion c WHERE c.id_evaluacion = e.id), '[]') AS puntajes,
+            FROM s4.calificaciones_evaluacion c
+            JOIN s4.indicadores_rubrica i ON i.id = c.id_indicador AND i.estado_registro = 1
+            WHERE c.id_evaluacion = e.id AND c.estado_registro = 1), '[]') AS puntajes,
           COALESCE((SELECT jsonb_agg(jsonb_build_object('idEstudiante', t.id_estudiante))
             FROM s4.traspasos_evaluacion_estudiante t WHERE t.id_evaluacion = e.id), '[]') AS "estudiantesTraspasados"
-        FROM s4.evaluaciones e WHERE e.id_proceso_evaluacion = $1 ORDER BY e.creado_en, e.id
+        FROM s4.evaluaciones e WHERE e.id_proceso_evaluacion = $1 AND e.estado_registro = 1 ORDER BY e.creado_en, e.id
       `, [expediente.procesoId]);
       const consolidacion = { estudiantes: estudiantes.map((estudiante) => ({
         estudiante,
         ...expediente.consolidados.find(({ idEstudiante }) => idEstudiante === estudiante.id),
       })) };
+      const rubrica = await this.crearInstantanea(manager, expediente.idVersionRubrica);
+      // La instantánea guardada puede incluir estructura retirada después; se presenta una copia filtrada.
+      const evaluacionesVisibles: Array<Record<string, unknown>> = evaluaciones.map((evaluacion) => ({
+        ...evaluacion,
+        instantaneaRubrica: evaluacion.instantaneaRubrica
+          ? filtrarInstantaneaVisible(evaluacion.instantaneaRubrica as InstantaneaRubrica, rubrica)
+          : evaluacion.instantaneaRubrica,
+      }));
       return { trabajo, estudiantes, evaluadores, tutor: tutor ?? null,
-        rubrica: await this.crearInstantanea(manager, expediente.idVersionRubrica), evaluaciones, consolidacion };
+        rubrica, evaluaciones: evaluacionesVisibles, consolidacion };
     });
   }
 
@@ -136,7 +146,7 @@ export class EvaluacionesService {
       JOIN s4.rubricas rubrica ON rubrica."id" = version."id_rubrica"
       JOIN gen.modalidad modalidad ON modalidad."id" = rubrica."id_modalidad"
       JOIN gen.periodo_academico periodo ON periodo."id" = version."periodo_academico_id"
-      WHERE version."id" = $1
+      WHERE version."id" = $1 AND version.estado_registro = 1 AND rubrica.estado_registro = 1
     `, [versionId]) as Array<{
       id: string; version: string; periodId: string; periodCode: string; rubricId: string;
       rubricName: string; modalityCode: string;
@@ -146,7 +156,7 @@ export class EvaluacionesService {
     const stages = await manager.query(`
       SELECT "id", "kind", "scope", "codigo", "nombre", "descripcion",
              "calificacion_maxima" AS "calificacionMaxima", "porcentaje", "orden"
-      FROM s4.etapas_rubrica WHERE "id_version_rubrica" = $1 ORDER BY "orden", "id"
+      FROM s4.etapas_rubrica WHERE "id_version_rubrica" = $1 AND estado_registro = 1 ORDER BY "orden", "id"
     `, [versionId]) as InstantaneaRubrica['stages'];
     const categoriesRows = await manager.query(`
       SELECT categoria."id", categoria."codigo", categoria."nombre", categoria."id_etapa_rubrica" AS "stageId",
@@ -154,9 +164,9 @@ export class EvaluacionesService {
              indicador."id" AS "indicatorId", indicador."label", COALESCE(indicador."descripcion", '') AS "indicatorDescription" ,
              indicador."calificacion_maxima" AS "indicatorMaximum", indicador."orden" AS "indicatorOrder"
       FROM s4.categorias_rubrica categoria
-      LEFT JOIN s4.indicadores_rubrica indicador ON indicador."id_categoria" = categoria."id"
-      JOIN s4.etapas_rubrica etapa ON etapa."id" = categoria."id_etapa_rubrica"
-      WHERE categoria."id_version_rubrica" = $1
+      LEFT JOIN s4.indicadores_rubrica indicador ON indicador."id_categoria" = categoria."id" AND indicador.estado_registro = 1
+      JOIN s4.etapas_rubrica etapa ON etapa."id" = categoria."id_etapa_rubrica" AND etapa.estado_registro = 1
+      WHERE categoria."id_version_rubrica" = $1 AND categoria.estado_registro = 1
       ORDER BY etapa."orden", categoria."orden", indicador."orden"
     `, [versionId]) as Array<{
       id: string; codigo: string; nombre: string; stageId: string; calificacionMaxima: string; categoryOrder: number;

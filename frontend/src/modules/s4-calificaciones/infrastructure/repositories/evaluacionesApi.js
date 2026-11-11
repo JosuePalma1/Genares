@@ -1,5 +1,6 @@
 import { ErrorRespuestaApi } from '../../presentation/services/clienteHttp';
 import { esUuidPostgres } from './uuidPostgres';
+import { esEstadoRegistroValido, esRegistroVisible, filtrarRegistrosVisibles } from '../../domain/estadoRegistro';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ESTADOS_CONSOLIDACION = new Set([
@@ -22,7 +23,9 @@ export { esUuidPostgres };
 
 export function adaptarListaTrabajosEvaluacionApi(respuesta) {
   exigir(objeto(respuesta) && Array.isArray(respuesta.elementos));
-  exigir(respuesta.elementos.every((trabajo) => objeto(trabajo)
+  exigir(respuesta.elementos.every(esEstadoRegistroValido));
+  const elementos = filtrarRegistrosVisibles(respuesta.elementos);
+  exigir(elementos.every((trabajo) => objeto(trabajo)
     && esUuidPostgres(trabajo.id)
     && typeof trabajo.codigo === 'string' && typeof trabajo.titulo === 'string'
     && typeof trabajo.carrera === 'string' && typeof trabajo.periodo === 'string'
@@ -34,7 +37,7 @@ export function adaptarListaTrabajosEvaluacionApi(respuesta) {
     && trabajo.miembrosTribunal.every((miembro) => objeto(miembro)
       && esUuidPostgres(miembro.idMiembroTribunal) && Number.isInteger(miembro.posicion)
       && typeof miembro.nombres === 'string' && typeof miembro.apellidos === 'string')));
-  return respuesta.elementos;
+  return elementos;
 }
 
 function objeto(valor) {
@@ -58,7 +61,15 @@ function validarPuntaje(puntaje) {
     && (puntaje.observacion === null || typeof puntaje.observacion === 'string'));
 }
 
-export function adaptarEvaluacionApi(evaluacion) {
+export function adaptarEvaluacionApi(respuesta) {
+  exigir(esEstadoRegistroValido(respuesta) && esRegistroVisible(respuesta));
+  exigir(objeto(respuesta) && Array.isArray(respuesta.puntajes)
+    && respuesta.puntajes.every(esEstadoRegistroValido));
+  const evaluacion = {
+    ...respuesta,
+    puntajes: filtrarRegistrosVisibles(respuesta.puntajes)
+      .map(({ estadoRegistro: _estadoRegistro, ...puntaje }) => puntaje),
+  };
   exigir(objeto(evaluacion)
     && esUuidPostgres(evaluacion.id)
     && esUuidPostgres(evaluacion.idTrabajo)

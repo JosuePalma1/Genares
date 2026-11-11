@@ -30,6 +30,7 @@ export interface VersionRubricaResumenDto {
   version: string;
   revision: number;
   estado: EstadoVersionRubrica;
+  estadoRegistro: 0 | 1;
   periodo: PeriodoRubricaDto;
   activadaEn: string | null;
   creadaEn: string;
@@ -39,6 +40,7 @@ export interface RubricaListadoDto {
   id: string;
   nombre: string;
   descripcion: string | null;
+  estadoRegistro: 0 | 1;
   modalidad: ModalidadRubricaDto;
   versiones: VersionRubricaResumenDto[];
 }
@@ -49,6 +51,7 @@ export interface IndicadorRubricaDto {
   descripcion: string | null;
   calificacionMaxima: string;
   orden: number;
+  estadoRegistro: 0 | 1;
 }
 
 export interface CategoriaRubricaDto {
@@ -57,6 +60,7 @@ export interface CategoriaRubricaDto {
   nombre: string;
   calificacionMaxima: string;
   orden: number;
+  estadoRegistro: 0 | 1;
   indicadores: IndicadorRubricaDto[];
 }
 
@@ -70,6 +74,7 @@ export interface EtapaRubricaDto {
   calificacionMaxima: string;
   porcentaje: string | null;
   orden: number;
+  estadoRegistro: 0 | 1;
   categorias: CategoriaRubricaDto[];
 }
 
@@ -82,6 +87,7 @@ export interface CarreraVersionRubricaDto {
   codigo: string;
   nombre: string;
   vigente: boolean;
+  estadoRegistro: 0 | 1;
 }
 
 export interface VersionRubricaCatalogoDto extends VersionRubricaDetalleDto {

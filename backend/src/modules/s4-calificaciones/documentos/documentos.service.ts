@@ -7,6 +7,7 @@ import { archivarActaEn } from './archivo-actas';
 import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental';
 import { PLANTILLAS } from './plantillas-institucionales';
 import { centesimasActa, decimalActaDesdeCentesimas, notaAprobada } from './reglas-acta';
+import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 
 const acceso = `EXISTS (
   SELECT 1 FROM s3.asignacion_tribunal a
@@ -24,9 +25,11 @@ export class DocumentosService {
     return this.db.query(`SELECT t.id, t.id::text AS codigo, tema.titulo, c.nombre AS carrera, p.codigo AS periodo
       FROM s2.asignacion_tema t JOIN gen.tema tema ON tema.id = t.tema_id
       JOIN s4.procesos_evaluacion proceso ON proceso.asignacion_tema_id = t.id
+      JOIN s4.versiones_rubrica version ON version.id = proceso.id_version_rubrica AND version.estado_registro = 1
+      JOIN s4.rubricas rubrica ON rubrica.id = version.id_rubrica AND rubrica.estado_registro = 1
       JOIN gen.carrera c ON c.id = tema.carrera_id
       JOIN gen.periodo_academico p ON p.id = tema.periodo_academico_id
-      WHERE t.estado = 'VIGENTE' AND proceso.id_version_rubrica IS NOT NULL
+      WHERE t.estado = 'VIGENTE' AND proceso.estado_registro = 1 AND proceso.id_version_rubrica IS NOT NULL
         AND ($2::boolean OR ${acceso}) ORDER BY tema.titulo, t.id`, [actor, puedeConsultarDemostracion]);
   }
 
@@ -59,6 +62,7 @@ export class DocumentosService {
     const centesimas = centesimasActa(dto.notaMinima, 'La nota mínima');
     const valor = decimalActaDesdeCentesimas(centesimas);
     return this.db.transaction(async (manager) => {
+      await establecerActorAuditoria(manager, actor);
       const [actual] = await manager.query(`SELECT valor::text, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
         FROM s4.configuracion_nota_minima WHERE id=1 FOR UPDATE`);
       if (!actual) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
@@ -101,6 +105,7 @@ export class DocumentosService {
     }
 
     return this.db.transaction(async (manager) => {
+      await establecerActorAuditoria(manager, actor);
       // Bloquea el umbral durante la emisión para que el PDF y su snapshot coincidan.
       const [configuracion] = await manager.query(`SELECT valor::text FROM s4.configuracion_nota_minima WHERE id=1 FOR SHARE`);
       if (!configuracion) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
@@ -118,14 +123,14 @@ export class DocumentosService {
   }
 
   listar(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion = false) {
-    return this.db.query(`SELECT ar.id,ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
+    return this.db.query(`SELECT ar.id,ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
       ar.nota_final::text AS "notaFinal",ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado,
       p.nombres || ' ' || p.apellidos AS estudiante,c.nombre AS carrera,ar.periodo
       FROM s4.actas_archivadas ar
-      JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion
+      JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id
       JOIN gen.estudiante e ON e.id=ar.id_estudiante JOIN gen.persona p ON p.id=e.persona_id
-      JOIN gen.carrera c ON c.id=ar.id_carrera WHERE ($5::boolean OR ${acceso})
+      JOIN gen.carrera c ON c.id=ar.id_carrera WHERE ar.estado_registro = 1 AND ($5::boolean OR ${acceso})
       AND ($2::text IS NULL OR strpos(lower(p.nombres || ' ' || p.apellidos),lower($2))>0)
       AND ($3::text IS NULL OR c.codigo=$3) AND ($4::text IS NULL OR ar.periodo=$4)
       ORDER BY ar.generado_en DESC`, [actor, filtro.estudiante ?? null, filtro.carrera ?? null, filtro.periodo ?? null, puedeConsultarDemostracion]);
@@ -136,9 +141,9 @@ export class DocumentosService {
       ar.generado_en AS "generadoEn",ar.sha256,ar.nota_final::text AS "notaFinal",
       ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado${conPdf ? ',ar.pdf' : ''}
       FROM s4.actas_archivadas ar
-      JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion
+      JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id
-      WHERE ($3::boolean OR ${acceso}) AND ar.id=$2`, [actor, id, puedeConsultarDemostracion]);
+      WHERE ar.estado_registro = 1 AND ($3::boolean OR ${acceso}) AND ar.id=$2`, [actor, id, puedeConsultarDemostracion]);
     if (!acta) throw new NotFoundException('No existe el acta solicitada.');
     return acta;
   }

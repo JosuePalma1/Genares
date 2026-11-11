@@ -163,3 +163,29 @@
     flex-direction: column;
   }
 }
+.seguimiento-api-auditoria-valores {
+  display: grid;
+  gap: 0.5rem;
+  min-width: min(100%, 18rem);
+}
+
+.seguimiento-api-auditoria-valores details {
+  border: 1px solid var(--border, #d7e0ea);
+  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--surface, #fff);
+}
+
+.seguimiento-api-auditoria-valores summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.seguimiento-api-auditoria-valores pre {
+  max-width: min(42rem, 78vw);
+  max-height: 18rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}

@@ -5,6 +5,7 @@ import {
 import { ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
 
 import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';
+import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 const ESTADOS = new Set(['PROGRAMADA', 'EN_SUSTENTACION', 'FINALIZADA', 'COMPLETADA', 'CANCELADA']);
 const RUTA = '/programaciones-sustentacion';
 
@@ -31,6 +32,7 @@ function validarListas(carrera, periodo) {
 }
 
 export function adaptarProgramacionApi(valor) {
+  exigir(esEstadoRegistroValido(valor) && esRegistroVisible(valor));
   exigir(esObjeto(valor)
     && esUuidPostgres(valor.id ?? '')
     && esUuidPostgres(valor.idTrabajo ?? '')
@@ -61,6 +63,7 @@ export function adaptarProgramacionApi(valor) {
 }
 
 function adaptarTrabajoDisponible(valor) {
+  exigir(esEstadoRegistroValido(valor) && esRegistroVisible(valor));
   exigir(esObjeto(valor)
     && esUuidPostgres(valor.idTrabajo ?? '')
     && esObjeto(valor.trabajo) && valor.trabajo.id === valor.idTrabajo
@@ -87,13 +90,15 @@ function adaptarCatalogos(valor) {
 export function adaptarListadoProgramacionesApi(respuesta) {
   exigir(esObjeto(respuesta) && Array.isArray(respuesta.elementos));
   const filtros = adaptarCatalogos(respuesta.filtros);
-  return { elementos: respuesta.elementos.map(adaptarProgramacionApi), filtros };
+  exigir(respuesta.elementos.every(esEstadoRegistroValido));
+  return { elementos: respuesta.elementos.filter(esRegistroVisible).map(adaptarProgramacionApi), filtros };
 }
 
 export function adaptarTrabajosDisponiblesApi(respuesta) {
   exigir(esObjeto(respuesta) && Array.isArray(respuesta.elementos));
   const filtros = adaptarCatalogos(respuesta.filtros);
-  return { elementos: respuesta.elementos.map(adaptarTrabajoDisponible), filtros };
+  exigir(respuesta.elementos.every(esEstadoRegistroValido));
+  return { elementos: respuesta.elementos.filter(esRegistroVisible).map(adaptarTrabajoDisponible), filtros };
 }
 
 export function adaptarCapacidadesProgramacionesApi(respuesta) {

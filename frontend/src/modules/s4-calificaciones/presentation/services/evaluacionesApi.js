@@ -7,6 +7,7 @@ import {
   adaptarConsolidacionTrabajoApi,
   adaptarEvaluacionApi,
 } from '../../infrastructure/repositories/evaluacionesApi';
+import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 
 const PUNTAJE_DECIMAL = /^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/;
 
@@ -61,8 +62,8 @@ export function crearServicioEvaluacionesApi({ getJson, postJson, putJson, habil
     async listarEvaluacionesTrabajo(trabajoId, { signal } = {}) {
       validarId(trabajoId);
       const respuesta = await pedir(`/evaluaciones/trabajos/${encodeURIComponent(trabajoId)}`, signal);
-      if (!Array.isArray(respuesta)) throw new ErrorRespuestaApi();
-      return respuesta.map(adaptarEvaluacionApi);
+      if (!Array.isArray(respuesta) || !respuesta.every(esEstadoRegistroValido)) throw new ErrorRespuestaApi();
+      return respuesta.filter(esRegistroVisible).map(adaptarEvaluacionApi);
     },
     async consolidarTrabajo(trabajoId, { signal } = {}) {
       validarId(trabajoId);

@@ -32,7 +32,9 @@ export class TrazabilidadTrabajosService {
 
   async consultar(trabajoId: string, cursor?: string) {
     const trabajoExiste = await this.dataSource.query(
-      'SELECT 1 FROM s2.asignacion_tema WHERE id = $1::uuid',
+      `SELECT 1 FROM s2.asignacion_tema a
+       JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id AND p.estado_registro = 1
+       WHERE a.id = $1::uuid`,
       [trabajoId],
     );
     if (!trabajoExiste.length) throw new NotFoundException('No existe el trabajo solicitado.');

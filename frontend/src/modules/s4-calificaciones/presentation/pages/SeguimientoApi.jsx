@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ArrowRight, RefreshCw, Search } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado } from '../components/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
 import { usarSeguimientoApi } from '../hooks/usarSeguimientoApi';
 import { usarCarrerasApi } from '../hooks/usarCarrerasApi';
+import { usarAuditoriaApi } from '../hooks/usarAuditoriaApi';
 import {
   datosPendientes,
   etiquetaEstadoResultado,
@@ -61,7 +62,7 @@ function ResumenActas({ actas, recargar }) {
         <thead><tr><th>Número</th><th>Estudiante</th><th>Carrera y período</th><th>Nota registrada</th><th>Documento</th></tr></thead>
         <tbody>{actas.datos.map((acta) => (
           <tr key={acta.id}>
-            <td data-label="Número">{acta.numero}</td>
+            <td data-label="Número"><InsigniaEstadoRegistro estadoRegistro={acta.estadoRegistro} /> {acta.numero}</td>
             <td data-label="Estudiante">{acta.estudiante}</td>
             <td data-label="Carrera y período">{acta.carrera} · {acta.periodo}</td>
             <td data-label="Nota registrada">{acta.notaFinal ?? 'No registrada'}</td>
@@ -70,6 +71,94 @@ function ResumenActas({ actas, recargar }) {
         ))}</tbody>
       </table>
     </div>
+  );
+}
+
+function DetalleAuditoria({ titulo, valor }) {
+  return (
+    <details>
+      <summary>{titulo}</summary>
+      <pre>{valor == null ? 'Sin valores previos' : JSON.stringify(valor, null, 2)}</pre>
+    </details>
+  );
+}
+
+function AuditoriaCambios() {
+  const [tabla, establecerTabla] = useState('');
+  const [registro, establecerRegistro] = useState('');
+  const [filtros, establecerFiltros] = useState({ tabla: '', registro: '' });
+  const consulta = usarAuditoriaApi(filtros);
+  const filtrar = (evento) => {
+    evento.preventDefault();
+    establecerFiltros({ tabla, registro });
+  };
+
+  return (
+    <section className="seguimiento-api-section" aria-labelledby="consulta-api-auditoria">
+      <header className="seguimiento-api-section-heading">
+        <div><h2 id="consulta-api-auditoria">Auditoría de cambios</h2><p>Bitácora de cambios S4 con actor, fecha y valores anteriores y nuevos.</p></div>
+        <button className="button button-outline" type="button" onClick={consulta.recargar}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>
+      </header>
+      <form className="seguimiento-api-filters" onSubmit={filtrar}>
+        <div className="field">
+          <label htmlFor="auditoria-api-tabla">Tabla</label>
+          <select id="auditoria-api-tabla" className="select" value={tabla} onChange={(evento) => establecerTabla(evento.target.value)}>
+            <option value="">Todas las tablas</option>
+            <option value="rubricas">Rúbricas</option>
+            <option value="versiones_rubrica">Versiones de rúbrica</option>
+            <option value="etapas_rubrica">Etapas de rúbrica</option>
+            <option value="categorias_rubrica">Categorías de rúbrica</option>
+            <option value="indicadores_rubrica">Indicadores</option>
+            <option value="procesos_evaluacion">Procesos de evaluación</option>
+            <option value="evaluaciones">Evaluaciones</option>
+            <option value="calificaciones_evaluacion">Calificaciones</option>
+            <option value="programaciones_sustentacion">Programaciones</option>
+            <option value="programacion_estudiante">Participantes de programación</option>
+            <option value="actas_archivadas">Actas archivadas</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="auditoria-api-registro">Identificador del registro</label>
+          <input id="auditoria-api-registro" className="input" value={registro} onChange={(evento) => establecerRegistro(evento.target.value)} placeholder="UUID o parte del identificador" />
+        </div>
+        <button className="button button-outline" type="submit">Aplicar filtros</button>
+      </form>
+      {consulta.estado === 'cargando' && <Cargando texto="Consultando auditoría de cambios…" />}
+      {consulta.estado === 'error' && (
+        <div role="alert" className="seguimiento-api-error">
+          <strong>No fue posible consultar la auditoría.</strong>
+          <span>{consulta.error?.message ?? 'El perfil puede no tener permiso para consultar la bitácora.'}</span>
+          <button className="button button-outline" type="button" onClick={consulta.recargar}><RefreshCw size={16} aria-hidden="true" /> Reintentar</button>
+        </div>
+      )}
+      {consulta.estado === 'listo' && !consulta.elementos.length && <EstadoVacio title="No hay cambios registrados" description="No hay eventos que coincidan con estos filtros." />}
+      {consulta.estado === 'listo' && consulta.elementos.length > 0 && (
+        <div className="table-wrap">
+          <table className="data-table responsive-table seguimiento-api-table">
+            <caption className="sr-only">Auditoría de cambios realizados en tablas S4</caption>
+            <thead><tr><th>Fecha</th><th>Actor y rol de base</th><th>Registro</th><th>Operación</th><th>Valores</th></tr></thead>
+            <tbody>{consulta.elementos.map((evento) => <tr key={evento.id}>
+              <td data-label="Fecha">{new Intl.DateTimeFormat('es-EC', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(evento.ocurridoEn))}</td>
+              <td data-label="Actor y rol de base"><strong>{evento.actorId}</strong><span className="cell-subtitle">Rol BD: {evento.rolBase}{evento.aplicacion ? ` · ${evento.aplicacion}` : ''}</span></td>
+              <td data-label="Registro"><strong>{evento.tabla}</strong><span className="cell-subtitle">{JSON.stringify(evento.claveRegistro)}</span></td>
+              <td data-label="Operación">{evento.operacion}</td>
+              <td data-label="Valores"><div className="seguimiento-api-auditoria-valores"><DetalleAuditoria titulo="Antes" valor={evento.antes} /><DetalleAuditoria titulo="Después" valor={evento.despues} /></div></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      )}
+      {consulta.estado === 'listo' && consulta.errorMas && (
+        <div role="alert" className="seguimiento-api-error">
+          <span>No fue posible cargar la siguiente página: {consulta.errorMas.message ?? 'error de consulta'}.</span>
+          <button className="button button-outline" type="button" onClick={consulta.cargarMas}>Reintentar</button>
+        </div>
+      )}
+      {consulta.estado === 'listo' && consulta.siguienteCursor && (
+        <button className="button button-outline" type="button" onClick={consulta.cargarMas} disabled={consulta.cargandoMas}>
+          {consulta.cargandoMas ? 'Cargando cambios…' : 'Cargar más cambios'}
+        </button>
+      )}
+    </section>
   );
 }
 
@@ -291,6 +380,7 @@ export function ConsultaSeguimientoApi() {
             </section>
           )}
           <section className="seguimiento-api-section" aria-labelledby="consulta-api-actas"><header className="seguimiento-api-section-heading"><div><h2 id="consulta-api-actas">Documentos archivados</h2><p>Consulta del archivo de actas. Los documentos se abren desde Documentos.</p></div></header><ResumenActas actas={datos.actas} recargar={datos.recargar} /></section>
+          <AuditoriaCambios />
           {datos.programaciones.estado === 'error' && <ErrorRecurso recurso={datos.programaciones} alReintentar={datos.recargar} nombre="programaciones" />}
         </>
       )}

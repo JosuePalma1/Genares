@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../components/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
 import { listarTrabajosEvaluacionApi } from '../services/evaluacionesApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
@@ -72,7 +72,7 @@ export function PaginaMisEvaluacionesApi() {
           <article className="evaluaciones-api-card" key={trabajo.id}>
             <div className="evaluaciones-api-section-title">
               <div>
-                <span>{trabajo.codigo} | {trabajo.codigoCarrera ?? trabajo.carrera} | {trabajo.periodo}</span>
+                <span>{trabajo.codigo} | {trabajo.codigoCarrera ?? trabajo.carrera} | {trabajo.periodo} <InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /></span>
                 <h2>{trabajo.titulo}</h2>
                 <p>{trabajo.modalidad}{trabajo.rubrica ? ' | ' + trabajo.rubrica + ' ' + (trabajo.versionRubrica ?? '') : ' | Sin rúbrica asociada'}</p>
               </div>

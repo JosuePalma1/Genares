@@ -46,6 +46,7 @@ import {
   validarEstructuraActivableRubrica,
   validarEstructuraBorradorRubrica,
 } from './reglas-borrador-rubrica';
+import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 
 export interface RubricaCreadaDto {
   id: string;
@@ -53,6 +54,7 @@ export interface RubricaCreadaDto {
   descripcion: string | null;
   modalidad: { id: string; codigo: string; nombre: string };
   creadaEn: string;
+  estadoRegistro: 0 | 1;
 }
 
 @Injectable()
@@ -97,6 +99,7 @@ export class RubricasService {
   ): Promise<RubricaCreadaDto> {
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`rubrica:modalidad:${dto.modalidadId}`]);
         const modalidad = await manager.getRepository(Modalidad).findOneBy({ id: dto.modalidadId });
         if (!modalidad) throw new NotFoundException('No existe la modalidad solicitada.');
@@ -112,6 +115,7 @@ export class RubricasService {
           modalidad,
           nombre: dto.nombre,
           descripcion: dto.descripcion ?? null,
+          estadoRegistro: 1,
         });
         await this.registrarAuditoria(manager, {
           actorId,
@@ -126,6 +130,7 @@ export class RubricasService {
           descripcion: rubrica.descripcion,
           modalidad: { id: modalidad.id, codigo: modalidad.codigo, nombre: modalidad.nombre },
           creadaEn: rubrica.creadoEn.toISOString(),
+          estadoRegistro: 1,
         };
       });
     } catch (error) {
@@ -143,6 +148,7 @@ export class RubricasService {
     this.validarCarrerasUnicas(dto.carreras.map(({ carreraId }) => carreraId));
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`rubrica:modalidad:${dto.modalidadId}`]);
         const modalidad = await manager.getRepository(Modalidad).findOneBy({ id: dto.modalidadId });
         if (!modalidad) throw new NotFoundException('No existe la modalidad solicitada.');
@@ -151,13 +157,20 @@ export class RubricasService {
         if (!periodo) throw new NotFoundException('No existe el per\u00edodo acad\u00e9mico solicitado.');
 
         const repositorioRubrica = manager.getRepository(Rubrica);
-        let rubrica = await repositorioRubrica.findOne({ where: { modalidad: { id: modalidad.id } } });
+        let rubrica = await repositorioRubrica.findOne({ where: { modalidad: { id: modalidad.id }, estadoRegistro: 1 } });
+        if (!rubrica) {
+          const archivada = await repositorioRubrica.findOne({ where: { modalidad: { id: modalidad.id }, estadoRegistro: 0 } });
+          if (archivada) {
+            throw new ConflictException('La modalidad ya tiene una rúbrica archivada. Restáurela antes de reutilizarla.');
+          }
+        }
         const esNueva = !rubrica;
         if (!rubrica) {
           rubrica = await repositorioRubrica.save({
             modalidad,
             nombre: dto.nombre.trim(),
             descripcion: dto.descripcion?.trim() || null,
+            estadoRegistro: 1,
           });
           await this.registrarAuditoria(manager, {
             actorId,
@@ -236,14 +249,15 @@ export class RubricasService {
 
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         const repositorioRubrica = manager.getRepository(Rubrica);
         const rubricaBloqueada = await repositorioRubrica.findOne({
-          where: { id: rubricaId },
+          where: { id: rubricaId, estadoRegistro: 1 },
           lock: { mode: 'pessimistic_write' },
         });
         if (!rubricaBloqueada) throw new NotFoundException('No existe la r\u00fabrica solicitada.');
         const rubrica = await repositorioRubrica.findOne({
-          where: { id: rubricaId },
+          where: { id: rubricaId, estadoRegistro: 1 },
           relations: { modalidad: true },
         });
         if (!rubrica?.modalidad) throw new NotFoundException('No existe la modalidad de la r\u00fabrica.');
@@ -262,7 +276,7 @@ export class RubricasService {
         let etapaDtos = dto.etapas;
         if (dto.copiarDesdeVersionId) {
           versionBase = await manager.getRepository(VersionRubrica).findOne({
-            where: { id: dto.copiarDesdeVersionId, rubrica: { id: rubricaId } },
+            where: { id: dto.copiarDesdeVersionId, rubrica: { id: rubricaId }, estadoRegistro: 1 },
             lock: { mode: 'pessimistic_write' },
           });
           if (!versionBase) throw new BadRequestException('La versi\u00f3n base debe pertenecer a esta r\u00fabrica.');
@@ -301,8 +315,9 @@ export class RubricasService {
   ): Promise<VersionRubricaResumenDto> {
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         const rubrica = await manager.getRepository(Rubrica).findOne({
-          where: { id: rubricaId },
+          where: { id: rubricaId, estadoRegistro: 1 },
           lock: { mode: 'pessimistic_write' },
         });
         if (!rubrica) throw new NotFoundException('No existe la rúbrica solicitada.');
@@ -323,23 +338,23 @@ export class RubricasService {
         let indicadoresFuente: IndicadorRubrica[] = [];
         if (dto.copiarDesdeVersionId) {
           fuente = await manager.getRepository(VersionRubrica).findOne({
-            where: { id: dto.copiarDesdeVersionId, rubrica: { id: rubricaId } },
+            where: { id: dto.copiarDesdeVersionId, rubrica: { id: rubricaId }, estadoRegistro: 1 },
             lock: { mode: 'pessimistic_read' },
           });
           if (!fuente) throw new BadRequestException('La versión a copiar debe pertenecer a esta rúbrica.');
           etapasFuente = await manager.getRepository(EtapaRubrica).find({
-            where: { rubricVersion: { id: fuente.id } },
+            where: { rubricVersion: { id: fuente.id }, estadoRegistro: 1 },
             order: { orden: 'ASC', id: 'ASC' },
           });
           const etapaIds = etapasFuente.map(({ id }) => id);
           categoriasFuente = etapaIds.length ? await manager.getRepository(CategoriaRubrica).find({
-            where: { etapa: { id: In(etapaIds) } },
+            where: { etapa: { id: In(etapaIds) }, estadoRegistro: 1 },
             relations: { etapa: true },
             order: { orden: 'ASC', id: 'ASC' },
           }) : [];
           const categoriaIds = categoriasFuente.map(({ id }) => id);
           indicadoresFuente = categoriaIds.length ? await manager.getRepository(IndicadorRubrica).find({
-            where: { categoria: { id: In(categoriaIds) } },
+            where: { categoria: { id: In(categoriaIds) }, estadoRegistro: 1 },
             relations: { categoria: true },
             order: { orden: 'ASC', id: 'ASC' },
           }) : [];
@@ -352,6 +367,7 @@ export class RubricasService {
           estado: EstadoVersionRubrica.BORRADOR,
           revision: 1,
           activadoEn: null,
+          estadoRegistro: 1,
         });
         const etapasNuevas = await manager.getRepository(EtapaRubrica).save(etapasFuente.map((etapa) => ({
           rubricVersion: version,
@@ -363,6 +379,7 @@ export class RubricasService {
           calificacionMaxima: etapa.calificacionMaxima,
           porcentaje: etapa.porcentaje,
           orden: etapa.orden,
+          estadoRegistro: 1,
         })));
         const etapasNuevasPorCodigo = new Map(etapasNuevas.map((etapa) => [etapa.codigo, etapa]));
         const etapaFuentePorId = new Map(etapasFuente.map((etapa) => [etapa.id, etapa.codigo]));
@@ -373,6 +390,7 @@ export class RubricasService {
           nombre: categoria.nombre,
           calificacionMaxima: categoria.calificacionMaxima,
           orden: categoria.orden,
+          estadoRegistro: 1,
         })));
         const categoriaFuentePorId = new Map(categoriasFuente.map((categoria) => [categoria.id, categoria]));
         const indicadorCategoriaCodigo = new Map(categoriasFuente.map((categoria) => [categoria.id, categoria.codigo]));
@@ -391,6 +409,7 @@ export class RubricasService {
             descripcion: indicador.descripcion,
             calificacionMaxima: indicador.calificacionMaxima,
             orden: indicador.orden,
+            estadoRegistro: 1,
           };
         }));
         await this.registrarAuditoria(manager, {
@@ -417,9 +436,11 @@ export class RubricasService {
     validarEstructuraBorradorRubrica(dto);
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         const repositorioVersion = manager.getRepository(VersionRubrica);
         const version = await repositorioVersion.createQueryBuilder('version')
           .where('version.id = :versionId', { versionId })
+          .andWhere('version.estadoRegistro = 1')
           .setLock('pessimistic_write')
           .getOne();
         if (!version) throw new NotFoundException('No existe la versión solicitada.');
@@ -429,33 +450,49 @@ export class RubricasService {
         if (dto.revision !== version.revision) {
           throw new ConflictException('El borrador cambió desde la última lectura; recárguelo antes de guardar.');
         }
+        const [uso] = await manager.query(
+          'SELECT EXISTS (SELECT 1 FROM s4.procesos_evaluacion WHERE id_version_rubrica = $1) AS usada',
+          [version.id],
+        ) as Array<{ usada: boolean }>;
+        if (uso?.usada) throw new ConflictException('No se puede cambiar la estructura de una versión ya utilizada. Cree una versión nueva.');
         const versionConRelaciones = await repositorioVersion.findOne({
-          where: { id: version.id },
+          where: { id: version.id, estadoRegistro: 1 },
           relations: { rubrica: true, academicPeriod: true },
         });
         if (!versionConRelaciones) throw new NotFoundException('No existe la versión solicitada.');
 
         const etapasActuales = await manager.getRepository(EtapaRubrica).find({
-          where: { rubricVersion: { id: version.id } },
+          where: { rubricVersion: { id: version.id }, estadoRegistro: 1 },
         });
         const idsEtapas = etapasActuales.map(({ id }) => id);
         const categoriasActuales = idsEtapas.length ? await manager.getRepository(CategoriaRubrica).find({
-          where: { etapa: { id: In(idsEtapas) } },
+          where: { etapa: { id: In(idsEtapas) }, estadoRegistro: 1 },
           relations: { etapa: true },
         }) : [];
         const idsCategorias = categoriasActuales.map(({ id }) => id);
         const indicadoresActuales = idsCategorias.length ? await manager.getRepository(IndicadorRubrica).find({
-          where: { categoria: { id: In(idsCategorias) } },
+          where: { categoria: { id: In(idsCategorias) }, estadoRegistro: 1 },
           relations: { categoria: true },
         }) : [];
         this.validarIdsPropios(dto, etapasActuales, categoriasActuales, indicadoresActuales);
 
+        const repoEtapas = manager.getRepository(EtapaRubrica);
+        const repoCategorias = manager.getRepository(CategoriaRubrica);
+        const repoIndicadores = manager.getRepository(IndicadorRubrica);
+        // Se retiran primero para que una reorganización de códigos/órdenes no
+        // choque con índices únicos parciales de la estructura todavía visible.
+        const idsIndicadores = indicadoresActuales.map(({ id }) => id);
+        const idsCategoriasActivas = categoriasActuales.map(({ id }) => id);
+        const idsEtapasActivas = etapasActuales.map(({ id }) => id);
+        if (idsIndicadores.length) await repoIndicadores.update({ id: In(idsIndicadores) }, { estadoRegistro: 0 });
+        if (idsCategoriasActivas.length) await repoCategorias.update({ id: In(idsCategoriasActivas) }, { estadoRegistro: 0 });
+        if (idsEtapasActivas.length) await repoEtapas.update({ id: In(idsEtapasActivas) }, { estadoRegistro: 0 });
+
         version.revision += 1;
         const guardada = await repositorioVersion.save(version);
-        await manager.getRepository(EtapaRubrica).delete({ rubricVersion: { id: version.id } });
 
         for (const etapaDto of dto.etapas) {
-          const etapa = await manager.getRepository(EtapaRubrica).save({
+          const etapa = await repoEtapas.save({
             ...(etapaDto.id ? { id: etapaDto.id } : {}),
             rubricVersion: guardada,
             kind: etapaDto.tipo,
@@ -466,9 +503,10 @@ export class RubricasService {
             calificacionMaxima: this.normalizarDecimal(etapaDto.calificacionMaxima),
             porcentaje: etapaDto.porcentaje == null ? null : this.normalizarDecimal(etapaDto.porcentaje),
             orden: etapaDto.orden,
+            estadoRegistro: 1,
           });
           for (const categoriaDto of etapaDto.categorias) {
-            const categoria = await manager.getRepository(CategoriaRubrica).save({
+            const categoria = await repoCategorias.save({
               ...(categoriaDto.id ? { id: categoriaDto.id } : {}),
               rubricVersion: guardada,
               etapa,
@@ -476,15 +514,17 @@ export class RubricasService {
               nombre: categoriaDto.nombre.trim(),
               calificacionMaxima: this.normalizarDecimal(categoriaDto.calificacionMaxima),
               orden: categoriaDto.orden,
+              estadoRegistro: 1,
             });
             for (const indicadorDto of categoriaDto.indicadores) {
-              await manager.getRepository(IndicadorRubrica).save({
+              await repoIndicadores.save({
                 ...(indicadorDto.id ? { id: indicadorDto.id } : {}),
                 categoria,
                 label: indicadorDto.label.trim(),
                 descripcion: indicadorDto.descripcion.trim(),
                 calificacionMaxima: this.normalizarDecimal(indicadorDto.calificacionMaxima),
                 orden: indicadorDto.orden,
+                estadoRegistro: 1,
               });
             }
           }
@@ -520,22 +560,24 @@ export class RubricasService {
   ): Promise<ActivacionVersionRubricaDto> {
     try {
       return await this.dataSource.transaction(async (manager) => {
+        await establecerActorAuditoria(manager, actorId, correlationId);
         const repositorioVersion = manager.getRepository(VersionRubrica);
         const candidataInicial = await repositorioVersion.findOne({
-          where: { id: versionId },
+          where: { id: versionId, estadoRegistro: 1 },
           relations: { rubrica: { modalidad: true }, academicPeriod: true },
         });
         if (!candidataInicial) throw new NotFoundException('No existe la versión solicitada.');
 
         // La rúbrica funciona como cerrojo común para todas sus versiones y períodos.
         const rubricaBloqueada = await manager.getRepository(Rubrica).findOne({
-          where: { id: candidataInicial.rubrica.id },
+          where: { id: candidataInicial.rubrica.id, estadoRegistro: 1 },
           lock: { mode: 'pessimistic_write' },
         });
         if (!rubricaBloqueada) throw new NotFoundException('No existe la rúbrica de la versión.');
 
         const versionBloqueada = await repositorioVersion.createQueryBuilder('version')
           .where('version.id = :versionId', { versionId })
+          .andWhere('version.estadoRegistro = 1')
           .setLock('pessimistic_write')
           .getOne();
         if (!versionBloqueada) throw new NotFoundException('No existe la versión solicitada.');
@@ -553,7 +595,7 @@ export class RubricasService {
         }
 
         const referenciasActuales = await manager.query(
-          'SELECT id_rubrica, periodo_academico_id FROM s4.versiones_rubrica WHERE id = $1',
+          'SELECT id_rubrica, periodo_academico_id FROM s4.versiones_rubrica WHERE id = $1 AND estado_registro = 1',
           [versionId],
         ) as Array<{ id_rubrica: string; periodo_academico_id: string }>;
         if (
@@ -563,7 +605,7 @@ export class RubricasService {
           throw new ConflictException('La versión cambió de rúbrica o período durante la activación.');
         }
         const candidata = await repositorioVersion.findOne({
-          where: { id: versionId },
+          where: { id: versionId, estadoRegistro: 1 },
           relations: { rubrica: { modalidad: true }, academicPeriod: true },
         });
         if (!candidata) throw new NotFoundException('No existe la versión solicitada.');
@@ -572,18 +614,18 @@ export class RubricasService {
         }
 
         const etapas = await manager.getRepository(EtapaRubrica).find({
-          where: { rubricVersion: { id: versionId } },
+          where: { rubricVersion: { id: versionId }, estadoRegistro: 1 },
           order: { orden: 'ASC', id: 'ASC' },
         });
         const etapaIds = etapas.map(({ id }) => id);
         const categorias = etapaIds.length ? await manager.getRepository(CategoriaRubrica).find({
-          where: { etapa: { id: In(etapaIds) } },
+          where: { etapa: { id: In(etapaIds) }, estadoRegistro: 1 },
           relations: { etapa: true },
           order: { orden: 'ASC', id: 'ASC' },
         }) : [];
         const categoriaIds = categorias.map(({ id }) => id);
         const indicadores = categoriaIds.length ? await manager.getRepository(IndicadorRubrica).find({
-          where: { categoria: { id: In(categoriaIds) } },
+          where: { categoria: { id: In(categoriaIds) }, estadoRegistro: 1 },
           relations: { categoria: true },
           order: { orden: 'ASC', id: 'ASC' },
         }) : [];
@@ -633,6 +675,7 @@ export class RubricasService {
           .where('version.rubrica = :rubricaId', { rubricaId: candidata.rubrica.id })
           .andWhere('version.academicPeriod = :periodoId', { periodoId: candidata.academicPeriod.id })
           .andWhere('version.estado = :estado', { estado: EstadoVersionRubrica.ACTIVA })
+          .andWhere('version.estadoRegistro = 1')
           .setLock('pessimistic_write')
           .getOne();
 
@@ -661,13 +704,13 @@ export class RubricasService {
         });
 
         const activada = await repositorioVersion.findOne({
-          where: { id: versionId },
+          where: { id: versionId, estadoRegistro: 1 },
           relations: { rubrica: true, academicPeriod: true },
         });
         if (!activada) throw new NotFoundException('No se pudo recuperar la versión activada.');
         const archivada = versionActivaAnterior
           ? await repositorioVersion.findOne({
-            where: { id: versionActivaAnterior.id },
+            where: { id: versionActivaAnterior.id, estadoRegistro: 1 },
             relations: { rubrica: true, academicPeriod: true },
           })
           : null;
@@ -693,19 +736,19 @@ export class RubricasService {
     versionId: string,
   ): Promise<EtapaRubricaCompletaDto[]> {
     const etapas = await manager.getRepository(EtapaRubrica).find({
-      where: { rubricVersion: { id: versionId } },
+      where: { rubricVersion: { id: versionId }, estadoRegistro: 1 },
       order: { orden: 'ASC', id: 'ASC' },
     });
     const resultado: EtapaRubricaCompletaDto[] = [];
     for (const etapa of etapas) {
       const categorias = await manager.getRepository(CategoriaRubrica).find({
-        where: { etapa: { id: etapa.id } },
+        where: { etapa: { id: etapa.id }, estadoRegistro: 1 },
         order: { orden: 'ASC', id: 'ASC' },
       });
       const categoriasDto = [];
       for (const categoria of categorias) {
         const indicadores = await manager.getRepository(IndicadorRubrica).find({
-          where: { categoria: { id: categoria.id } },
+          where: { categoria: { id: categoria.id }, estadoRegistro: 1 },
           order: { orden: 'ASC', id: 'ASC' },
         });
         categoriasDto.push({
@@ -838,10 +881,13 @@ export class RubricasService {
     for (const solicitud of carrerasOrdenadas) {
       const carrera = carrerasPorId.get(solicitud.carreraId.toLowerCase())!;
       const [asociacion] = await manager.query(
-        `INSERT INTO s4."versiones_rubrica_carreras"
+        `INSERT INTO s4."versiones_rubrica_carreras" AS asociacion
           ("id_version_rubrica", "id_carrera", "id_rubrica", "id_modalidad", "periodo_academico_id")
          VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT ("id_version_rubrica", "id_carrera") DO NOTHING RETURNING "id_version_rubrica"`,
+         ON CONFLICT ("id_version_rubrica", "id_carrera") DO UPDATE
+           SET "estado_registro" = 1
+           WHERE asociacion."estado_registro" = 0
+         RETURNING "id_version_rubrica"`,
         [version.id, carrera.id, contexto.rubrica.id, contexto.modalidad.id, contexto.periodo.id],
       ) as Array<{ id_version_rubrica: string }>;
       if (!asociacion) throw new ConflictException(`La versi\u00f3n ya est\u00e1 asociada a la carrera ${carrera.codigo}.`);
@@ -860,7 +906,7 @@ export class RubricasService {
       const [vigenciaActual] = await manager.query(
         `SELECT "id_version_rubrica" FROM s4."vigencias_rubrica_carrera"
          WHERE "id_carrera" = $1 AND "id_modalidad" = $2 AND "periodo_academico_id" = $3
-           AND "vigente_hasta" IS NULL FOR UPDATE`,
+           AND "vigente_hasta" IS NULL AND "estado_registro" = 1 FOR UPDATE`,
         [carrera.id, contexto.modalidad.id, contexto.periodo.id],
       ) as Array<{ id_version_rubrica: string }>;
       const actualEsperada = vigenciaActual?.id_version_rubrica ?? null;
@@ -906,15 +952,17 @@ export class RubricasService {
     const etapasDto = await this.detalleEtapas(manager, version.id);
     const carrerasRespuesta = await manager.query(
       `SELECT carrera."id", carrera."codigo", carrera."nombre",
+              asociacion."estado_registro"::smallint AS "estadoRegistro",
               EXISTS (SELECT 1 FROM s4."vigencias_rubrica_carrera" vigencia
                 WHERE vigencia."id_version_rubrica" = asociacion."id_version_rubrica"
                   AND vigencia."id_carrera" = asociacion."id_carrera"
-                  AND vigencia."vigente_hasta" IS NULL) AS "vigente"
+                  AND vigencia."vigente_hasta" IS NULL AND vigencia."estado_registro" = 1) AS "vigente"
        FROM s4."versiones_rubrica_carreras" asociacion
        JOIN gen.carrera carrera ON carrera."id" = asociacion."id_carrera"
-       WHERE asociacion."id_version_rubrica" = $1 ORDER BY carrera."codigo", carrera."id"`,
+       WHERE asociacion."id_version_rubrica" = $1 AND asociacion."estado_registro" = 1
+       ORDER BY carrera."codigo", carrera."id"`,
       [version.id],
-    ) as Array<{ id: string; codigo: string; nombre: string; vigente: boolean }>;
+    ) as Array<{ id: string; codigo: string; nombre: string; vigente: boolean; estadoRegistro: 0 | 1 }>;
     const versionConRelaciones = { ...version, rubrica: contexto.rubrica, academicPeriod: contexto.periodo };
     return {
       version,
@@ -936,6 +984,7 @@ export class RubricasService {
           codigo: carrera.codigo,
           nombre: carrera.nombre,
           vigente: carrera.vigente,
+          estadoRegistro: carrera.estadoRegistro,
         })),
       },
     };
@@ -943,18 +992,23 @@ export class RubricasService {
 
   async listar(filtros: ConsultarRubricasDto): Promise<RubricaListadoDto[]> {
     const rubricas = await this.rubricas.find({
-      where: filtros.modalidadId ? { modalidad: { id: filtros.modalidadId } } : {},
+      where: {
+        estadoRegistro: 1,
+        ...(filtros.modalidadId ? { modalidad: { id: filtros.modalidadId } } : {}),
+      },
       relations: { modalidad: true },
       order: { nombre: 'ASC', id: 'ASC' },
     });
 
     const versiones = await this.versiones.find({
       where: {
+        estadoRegistro: 1,
         ...(filtros.estado ? { estado: filtros.estado } : {}),
         ...(filtros.periodoId ? { academicPeriod: { id: filtros.periodoId } } : {}),
-        ...(filtros.modalidadId
-          ? { rubrica: { modalidad: { id: filtros.modalidadId } } }
-          : {}),
+        rubrica: {
+          estadoRegistro: 1,
+          ...(filtros.modalidadId ? { modalidad: { id: filtros.modalidadId } } : {}),
+        },
       },
       relations: { rubrica: true, academicPeriod: true },
       order: { creadoEn: 'DESC', version: 'ASC', id: 'ASC' },
@@ -975,6 +1029,7 @@ export class RubricasService {
         id: rubrica.id,
         nombre: rubrica.nombre,
         descripcion: rubrica.descripcion,
+        estadoRegistro: rubrica.estadoRegistro ?? 1,
         modalidad: {
           id: rubrica.modalidad.id,
           codigo: rubrica.modalidad.codigo,
@@ -986,13 +1041,13 @@ export class RubricasService {
 
   async listarVersiones(rubricaId: string): Promise<VersionesRubricaDto> {
     const rubrica = await this.rubricas.findOne({
-      where: { id: rubricaId },
+      where: { id: rubricaId, estadoRegistro: 1 },
       relations: { modalidad: true },
     });
     if (!rubrica) throw new NotFoundException('No existe la rúbrica solicitada.');
 
     const versiones = await this.versiones.find({
-      where: { rubrica: { id: rubricaId } },
+      where: { rubrica: { id: rubricaId, estadoRegistro: 1 }, estadoRegistro: 1 },
       relations: { academicPeriod: true },
       order: { creadoEn: 'ASC', version: 'ASC', id: 'ASC' },
     });
@@ -1000,14 +1055,14 @@ export class RubricasService {
 
     const versionIds = versiones.map(({ id }) => id);
     const etapas = await this.etapas.find({
-      where: { rubricVersion: { id: In(versionIds) } },
+      where: { rubricVersion: { id: In(versionIds) }, estadoRegistro: 1 },
       relations: { rubricVersion: true },
       order: { orden: 'ASC', id: 'ASC' },
     });
     const etapaIds = etapas.map(({ id }) => id);
     const categorias = etapaIds.length
       ? await this.categorias.find({
-          where: { etapa: { id: In(etapaIds) } },
+          where: { etapa: { id: In(etapaIds) }, estadoRegistro: 1 },
           relations: { etapa: true },
           order: { orden: 'ASC', id: 'ASC' },
         })
@@ -1015,7 +1070,7 @@ export class RubricasService {
     const categoriaIds = categorias.map(({ id }) => id);
     const indicadores = categoriaIds.length
       ? await this.indicadores.find({
-          where: { categoria: { id: In(categoriaIds) } },
+          where: { categoria: { id: In(categoriaIds) }, estadoRegistro: 1 },
           relations: { categoria: true },
           order: { orden: 'ASC', id: 'ASC' },
         })
@@ -1037,12 +1092,14 @@ export class RubricasService {
         nombre: categoria.nombre,
         calificacionMaxima: categoria.calificacionMaxima,
         orden: categoria.orden,
+        estadoRegistro: categoria.estadoRegistro ?? 1,
         indicadores: (indicadoresPorCategoria.get(categoria.id) ?? []).map((indicador) => ({
           id: indicador.id,
           label: indicador.label,
           descripcion: indicador.descripcion,
           calificacionMaxima: indicador.calificacionMaxima,
           orden: indicador.orden,
+          estadoRegistro: indicador.estadoRegistro ?? 1,
         })),
       });
       categoriasPorEtapa.set(categoria.etapa.id, grupo);
@@ -1061,6 +1118,7 @@ export class RubricasService {
         calificacionMaxima: etapa.calificacionMaxima,
         porcentaje: etapa.porcentaje,
         orden: etapa.orden,
+        estadoRegistro: etapa.estadoRegistro ?? 1,
         categorias: categoriasPorEtapa.get(etapa.id) ?? [],
       });
       etapasPorVersion.set(etapa.rubricVersion.id, grupo);
@@ -1072,10 +1130,11 @@ export class RubricasService {
               EXISTS (SELECT 1 FROM s4."vigencias_rubrica_carrera" vigencia
                 WHERE vigencia."id_version_rubrica" = asociacion."id_version_rubrica"
                   AND vigencia."id_carrera" = asociacion."id_carrera"
-                  AND vigencia."vigente_hasta" IS NULL) AS "vigente"
+                  AND vigencia."vigente_hasta" IS NULL AND vigencia."estado_registro" = 1) AS "vigente"
        FROM s4."versiones_rubrica_carreras" asociacion
        JOIN gen.carrera carrera ON carrera."id" = asociacion."id_carrera"
        WHERE asociacion."id_version_rubrica" = ANY($1::uuid[])
+         AND asociacion."estado_registro" = 1
        ORDER BY asociacion."id_version_rubrica", carrera."codigo", carrera."id"`,
       [versionIds],
     ) as Array<{
@@ -1093,6 +1152,7 @@ export class RubricasService {
         codigo: carrera.codigo,
         nombre: carrera.nombre,
         vigente: carrera.vigente,
+        estadoRegistro: 1,
       });
       carrerasPorVersion.set(carrera.versionId, grupo);
     }
@@ -1111,6 +1171,7 @@ export class RubricasService {
       version: version.version,
       revision: version.revision,
       estado: version.estado,
+      estadoRegistro: version.estadoRegistro ?? 1,
       periodo: {
         id: version.academicPeriod.id,
         codigo: version.academicPeriod.codigo,
@@ -1145,19 +1206,19 @@ export class RubricasService {
     versionId: string,
   ): Promise<EtapaRubricaDto[]> {
     const etapas = await manager.getRepository(EtapaRubrica).find({
-      where: { rubricVersion: { id: versionId } },
+      where: { rubricVersion: { id: versionId }, estadoRegistro: 1 },
       order: { orden: 'ASC', id: 'ASC' },
     });
     const resultado: EtapaRubricaDto[] = [];
     for (const etapa of etapas) {
       const categorias = await manager.getRepository(CategoriaRubrica).find({
-        where: { etapa: { id: etapa.id } },
+        where: { etapa: { id: etapa.id }, estadoRegistro: 1 },
         order: { orden: 'ASC', id: 'ASC' },
       });
       const categoriasDto: CategoriaRubricaDto[] = [];
       for (const categoria of categorias) {
         const indicadores = await manager.getRepository(IndicadorRubrica).find({
-          where: { categoria: { id: categoria.id } },
+          where: { categoria: { id: categoria.id }, estadoRegistro: 1 },
           order: { orden: 'ASC', id: 'ASC' },
         });
         categoriasDto.push({
@@ -1166,12 +1227,14 @@ export class RubricasService {
           nombre: categoria.nombre,
           calificacionMaxima: categoria.calificacionMaxima,
           orden: categoria.orden,
+          estadoRegistro: categoria.estadoRegistro ?? 1,
           indicadores: indicadores.map((indicador) => ({
             id: indicador.id,
             label: indicador.label,
             descripcion: indicador.descripcion,
             calificacionMaxima: indicador.calificacionMaxima,
             orden: indicador.orden,
+            estadoRegistro: indicador.estadoRegistro ?? 1,
           })),
         });
       }
@@ -1185,6 +1248,7 @@ export class RubricasService {
         calificacionMaxima: etapa.calificacionMaxima,
         porcentaje: etapa.porcentaje,
         orden: etapa.orden,
+        estadoRegistro: etapa.estadoRegistro ?? 1,
         categorias: categoriasDto,
       });
     }

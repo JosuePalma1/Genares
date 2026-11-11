@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adaptarRubricaApi } from './rubricasApi';
+import { adaptarListadoRubricasApi, adaptarRubricaApi } from './rubricasApi';
 
 const rubricId = '7926b9ab-a1d2-4a3e-91ce-697fc746f12e';
 const versionId = '22e5d7a9-2c3d-4c72-867b-cde5d0ceeb4e';
@@ -108,6 +108,21 @@ describe('adaptador de DTO de rúbricas', () => {
       versiones: [{ ...detalle.versiones[0], estado: 'CONFIGURADA' }],
     };
     expect(adaptarRubricaApi(listadoConfigurado, detalleConfigurado)[0].estado).toBe('CONFIGURADA');
+  });
+
+  it('oculta registros con estado 0 y conserva indicadores visibles dentro de una versión', () => {
+    const oculto = adaptarListadoRubricasApi([{ ...listado, estadoRegistro: 0 }]);
+    expect(oculto).toEqual([]);
+
+    const conIndicadorOculto = structuredClone(detalle);
+    conIndicadorOculto.versiones[0].etapas[0].categorias[0].indicadores[0].estadoRegistro = 0;
+    const [versionVisible] = adaptarRubricaApi(listado, conIndicadorOculto);
+    expect(versionVisible.estadoRegistro).toBe(1);
+    expect(versionVisible.categorias[0].indicadores).toEqual([]);
+  });
+
+  it('rechaza estados de registro distintos de 0 y 1', () => {
+    expect(() => adaptarListadoRubricasApi([{ ...listado, estadoRegistro: 2 }])).toThrow(/contrato/i);
   });
 
   it('acepta etapas personalizadas de versiones completas con etapas dinámicas', () => {

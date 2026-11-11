@@ -16,8 +16,8 @@ describe('lectura del catálogo de carreras y vigencias de rúbricas', () => {
     } as VersionRubrica]) };
     const dataSource = {
       query: jest.fn().mockResolvedValue([
-        { versionId: 'version-1', id: 'carrera-sof', codigo: 'SOF', nombre: 'Software', vigente: true },
-        { versionId: 'version-1', id: 'carrera-ti', codigo: 'TI', nombre: 'Tecnologías de la Información', vigente: false },
+        { versionId: 'version-1', id: 'carrera-sof', codigo: 'SOF', nombre: 'Software', vigente: true, estadoRegistro: 1 },
+        { versionId: 'version-1', id: 'carrera-ti', codigo: 'TI', nombre: 'Tecnologías de la Información', vigente: false, estadoRegistro: 1 },
       ]),
     };
     const service = new RubricasService(
@@ -32,8 +32,8 @@ describe('lectura del catálogo de carreras y vigencias de rúbricas', () => {
     const historial = await service.listarVersiones('rubrica-1');
 
     expect(historial.versiones[0].carreras).toEqual([
-      { id: 'carrera-sof', codigo: 'SOF', nombre: 'Software', vigente: true },
-      { id: 'carrera-ti', codigo: 'TI', nombre: 'Tecnologías de la Información', vigente: false },
+      { id: 'carrera-sof', codigo: 'SOF', nombre: 'Software', vigente: true, estadoRegistro: 1 },
+      { id: 'carrera-ti', codigo: 'TI', nombre: 'Tecnologías de la Información', vigente: false, estadoRegistro: 1 },
     ]);
     expect(dataSource.query).toHaveBeenCalledWith(expect.stringContaining('vigencia."vigente_hasta" IS NULL'), [['version-1']]);
   });

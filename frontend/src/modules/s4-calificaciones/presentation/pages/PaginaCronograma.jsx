@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Ban, CalendarDays, CheckCircle2, Clock3, FilePlus2, MapPin, Pencil, Play, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../components/dialogos';
-import { AlertaInstitucional, EncabezadoPagina } from '../components/interfaz';
+import { AlertaInstitucional, EncabezadoPagina, InsigniaEstadoRegistro } from '../components/interfaz';
 import {
   actualizarProgramacionApi,
   capacidadesProgramacionesApi,
@@ -444,7 +444,7 @@ export default function PaginaCronograma() {
                       <td data-label="Trabajo"><Link className="cronograma-work-link" to={`/trabajos/${elemento.idTrabajo}`}>{elemento.trabajo.codigo}</Link><span>{elemento.trabajo.titulo}</span><small>{elemento.carrera.nombre} · {elemento.periodo.codigo}</small></td>
                       <td data-label="Tribunal">{elemento.tribunal.length ? elemento.tribunal.map((miembro) => <span className="cronograma-persona" key={miembro.id}><UsersRound size={14} /> {miembro.posicion}. {nombre(miembro)}</span>) : 'Sin tribunal confirmado'}</td>
                       <td data-label="Sala">{elemento.sala}</td>
-                      <td data-label="Estado y hora real"><span className={`cronograma-status cronograma-status-${elemento.estado.toLowerCase()}`}>{etiquetaEstado(elemento.estado)}</span><small className="cronograma-actual-time">{resumenTiempoReal(elemento)}</small></td>
+                      <td data-label="Estado y hora real"><InsigniaEstadoRegistro estadoRegistro={elemento.estadoRegistro} /><span className={`cronograma-status cronograma-status-${elemento.estado.toLowerCase()}`}>{etiquetaEstado(elemento.estado)}</span><small className="cronograma-actual-time">{resumenTiempoReal(elemento)}</small></td>
                       <td data-label="Acciones"><div className="cronograma-row-actions">
                         {elemento.estado === 'PROGRAMADA' && puedeEditar && <>
                           <button className="button button-outline cronograma-edit-button" type="button" onClick={() => abrirEdicion(elemento)}><Pencil size={15} aria-hidden="true" /> Editar</button>

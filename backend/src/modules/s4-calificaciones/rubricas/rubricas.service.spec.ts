@@ -37,6 +37,7 @@ describe('RubricasService', () => {
         id: 'rubrica-1',
         nombre: 'Rúbrica',
         descripcion: null,
+        estadoRegistro: 1,
         modalidad,
         versiones: [],
       },
@@ -52,7 +53,11 @@ describe('RubricasService', () => {
 
     await expect(service.listar({ estado: EstadoVersionRubrica.ACTIVA })).resolves.toEqual([]);
     expect(versiones.find).toHaveBeenCalledWith(expect.objectContaining({
-      where: { estado: EstadoVersionRubrica.ACTIVA },
+      where: {
+        estado: EstadoVersionRubrica.ACTIVA,
+        estadoRegistro: 1,
+        rubrica: { estadoRegistro: 1 },
+      },
     }));
   });
 

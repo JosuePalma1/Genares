@@ -1,13 +1,21 @@
-import { crearClienteHttp, ErrorApiHttp } from './clienteHttp';
+import { crearClienteHttp, ErrorApiHttp, ErrorRespuestaApi } from './clienteHttp';
 import { API_BASE_URL } from '../../infrastructure/config/rubricas';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
+import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 
 export const DOCUMENTOS_API_HABILITADA = FUENTE_EVALUACIONES === 'api';
 const cliente = crearClienteHttp({
   habilitado: DOCUMENTOS_API_HABILITADA,
   escriturasHabilitadas: true,
 });
-export const consultarDocumentos = (ruta, signal) => cliente.getJson(`/documentos${ruta}`, { signal });
+export async function consultarDocumentos(ruta, signal) {
+  const respuesta = await cliente.getJson(`/documentos${ruta}`, { signal });
+  if (ruta.split('?')[0] === '/actas') {
+    if (!Array.isArray(respuesta) || !respuesta.every(esEstadoRegistroValido)) throw new ErrorRespuestaApi();
+    return respuesta.filter(esRegistroVisible);
+  }
+  return respuesta;
+}
 export const guardarDocumento = (ruta, body) => cliente.postJson(`/documentos${ruta}`, body);
 export const actualizarConfiguracionDocumental = (ruta, body) => cliente.putJson(`/documentos${ruta}`, body);
 export async function obtenerPdfDocumento(ruta, signal) {

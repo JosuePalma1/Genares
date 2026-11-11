@@ -3,7 +3,7 @@ import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 @Entity({ schema: 's4', name: 'vigencias_rubrica_carrera' })
 @Index('uq_vigencia_rubrica_actual_carrera_modalidad_periodo',
   ['carreraId', 'modalidadId', 'periodoAcademicoId'],
-  { unique: true, where: '"vigente_hasta" IS NULL' },
+  { unique: true, where: '"vigente_hasta" IS NULL AND "estado_registro" = 1' },
 )
 @Index('idx_vigencias_rubrica_carrera_historial',
   ['carreraId', 'modalidadId', 'periodoAcademicoId', 'vigenteDesde'],
@@ -33,4 +33,16 @@ export class VigenciaRubricaCarrera {
 
   @Column({ name: 'vigente_hasta', type: 'timestamptz', nullable: true })
   vigenteHasta!: Date | null;
+
+  @Column({ name: 'estado_registro', type: 'smallint', default: 1 })
+  estadoRegistro!: 0 | 1;
+
+  @Column({ name: 'creado_por', type: 'varchar', length: 255, nullable: true })
+  creadoPor!: string | null;
+
+  @Column({ name: 'actualizado_por', type: 'varchar', length: 255, nullable: true })
+  actualizadoPor!: string | null;
+
+  @Column({ name: 'actualizado_en', type: 'timestamptz', nullable: true })
+  actualizadoEn!: Date | null;
 }

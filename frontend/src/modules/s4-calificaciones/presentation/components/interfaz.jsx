@@ -79,6 +79,11 @@ export function InsigniaEstado({ estado, tono, tone, children, className = '', .
   );
 }
 
+export function InsigniaEstadoRegistro({ estadoRegistro = 1, className = '' }) {
+  if (estadoRegistro !== 1 && estadoRegistro !== '1') return null;
+  return <InsigniaEstado estado="visible" tono="neutral" className={className} aria-label="Estado del registro: 1, visible">Estado: 1 · visible</InsigniaEstado>;
+}
+
 export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', className = '', ...props }) {
   const navegar = useNavigate();
 

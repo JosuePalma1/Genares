@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CarrerasModule } from './carreras/carreras.module';
 import { DocumentosModule } from './documentos/documentos.module';
 import { EvaluacionesModule } from './evaluaciones/evaluaciones.module';
@@ -9,6 +10,7 @@ import { TrabajosModule } from './trabajos/trabajos.module';
 
 @Module({
   imports: [
+    AuditoriaModule,
     CarrerasModule,
     DocumentosModule,
     EvaluacionesModule,
