@@ -21,6 +21,10 @@ export class PuntajeBorradorDto {
 }
 
 export class GuardarBorradorOralDto {
+  @IsOptional()
+  @IsUUID('4')
+  idOperacion?: string;
+
   @IsUUID('loose')
   idEtapaRubrica!: string;
 

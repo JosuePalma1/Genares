@@ -271,6 +271,14 @@ export class EvaluacionesMerService {
       if (evaluacion && evaluacion.estado !== 'BORRADOR') {
         throw new ConflictException('La evaluación ya está cerrada. No se modificó ninguna nota.');
       }
+      if (evaluacion && !actorCierre && dto.idOperacion) {
+        const [confirmada] = await manager.query(`
+          SELECT 1 FROM s4.eventos_auditoria_evaluacion
+          WHERE id_evaluacion = $1 AND accion = $2
+            AND detalles->>'idOperacion' = $3 AND detalles->>'revision' = $4::text
+        `, [evaluacion.id, `BORRADOR_${tipo}_GUARDADO`, dto.idOperacion, evaluacion.revision]);
+        if (confirmada) return { ...evaluacion, guardado: true };
+      }
       if (Number(evaluacion?.revision ?? 0) !== dto.revisionEsperada) {
         throw new ConflictException('El borrador fue modificado. Recarga la evaluación antes de guardar.');
       }
@@ -362,6 +370,7 @@ export class EvaluacionesMerService {
       `, [evaluacion.id, actorCierre ?? 'GENARES:LOCAL_DEVELOPMENT',
         actorCierre ? `EVALUACION_${tipo}_CERRADA` : `BORRADOR_${tipo}_GUARDADO`, JSON.stringify({
         revision: guardada.revision, etapa: etapa.kind, modo: 'DESARROLLO_LOCAL',
+        ...(!actorCierre && dto.idOperacion && { idOperacion: dto.idOperacion }),
         ...(actorCierre && {
           idDocente: asignacionTribunal.idDocente,
           idAsignacionTribunal: dto.idAsignacionTribunal,

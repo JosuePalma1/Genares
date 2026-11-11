@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { BookOpenCheck, CheckCircle2, CloudUpload, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
@@ -8,6 +8,10 @@ import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar
 import { adaptarEtapaRubricaMer, obtenerCalificacionesEditables, obtenerObservacionesEditables } from '../../domain/adaptacionRubricaMer';
 import { cerrarEvaluacionOralMerDev, construirPuntajesOrales, guardarBorradorOralMerDev,
   obtenerEvaluacionesMerDev, validarPuntajesOrales } from '../services/evaluacionesMerDev';
+import { claveBorrador, leerBorrador, guardarBorrador, eliminarBorrador, leerExpediente,
+  guardarExpediente, etiquetaSincronizacion, ESTADO_LOCAL, sincronizarBorrador,
+  RESULTADO_SINCRONIZACION } from '../../domain/borradoresLocales';
+import { usarConexion, esErrorDeConexion } from '../hooks/usarConexion';
 import './evaluacionesMerDev.css';
 
 function armarNotas(indicadores, evaluacion) {
@@ -16,17 +20,6 @@ function armarNotas(indicadores, evaluacion) {
     const valor = porId.get(ind.id);
     return [ind.id, { score: valor?.score == null ? '' : String(valor.score), observation: valor?.observation ?? '' }];
   }));
-}
-
-function respaldoDeSesion(clave, valor) {
-  try {
-    if (valor === undefined) return JSON.parse(sessionStorage.getItem(clave));
-    if (valor === null) sessionStorage.removeItem(clave);
-    else sessionStorage.setItem(clave, JSON.stringify(valor));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
@@ -42,15 +35,32 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [avisoRespaldo, setAvisoRespaldo] = useState('');
+  const [estadoLocal, setEstadoLocal] = useState(null);
+  const [guardadoServidor, setGuardadoServidor] = useState(false);
+  const [contextoCargado, setContextoCargado] = useState(null);
+  const operacion = useRef(false);
+  const revisionBaseLocal = useRef(0);
+  const { sinConexion, redDisponible, registrarResultado } = usarConexion();
 
   useEffect(() => {
     const abort = new AbortController();
     setEstado({ status: 'cargando', datos: null, error: null });
     obtenerEvaluacionesMerDev(asignacionId, { signal: abort.signal })
-      .then((datos) => { if (!abort.signal.aborted) setEstado({ status: 'listo', datos, error: null }); })
-      .catch((error) => { if (!abort.signal.aborted) setEstado({ status: 'error', datos: null, error }); });
+      .then((datos) => {
+        if (abort.signal.aborted) return;
+        registrarResultado(null);
+        guardarExpediente(asignacionId, datos);
+        setEstado({ status: 'listo', datos, error: null });
+      })
+      .catch((error) => {
+        if (abort.signal.aborted) return;
+        registrarResultado(error);
+        const copia = esErrorDeConexion(error) || !redDisponible ? leerExpediente(asignacionId) : null;
+        setEstado(copia ? { status: 'listo', datos: copia.datos, desdeCopia: true }
+          : { status: 'error', datos: null, error });
+      });
     return () => abort.abort();
-  }, [asignacionId, recarga]);
+  }, [asignacionId, recarga, redDisponible, registrarResultado]);
 
   const datos = estado.datos;
   const etapasEditables = useMemo(() => (datos?.etapas ?? []).filter((e) =>
@@ -66,8 +76,9 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
   const etiqueta = tipo === 'ORAL' ? 'oral' : 'escrita';
   const evaluacion = datos?.evaluaciones.find((e) => e.idEtapaRubrica === etapa?.id
     && e.idAsignacionTribunal === evaluador?.id && e.idEstudiante === idTitular);
-  const claveRespaldo = etapa && evaluador && (tipo === 'ESCRITA' || idTitular)
-    ? `genares:${etiqueta}:${asignacionId}:${etapa.id}:${idTitular ?? 'compartida'}:${evaluador.id}` : null;
+  const claveRespaldo = claveBorrador({
+    asignacionId, tipo, idEtapa: etapa?.id, idTitular, idEvaluador: evaluador?.id,
+  });
   const cerrado = evaluacion && evaluacion.estado !== 'BORRADOR';
   const editable = !!datos?.puedeGuardarBorradores && !cerrado && !!claveRespaldo;
   const completo = indicadores.length > 0 && indicadores.every(({ id }) => {
@@ -79,18 +90,21 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
   useEffect(() => {
     if (!claveRespaldo) return;
     const revisionServidor = Number(evaluacion?.revision ?? 0);
-    const respaldo = respaldoDeSesion(claveRespaldo);
-    const recuperado = editable && respaldo?.revision === revisionServidor && respaldo.notas;
-    setNotas(recuperado || armarNotas(indicadores, evaluacion));
+    const respaldo = leerBorrador(claveRespaldo);
+    revisionBaseLocal.current = respaldo?.revisionBase ?? revisionServidor;
+    setNotas(respaldo?.notas ?? armarNotas(indicadores, evaluacion));
     setRevision(revisionServidor);
-    setCambiado(Boolean(recuperado));
-    setAvisoRespaldo(recuperado
-      ? 'Se recuperaron cambios de esta pestaña. Revisa las notas y guarda para enviarlas a PostgreSQL.'
-      : respaldo ? 'El respaldo local corresponde a otra revisión. Se muestran las notas vigentes de PostgreSQL.' : '');
-  }, [claveRespaldo, editable, evaluacion, indicadores]);
+    setGuardadoServidor(!estado.desdeCopia && Boolean(evaluacion) && !respaldo);
+    setEstadoLocal(respaldo && cerrado ? ESTADO_LOCAL.CONFLICTO : respaldo?.estado ?? null);
+    setCambiado(false);
+    setAvisoRespaldo('');
+    setContextoCargado(claveRespaldo);
+  }, [claveRespaldo, evaluacion, indicadores, estado.desdeCopia, cerrado]);
 
   function descartarCambios() {
-    respaldoDeSesion(claveRespaldo, null);
+    eliminarBorrador(claveRespaldo);
+    setNotas(armarNotas(indicadores, evaluacion));
+    setEstadoLocal(null);
     setCambiado(false);
     setAvisoRespaldo('');
   }
@@ -98,23 +112,42 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
   usarAdvertenciaCambiosSinGuardar(cambiado, descartarCambios);
 
   function confirmarCambio() {
-    if (!cambiado) return true;
-    if (!window.confirm('Hay notas sin guardar. ¿Descartar estos cambios?')) return false;
-    descartarCambios();
-    return true;
+    return !operacion.current && (!cambiado || window.confirm('Los cambios no se pudieron guardar localmente. ¿Salir del formulario?'));
   }
 
   function cambiarNota(id, campo, valor) {
+    if (operacion.current || contextoCargado !== claveRespaldo || estadoLocal === ESTADO_LOCAL.CONFLICTO) return;
     const siguientes = { ...notas, [id]: { ...notas[id], [campo]: valor } };
     setNotas(siguientes);
-    const respaldado = respaldoDeSesion(claveRespaldo, { revision, notas: siguientes });
-    setAvisoRespaldo(respaldado ? '' : 'La pestaña no pudo respaldar los cambios. Mantén el formulario abierto hasta guardar.');
-    setCambiado(true);
+    const revisionBase = revisionBaseLocal.current;
+    const nuevoEstado = sinConexion ? ESTADO_LOCAL.PENDIENTE : ESTADO_LOCAL.LOCAL;
+    const respaldado = guardarBorrador(claveRespaldo, {
+      revisionBase, notas: siguientes, estado: nuevoEstado, idOperacion: globalThis.crypto?.randomUUID?.(),
+    });
+    setEstadoLocal(respaldado ? nuevoEstado : null);
+    setGuardadoServidor(false);
+    setAvisoRespaldo(respaldado ? '' : 'No se pudieron guardar los cambios en este dispositivo.');
+    setCambiado(!respaldado);
     setAviso(null);
   }
 
+  const guardarRef = useRef(null);
+  useEffect(() => {
+    if (!editable || contextoCargado !== claveRespaldo || !redDisponible
+      || ![ESTADO_LOCAL.LOCAL, ESTADO_LOCAL.PENDIENTE].includes(estadoLocal)) return undefined;
+    const inicial = setTimeout(() => void guardarRef.current(), 900);
+    const reintento = setInterval(() => void guardarRef.current(), 12000);
+    return () => { clearTimeout(inicial); clearInterval(reintento); };
+  }, [editable, contextoCargado, claveRespaldo, redDisponible, estadoLocal, notas]);
+
   async function guardar(cerrar = false) {
-    if (!editable || guardando || !indicadores.length) return;
+    if (!editable || operacion.current || contextoCargado !== claveRespaldo
+      || estadoLocal === ESTADO_LOCAL.CONFLICTO || !indicadores.length
+      || (cerrar && (sinConexion || estado.desdeCopia))) return;
+    const registro = leerBorrador(claveRespaldo);
+    if (!cerrar && (!redDisponible || (!registro && !cambiado))) return;
+    const revisionBase = revisionBaseLocal.current;
+    operacion.current = true;
     const puntajes = construirPuntajesOrales(indicadores, notas);
     try {
       validarPuntajesOrales(indicadores, puntajes);
@@ -133,21 +166,54 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
       setGuardando(true);
       setAviso(null);
       const enviar = cerrar ? cerrarEvaluacionOralMerDev : guardarBorradorOralMerDev;
-      await enviar(asignacionId, {
-        idEtapaRubrica: etapa.id,
-        idAsignacionTribunal: evaluador.id,
-        idEstudiante: idTitular,
-        revisionEsperada: revision,
-        puntajes,
+      const enviarPuntajes = () => enviar(asignacionId, {
+        idEtapaRubrica: etapa.id, idAsignacionTribunal: evaluador.id, idEstudiante: idTitular,
+        revisionEsperada: revisionBase, puntajes,
+        ...(!cerrar && registro?.idOperacion && { idOperacion: registro.idOperacion }),
       }, tipo);
-      descartarCambios();
+      if (cerrar) {
+        await enviarPuntajes();
+      } else {
+        const resultado = await sincronizarBorrador({
+          registro: { revisionBase, notas, idOperacion: registro?.idOperacion },
+          enviar: enviarPuntajes,
+          consultarEvaluacion: async () => {
+            const actual = await obtenerEvaluacionesMerDev(asignacionId);
+            return actual.evaluaciones.find((item) => item.idEtapaRubrica === etapa.id
+              && item.idAsignacionTribunal === evaluador.id && item.idEstudiante === idTitular);
+          },
+          esErrorConexion: esErrorDeConexion,
+        });
+        if (resultado.resultado !== RESULTADO_SINCRONIZACION.SINCRONIZADO) {
+          if (leerBorrador(claveRespaldo)?.actualizadoEn !== registro?.actualizadoEn) {
+            setRecarga((actual) => actual + 1);
+            return;
+          }
+          const pendiente = resultado.resultado === RESULTADO_SINCRONIZACION.PENDIENTE;
+          const siguiente = pendiente ? ESTADO_LOCAL.PENDIENTE : ESTADO_LOCAL.CONFLICTO;
+          if (pendiente) registrarResultado({ name: 'ErrorConexionApi' });
+          if (guardarBorrador(claveRespaldo, { revisionBase, notas, estado: siguiente })) {
+            setEstadoLocal(siguiente);
+          } else {
+            setCambiado(true);
+            setAvisoRespaldo('No se pudo actualizar el respaldo en este dispositivo.');
+          }
+          return;
+        }
+      }
+      registrarResultado(null);
+      if (leerBorrador(claveRespaldo)?.actualizadoEn === registro?.actualizadoEn) descartarCambios();
       setAviso({ tipo: 'exito', texto: cerrar
         ? 'Evaluación cerrada en PostgreSQL.' : 'Borrador guardado en PostgreSQL.' });
       setRecarga((actual) => actual + 1);
     } catch (error) {
+      registrarResultado(error);
       setAviso({ tipo: 'error', texto: error?.message ?? 'No fue posible guardar el borrador.' });
-    } finally { setGuardando(false); }
+    } finally { operacion.current = false; setGuardando(false); }
   }
+
+  guardarRef.current = guardar;
+  const sincronizacion = etiquetaSincronizacion({ estadoLocal, guardadoServidor, revision, sinConexion });
 
   const escritas = (datos?.evaluaciones ?? []).filter((e) =>
     datos.etapas.some((etapaActual) => etapaActual.id === e.idEtapaRubrica && etapaActual.kind === 'ESCRITA'));
@@ -160,9 +226,10 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
         if (confirmarCambio()) setRecarga((actual) => actual + 1);
       }}><RefreshCw size={16}/> Recargar</button>} />
     <AlertaInstitucional titulo="Prueba local con PostgreSQL">
-      El guardado y cierre de evaluaciones requieren conexión a PostgreSQL.
+      Los borradores se respaldan en este dispositivo. El cierre requiere confirmación de PostgreSQL.
       El docente seleccionado identifica al evaluador en esta simulación local.
     </AlertaInstitucional>
+    {estado.desdeCopia && <p role="status">Expediente recuperado de este dispositivo. El cierre estará disponible al volver a consultar el servidor.</p>}
     {estado.status === 'cargando' && <div className="card" role="status">Consultando rúbrica y evaluaciones…</div>}
     {estado.status === 'error' && <AlertaInstitucional tono="danger" titulo="No se pudo cargar la rúbrica">{estado.error?.message ?? 'Error de consulta.'}</AlertaInstitucional>}
     {estado.status === 'listo' && datos && <>
@@ -223,7 +290,7 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
               observaciones={observaciones}
               alCambiarCalificacion={(id, valor) => cambiarNota(id, 'score', valor)}
               alCambiarObservacion={(id, valor) => cambiarNota(id, 'observation', valor)}
-              readOnly={!editable || guardando}
+              readOnly={!editable || guardando || contextoCargado !== claveRespaldo || estadoLocal === ESTADO_LOCAL.CONFLICTO}
               showObservations
               showCompletionState
               preservarPrecision
@@ -234,10 +301,10 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
             <div className="em-acciones">
               <span>Estado: <strong>{evaluacion?.estado ?? 'Sin borrador'}</strong> · Revisión {revision}</span>
               <div className="em-botones">
-                <button className="button button-primary" type="submit" disabled={!editable || guardando || !cambiado || indicadores.length === 0}>
+                <button className="button button-primary" type="submit" disabled={!editable || guardando || (!estadoLocal && !cambiado) || !redDisponible || estadoLocal === ESTADO_LOCAL.CONFLICTO || indicadores.length === 0}>
                   <CloudUpload size={17}/>{guardando ? 'Guardando…' : `Guardar borrador ${etiqueta}`}</button>
                 {datos.puedeCerrarEvaluaciones && !cerrado && <button className="button button-outline" type="button"
-                  disabled={!editable || guardando || !completo} onClick={() => void guardar(true)}>
+                  disabled={!editable || guardando || !completo || sinConexion || estado.desdeCopia || estadoLocal === ESTADO_LOCAL.CONFLICTO} onClick={() => void guardar(true)}>
                   Cerrar evaluación {etiqueta}
                 </button>}
               </div>
@@ -249,7 +316,13 @@ export default function PaginaEvaluacionesIntegradasDev({ tipo = 'ORAL' }) {
               Completa todos los indicadores para cerrar.
             </p>}
             {!datos.puedeGuardarBorradores && <p className="em-ayuda"><ShieldAlert size={16}/> Para guardar, activa la identidad técnica local únicamente en tu base de desarrollo.</p>}
-            {cambiado && <p className="em-pendiente" role="status">Tienes cambios que todavía no están guardados en PostgreSQL.</p>}
+            <p className="em-pendiente" role="status">{guardando ? 'Sincronizando con el servidor…' : sincronizacion.texto}</p>
+            {estadoLocal === ESTADO_LOCAL.CONFLICTO && <button className="button button-outline" type="button"
+              disabled={sinConexion} onClick={() => {
+                if (!window.confirm('¿Eliminar el borrador de este dispositivo y cargar la versión del servidor?')) return;
+                descartarCambios();
+                setRecarga((actual) => actual + 1);
+              }}>Descartar copia local y recargar</button>}
             {avisoRespaldo && <p className="em-ayuda" role="status">{avisoRespaldo}</p>}
             {aviso && <p className={aviso.tipo === 'error' ? 'em-error' : 'em-exito'} role="status">{aviso.texto}</p>}
           </form>}
