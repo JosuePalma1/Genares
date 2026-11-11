@@ -18,3 +18,9 @@ export function decimalActaDesdeCentesimas(valor: bigint): string {
 export function notaAprobada(notaFinal: string, notaMinima: string): boolean {
   return centesimasActa(notaFinal, 'La nota final') >= centesimasActa(notaMinima, 'La nota mínima');
 }
+
+export function notaEnLetras(valor: string): string {
+  const centesimas = centesimasActa(valor);
+  const digitos = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez'];
+  return `${digitos[Number(centesimas / 100n)]} coma ${digitos[Number(centesimas / 10n % 10n)]} ${digitos[Number(centesimas % 10n)]}`;
+}

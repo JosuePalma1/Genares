@@ -1,6 +1,9 @@
-import { DatosDocumentales, pendientesActa, resultadoFinalActa, rubricaDocumental } from './modelo-documental';
-import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental';
+import { DatosDocumentales, notaEtapaSobreDiez, pendientesActa, resultadoFinalActa, rubricaDocumental } from './modelo-documental';
+import { camposRubrica } from './pdf-documental';
 import { DocumentosService } from './documentos.service';
+import { notaEnLetras } from './reglas-acta';
+import { archivarActaEn } from './archivo-actas';
+import { camposPat01, camposPat04 } from './pdf-pat-04';
 
 function fixture(): DatosDocumentales {
   return {
@@ -23,6 +26,35 @@ function fixture(): DatosDocumentales {
 }
 
 describe('Documentos de rúbricas y actas internas', () => {
+  it('normaliza 5+5 solo para mostrar y conserva el resultado consolidado', () => {
+    const datos = fixture();
+    const nota = notaEtapaSobreDiez({
+      calificacionMaxima: '5.00', promedioEtapa: { exacto: { numerador: '9', denominador: '2' } },
+    });
+    expect(nota).toBe('9.00');
+    expect(notaEnLetras(nota!)).toBe('nueve coma cero cero');
+    expect(notaEnLetras('8.05')).toBe('ocho coma cero cinco');
+    expect(resultadoFinalActa(datos, 'a').calificacion).toBe('9.00');
+  });
+
+  it('numera por carrera y período y conserva el número al reimprimir', async () => {
+    const datos = {
+      trabajoId: 't', estudianteId: 'a', carreraId: 'c', periodoId: 'p', periodo: '2026-2',
+      carreraCodigo: 'TI', formato: 'PAT-01-F-019' as const, actor: 'prueba',
+      notaFinal: '9.00', notaMinimaAplicada: '7.00', aprobado: true,
+    };
+    const acta = { id: 'acta', numero: '007-2026-2-TI' };
+    const query = jest.fn().mockResolvedValueOnce([{ id: 'proceso' }]).mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]).mockResolvedValueOnce([{ ultimo: 7 }]).mockResolvedValueOnce([acta]);
+    const render = jest.fn().mockResolvedValue(Buffer.from('%PDF-'));
+    await expect(archivarActaEn({ query } as never, datos, render)).resolves.toMatchObject({ ...acta, reimpresa: false });
+    expect(query.mock.calls[3][1]).toEqual(['c', '2026-2']);
+    expect(render).toHaveBeenCalledWith(acta.numero);
+    const reimpresion = jest.fn().mockResolvedValueOnce([{ id: 'proceso' }]).mockResolvedValueOnce([acta]);
+    await expect(archivarActaEn({ query: reimpresion } as never, datos, render)).resolves.toMatchObject({ ...acta, reimpresa: true });
+    expect(reimpresion).toHaveBeenCalledTimes(2);
+    expect(render).toHaveBeenCalledTimes(1);
+  });
   it('conserva evaluador, estudiante, orden, texto, máximos y traspasos sin duplicar notas', () => {
     const datos = fixture(); const antes = JSON.stringify(datos);
     const a = rubricaDocumental(datos, 'a', 'm1'); const b = rubricaDocumental(datos, 'b', 'm1');
@@ -73,16 +105,19 @@ describe('Documentos de rúbricas y actas internas', () => {
     const datos = fixture(); datos.evaluaciones[0].idEtapaRubrica = null;
     expect(rubricaDocumental(datos, 'a', 'm1')).toMatchObject({ legacyExcluidas: 1, estado: 'INCOMPLETA' });
   });
-  it('genera previsualizaciones y actas numeradas en ambos formatos con el resultado sobre 10', async () => {
+  it('prepara la rúbrica y ambas plantillas de acta sobre 10', () => {
     const datos = fixture();
-    const pdfs = await Promise.all([
-      pdfRubrica(rubricaDocumental(datos, 'a', 'm1')),
-      pdfActaPreliminar(datos, 'a', 'PAT-01-F-019', pendientesActa(datos, 'a')),
-      pdfActaPreliminar(datos, 'a', 'PAT-04-F-017', pendientesActa(datos, 'a')),
-      pdfActaInterna(datos, 'a', 'PAT-01-F-019', '001-2026-2-TI', '9.00', '7.00', true),
-      pdfActaInterna(datos, 'a', 'PAT-04-F-017', '002-2026-2-TI', '9.00', '7.00', true),
+    const rubrica = camposRubrica(rubricaDocumental(datos, 'a', 'm1'));
+    expect(rubrica.partes.map(({ categorias }) => categorias[0].filas[1][0])).toEqual([
+      '1. Indicador ñ y tildes — Texto original', '1. Indicador ñ y tildes — Texto original',
     ]);
-    for (const pdf of pdfs) { expect(pdf.subarray(0, 5).toString()).toBe('%PDF-'); expect(pdf.length).toBeGreaterThan(2000); }
+    expect(rubrica.resumen.at(-1)).toEqual(['CALIFICACIÓN FINAL CONSOLIDADA', '10.00', '9.00']);
+    expect(camposPat04(datos, 'a', 'No. 002-2026-2-TI', '9.00', true)).toContainEqual({
+      original: '16/20', valor: '9.00/10', letras: 'nueve coma cero cero',
+    });
+    expect(camposPat01(datos, 'a', 'No. 001-2026-2-TI', '9.00', true)).toContainEqual({
+      original: 'XX/10', ocurrencia: 3, valor: '9.00/10', letras: 'nueve coma cero cero',
+    });
   });
   it('no archiva cuando faltan evaluaciones obligatorias', async () => {
     const datos = fixture();

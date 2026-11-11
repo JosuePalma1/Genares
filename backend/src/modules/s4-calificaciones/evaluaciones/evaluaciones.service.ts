@@ -60,6 +60,16 @@ export class EvaluacionesService {
         WHERE a.asignacion_tema_id = $1 AND a.fecha_fin IS NULL
         ORDER BY a.fecha_asignacion DESC, a.id LIMIT 1
       `, [trabajoId]);
+      const sesiones: Array<{ estudianteId: string; fecha: string; hora: string }> = await manager.query(`
+        SELECT DISTINCT pe.id_estudiante AS "estudianteId",
+          TO_CHAR(ps.fecha_programada, 'YYYY-MM-DD') AS fecha,
+          TO_CHAR(ps.hora_programada, 'HH24:MI') AS hora
+        FROM s4.programaciones_sustentacion ps
+        JOIN s4.programacion_estudiante pe ON pe.programacion_sustentacion_id = ps.id
+        WHERE ps.id_proceso_evaluacion = $1 AND ps.estado_registro = 1
+          AND pe.estado_registro = 1 AND ps.estado <> 'CANCELADA'
+        ORDER BY fecha, hora
+      `, [expediente.procesoId]);
       const evaluaciones: Array<Record<string, unknown>> = await manager.query(`
         SELECT e.id, e.estado, COALESCE(e.revision, 0) AS revision, e.cerrada_en AS "cerradaEn", e.id_version_rubrica AS "idVersionRubrica",
           e.id_etapa_rubrica AS "idEtapaRubrica", e.id_estudiante AS "idEstudiante",
@@ -87,7 +97,7 @@ export class EvaluacionesService {
           ? filtrarInstantaneaVisible(evaluacion.instantaneaRubrica as InstantaneaRubrica, rubrica)
           : evaluacion.instantaneaRubrica,
       }));
-      return { trabajo, estudiantes, evaluadores, tutor: tutor ?? null,
+      return { trabajo, estudiantes, evaluadores, tutor: tutor ?? null, sesiones,
         rubrica, evaluaciones: evaluacionesVisibles, consolidacion };
     });
   }
@@ -128,11 +138,16 @@ export class EvaluacionesService {
     const datos = await this.datosDocumentales(trabajoId, actorId, puedeConsultarDemostracion);
     const trabajo = { id: trabajoId, codigo: datos.trabajo.codigo, titulo: datos.trabajo.titulo };
     const versionRubrica = { id: datos.rubrica.rubricVersionId, version: datos.rubrica.version };
+    const evaluadoresEsperados = datos.evaluadores.map(({ id, posicion }) => ({ idMiembroTribunal: id, posicion }));
     return {
       tipo: 'CONSOLIDACION_INDIVIDUAL_DINAMICA', trabajoId, trabajo, versionRubrica,
       estudiantes: datos.consolidacion.estudiantes.map((resultado) => ({
         ...resultado, trabajo, trabajoId, versionRubrica,
-        etapas: resultado.etapas?.map((etapa) => ({ ...etapa, alcance: etapa.scope, tipo: etapa.kind })),
+        cantidadEtapasEsperadas: resultado.etapas?.length ?? 0,
+        cantidadEvaluadoresEsperados: evaluadoresEsperados.length,
+        etapas: (resultado.etapas ?? []).map((etapa) => ({
+          ...etapa, alcance: etapa.scope, tipo: etapa.kind, evaluadoresEsperados,
+        })),
       })),
     };
   }

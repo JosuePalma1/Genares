@@ -160,6 +160,14 @@ describe('presentación de consulta API de evaluaciones', () => {
     expect(markup).toContain('Ver rúbrica PDF');
   });
 
+  it('muestra el resultado si una etapa llega sin evaluadores esperados', () => {
+    const resultado = workConsolidation().estudiantes[0];
+    const etapas = resultado.etapas.map((etapa) => ({ ...etapa, evaluadoresEsperados: undefined }));
+    const markup = html(createElement(PanelResultadoIndividualApi, { resultado: { ...resultado, etapas } }));
+    expect(markup).toContain('Resultado consultivo');
+    expect(markup).not.toContain('Ver rúbrica PDF');
+  });
+
   it.each(['SIN_EVALUACIONES', 'EN_PROGRESO', 'EVALUACIONES_CERRADAS_INCOMPLETAS', 'LEGACY_NO_CONSOLIDADA'])(
     'no muestra una nota final para %s y explica el estado', (estado) => {
       const trabajo = workConsolidation({ state: estado, withStages: false });

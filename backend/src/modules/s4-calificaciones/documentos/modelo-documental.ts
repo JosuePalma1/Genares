@@ -4,6 +4,20 @@ import { InstantaneaRubrica } from '../rubricas/instantanea-rubrica';
 import { racional, racionalDesdeDecimal, sumarRacionales, redondearRacionalHalfUp } from '../evaluaciones/reglas-consolidacion';
 
 export type DatosDocumentales = Awaited<ReturnType<EvaluacionesService['datosDocumentales']>>;
+
+export function notaEtapaSobreDiez(etapa: {
+  calificacionMaxima?: string | null;
+  promedioEtapa?: { exacto?: { numerador: string; denominador: string } } | null;
+}): string | null {
+  const exacto = etapa.promedioEtapa?.exacto;
+  if (!exacto || !etapa.calificacionMaxima) return null;
+  const maximo = racionalDesdeDecimal(etapa.calificacionMaxima);
+  if (maximo.numerador === 0n) return null;
+  return redondearRacionalHalfUp(racional(
+    BigInt(exacto.numerador) * maximo.denominador * 10n,
+    BigInt(exacto.denominador) * maximo.numerador,
+  ));
+}
 export interface FilaDocumento { indicador: string; descripcion: string; maximo: string; nota: string | null; }
 export interface CategoriaDocumento { nombre: string; maximo: string; subtotal: string | null; filas: FilaDocumento[]; }
 export interface EtapaDocumento {

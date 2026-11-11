@@ -247,7 +247,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
 }
 
 export function PanelResultadoIndividualApi({ resultado }) {
-  const miembros = [...new Map(resultado.etapas.flatMap((etapa) => etapa.evaluadoresEsperados)
+  const miembros = [...new Map(resultado.etapas.flatMap((etapa) => etapa.evaluadoresEsperados ?? [])
     .map((miembro) => [miembro.idMiembroTribunal, miembro])).values()]
     .sort((a, b) => a.posicion - b.posicion);
   return (
