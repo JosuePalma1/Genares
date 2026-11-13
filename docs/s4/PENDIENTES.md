@@ -30,6 +30,7 @@ Lo que falta:
 | **Mejorar la experiencia y la interfaz** | Ver la sección 3. Es lo más visible para quien use el sistema. |
 | **Organizar el trabajo en GitHub** (Paso 5) | Todavía no hay issues, tablero ni solicitudes de integración (PR). Todo está en una sola rama. Hay que crear las tarjetas S4-01 a S4-17 (su estado está en el Paso 5, sección 4.1) y trabajar con una rama por cambio y PR revisado por otra persona. |
 | **Comprobación automática en GitHub** (CI) | Que cada PR compile y pase las pruebas solo, sin depender de que alguien lo haga a mano. |
+| **Calidad según ISO/IEC 25010** | Ver [calidad-iso-25010.md](calidad-iso-25010.md). La más débil es la seguridad; faltan además las pruebas con usuarios reales y las mediciones en el ambiente de aceptación. Hay que actualizar el estado de cada característica cuando cambie algo. |
 | **Pruebas completas de aceptación** (RNF-17, tarea S4-17) | Automatizar los escenarios PA-02 a PA-18 del Paso 1 (sección 9) contra el sistema funcionando de verdad. Hoy hay unas 560 pruebas automáticas, pero cada una prueba una pieza suelta. Sugerencia: usar datos de prueba propios (por ejemplo, con el prefijo «E2E») y ocultarlos al terminar. |
 | **Revisión de seguridad** | Revisar el servidor de S4: permisos, datos que se aceptan y mensajes de error. |
 | **Completar el README** | Añadir `s4-asignacion-rubrica-proceso.sql` a la tabla de scripts del `README.md` principal. El orden completo ya está en PRIMEROS-PASOS.md. |
