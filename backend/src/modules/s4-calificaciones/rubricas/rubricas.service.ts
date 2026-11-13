@@ -9,7 +9,7 @@ import { DataSource, In, QueryFailedError, Repository } from 'typeorm';
 import { Modalidad } from '../catalogo/entidades/modalidad.entity';
 import { PeriodoAcademico } from '../catalogo/entidades/periodo-academico.entity';
 import { Carrera } from '../catalogo/entidades/carrera.entity';
-import { AlcanceEtapaRubrica, EstadoVersionRubrica, EtapaEvaluacion } from '../../../common/domain/enums-dominio';
+import { AlcanceEtapaRubrica, EstadoVersionRubrica } from '../../../common/domain/enums-dominio';
 import { CategoriaRubrica } from './entidades/categoria-rubrica.entity';
 import { EtapaRubrica } from './entidades/etapa-rubrica.entity';
 import { EventoAuditoriaRubrica } from './entidades/evento-auditoria-rubrica.entity';
@@ -38,7 +38,10 @@ import {
   VersionRubricaCompletaDto,
   VersionesRubricaDto,
 } from './dto/respuesta-rubrica.dto';
-import { normalizarEstructuraRubricaCompleta, siguienteEtiquetaVersionRubrica } from './reglas-rubrica-completa';
+import {
+  EtapaCopiada, normalizarEstructuraRubricaCompleta, ordenesCategoriaEnVersion, siguienteEtiquetaVersionRubrica,
+  tipoEtapaDesdeAlcance,
+} from './reglas-rubrica-completa';
 import { EtapaRubricaNormalizada } from './reglas-rubrica-completa';
 import { EntityManager } from 'typeorm';
 import { AsociacionCarreraRubricaDto } from './dto/estructura-rubrica-completa.dto';
@@ -830,7 +833,8 @@ export class RubricasService {
         descripcion: etapa.descripcion,
         orden: etapa.orden,
         categorias: categoriasDto,
-      });
+        porcentaje: etapa.porcentaje,
+      } as EtapaCopiada);
     }
     return resultado;
   }
@@ -868,17 +872,20 @@ export class RubricasService {
       versionBase: contexto.versionBase,
     });
 
+    // La activación exige un orden de categoría único en toda la versión (validarEstructuraBorradorRubrica).
+    const ordenCategoria = ordenesCategoriaEnVersion(contexto.etapas);
     for (const etapaNormalizada of contexto.etapas) {
       const etapaDto = etapaNormalizada.dto;
       const etapa = await manager.getRepository(EtapaRubrica).save({
         rubricVersion: versionBorrador,
-        kind: EtapaEvaluacion.PERSONALIZADA,
+        kind: tipoEtapaDesdeAlcance(etapaDto.alcance),
         scope: etapaDto.alcance,
         codigo: etapaDto.codigo.trim(),
         nombre: etapaDto.nombre.trim(),
         descripcion: etapaDto.descripcion?.trim() || null,
         calificacionMaxima: '10.00',
-        porcentaje: null,
+        // Solo una copia trae porcentaje (el de la versión base); sin él, la consolidación reparte por igual.
+        porcentaje: (etapaDto as EtapaCopiada).porcentaje ?? null,
         orden: etapaDto.orden,
       });
       for (const categoriaNormalizada of etapaNormalizada.categorias) {
@@ -889,7 +896,7 @@ export class RubricasService {
           codigo: categoriaDto.codigo.trim(),
           nombre: categoriaDto.nombre.trim(),
           calificacionMaxima: categoriaNormalizada.calificacionMaxima,
-          orden: categoriaDto.orden,
+          orden: ordenCategoria.get(categoriaDto)!,
         });
         await manager.getRepository(IndicadorRubrica).save(categoriaDto.indicadores.map((indicador) => ({
           categoria,
@@ -901,8 +908,8 @@ export class RubricasService {
       }
     }
 
-    versionBorrador.estado = EstadoVersionRubrica.CONFIGURADA;
-    const version = await repositorioVersion.save(versionBorrador);
+    // Queda en BORRADOR: se revisa y se activa desde el detalle (BORRADOR → ACTIVA → ARCHIVADA).
+    const version = versionBorrador;
     await this.registrarAuditoria(manager, {
       actorId: contexto.actorId,
       accion: 'VERSION_COMPLETA_CREADA',

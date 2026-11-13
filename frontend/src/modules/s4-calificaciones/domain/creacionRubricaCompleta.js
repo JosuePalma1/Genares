@@ -32,10 +32,11 @@ export function nuevaEtapaRubrica(etapas) {
   };
 }
 
-export function nuevaCategoriaRubrica(etapa) {
+/** El código no se repite en toda la versión: es lo que exige la activación (C1, C2 en la escrita; C3 en la oral). */
+export function nuevaCategoriaRubrica(etapa, codigosUsados = etapa.categorias.map((categoria) => categoria.codigo)) {
   return {
     claveLocal: claveLocalRubrica(),
-    codigo: codigoDisponible('C', etapa.categorias.map((categoria) => categoria.codigo), 10),
+    codigo: codigoDisponible('C', codigosUsados, 10),
     nombre: 'Nueva categoría',
     indicadores: [nuevoIndicadorRubrica([])],
   };
@@ -71,8 +72,9 @@ export function cambiarEtapaRubrica(etapas, clave, cambios) {
 }
 
 export function agregarCategoriaRubrica(etapas, claveEtapa) {
+  const codigosUsados = etapas.flatMap((etapa) => etapa.categorias.map((categoria) => categoria.codigo));
   return etapas.map((etapa) => etapa.claveLocal === claveEtapa
-    ? { ...etapa, categorias: [...etapa.categorias, nuevaCategoriaRubrica(etapa)] }
+    ? { ...etapa, categorias: [...etapa.categorias, nuevaCategoriaRubrica(etapa, codigosUsados)] }
     : etapa);
 }
 

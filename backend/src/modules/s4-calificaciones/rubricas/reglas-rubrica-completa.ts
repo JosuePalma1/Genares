@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { AlcanceEtapaRubrica } from '../../../common/domain/enums-dominio';
+import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../common/domain/enums-dominio';
 import { EtapaRubricaCompletaDto } from './dto/estructura-rubrica-completa.dto';
 
 export interface CategoriaRubricaNormalizada {
@@ -62,6 +62,8 @@ export const normalizarEstructuraRubricaCompleta = (
   }
   validarCodigos(etapas.map(({ codigo }) => codigo), 'etapa');
   validarOrdenes(etapas.map(({ orden }) => orden), 'etapa');
+  // Igual que la activación (validarEstructuraBorradorRubrica): el error aparece al crear, no al activar.
+  validarCodigos(etapas.flatMap(({ categorias }) => (categorias ?? []).map(({ codigo }) => codigo)), 'categoría de la versión');
 
   let totalEtapas = 0;
   const normalizadas = etapas.map((etapa): EtapaRubricaNormalizada => {
@@ -94,6 +96,30 @@ export const normalizarEstructuraRubricaCompleta = (
     throw new BadRequestException('Cada etapa debe sumar exactamente 10.00 puntos.');
   }
   return normalizadas;
+};
+
+/** Etapa leída de una versión base para copiarla: conserva su porcentaje. */
+export type EtapaCopiada = EtapaRubricaCompletaDto & { porcentaje?: string | null };
+
+/**
+ * Decisión 2026-11-12 (etapas escrita y oral): la etapa compartida es la revisión ESCRITA y la
+ * individual es la sustentación ORAL. La activación exige exactamente esos dos tipos.
+ */
+export const tipoEtapaDesdeAlcance = (alcance: AlcanceEtapaRubrica): EtapaEvaluacion =>
+  alcance === AlcanceEtapaRubrica.TRABAJO_COMPARTIDO ? EtapaEvaluacion.ESCRITA : EtapaEvaluacion.ORAL;
+
+/** Orden único de cada categoría en toda la versión, siguiendo el orden de etapas y de categorías. */
+export const ordenesCategoriaEnVersion = (
+  etapas: EtapaRubricaNormalizada[],
+): Map<EtapaRubricaCompletaDto['categorias'][number], number> => {
+  const ordenes = new Map<EtapaRubricaCompletaDto['categorias'][number], number>();
+  let siguiente = 0;
+  for (const etapa of [...etapas].sort((a, b) => a.dto.orden - b.dto.orden)) {
+    for (const { dto } of [...etapa.categorias].sort((a, b) => a.dto.orden - b.dto.orden)) {
+      ordenes.set(dto, ++siguiente);
+    }
+  }
+  return ordenes;
 };
 
 export const decimalDesdeCentavos = (centavos: bigint): string => {

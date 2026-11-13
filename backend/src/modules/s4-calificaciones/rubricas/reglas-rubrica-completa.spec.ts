@@ -1,7 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
-import { AlcanceEtapaRubrica } from '../../../common/domain/enums-dominio';
+import { AlcanceEtapaRubrica, EtapaEvaluacion } from '../../../common/domain/enums-dominio';
 import { EtapaRubricaCompletaDto } from './dto/estructura-rubrica-completa.dto';
-import { normalizarEstructuraRubricaCompleta, siguienteEtiquetaVersionRubrica } from './reglas-rubrica-completa';
+import {
+  normalizarEstructuraRubricaCompleta, ordenesCategoriaEnVersion, siguienteEtiquetaVersionRubrica, tipoEtapaDesdeAlcance,
+} from './reglas-rubrica-completa';
+import { validarEstructuraActivableRubrica } from './reglas-borrador-rubrica';
 
 const indicador = (orden: number, calificacionMaxima: string) => ({
   label: `Indicador ${orden}`,
@@ -16,8 +19,8 @@ const etapa = (codigo: string, orden = 1, valores = ['1.25', '0.75', '3.00', '2.
   alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL,
   orden,
   categorias: [
-    { codigo: 'RES', nombre: 'Resumen', orden: 1, indicadores: valores.slice(0, 2).map((peso, i) => indicador(i + 1, peso)) },
-    { codigo: 'DES', nombre: 'Desarrollo', orden: 2, indicadores: valores.slice(2).map((peso, i) => indicador(i + 1, peso)) },
+    { codigo: `RES${orden}`, nombre: 'Resumen', orden: 1, indicadores: valores.slice(0, 2).map((peso, i) => indicador(i + 1, peso)) },
+    { codigo: `DES${orden}`, nombre: 'Desarrollo', orden: 2, indicadores: valores.slice(2).map((peso, i) => indicador(i + 1, peso)) },
   ],
 });
 
@@ -79,5 +82,48 @@ describe('normalizarEstructuraRubricaCompleta', () => {
       .toThrow(BadRequestException);
     expect(() => normalizarEstructuraRubricaCompleta([etapa('ORDEN'), etapa('OTRA', 1)] as EtapaRubricaCompletaDto[]))
       .toThrow(BadRequestException);
+  });
+});
+
+// Decisión 2026-11-12: una versión creada desde «Nueva rúbrica» debe poder activarse (BORRADOR → ACTIVA).
+describe('versión completa lista para activarse', () => {
+  const escritaYOral = () => normalizarEstructuraRubricaCompleta([
+    { ...etapa('PARTE_I', 1), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO },
+    { ...etapa('PARTE_II', 2), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL },
+  ] as EtapaRubricaCompletaDto[]);
+
+  it('la etapa compartida es ESCRITA y la individual es ORAL', () => {
+    expect(tipoEtapaDesdeAlcance(AlcanceEtapaRubrica.TRABAJO_COMPARTIDO)).toBe(EtapaEvaluacion.ESCRITA);
+    expect(tipoEtapaDesdeAlcance(AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL)).toBe(EtapaEvaluacion.ORAL);
+  });
+
+  it('numera las categorías sin repetir en toda la versión, siguiendo el orden de etapas', () => {
+    const etapas = escritaYOral();
+    const ordenes = ordenesCategoriaEnVersion([...etapas].reverse());
+    expect(etapas.flatMap(({ categorias }) => categorias.map(({ dto }) => ordenes.get(dto)))).toEqual([1, 2, 3, 4]);
+  });
+
+  it('la estructura guardada cumple las reglas de activación', () => {
+    const etapas = escritaYOral();
+    const ordenes = ordenesCategoriaEnVersion(etapas);
+    expect(() => validarEstructuraActivableRubrica({
+      revision: 1,
+      etapas: etapas.map(({ dto, categorias }) => ({
+        tipo: tipoEtapaDesdeAlcance(dto.alcance), alcance: dto.alcance, codigo: dto.codigo, nombre: dto.nombre,
+        calificacionMaxima: '10.00', porcentaje: null, orden: dto.orden,
+        categorias: categorias.map(({ dto: categoria, calificacionMaxima }) => ({
+          codigo: categoria.codigo, nombre: categoria.nombre, calificacionMaxima, orden: ordenes.get(categoria)!,
+          indicadores: categoria.indicadores,
+        })),
+      })),
+    } as never)).not.toThrow();
+  });
+});
+
+describe('códigos de categoría en la versión', () => {
+  it('rechaza al crear un código de categoría repetido entre etapas, como hace la activación', () => {
+    const repetida = { ...etapa('ORAL', 2), categorias: etapa('ESCRITA', 1).categorias };
+    expect(() => normalizarEstructuraRubricaCompleta([etapa('ESCRITA', 1), repetida] as EtapaRubricaCompletaDto[]))
+      .toThrow('Los c\u00f3digos de categor\u00eda de la versi\u00f3n no pueden repetirse.');
   });
 });

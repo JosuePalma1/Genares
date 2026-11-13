@@ -97,3 +97,13 @@ describe('editor integral de rúbrica', () => {
     expect(validarRubricaCompleta({ ...formulario, etapas: [{ ...completa, alcance: 'OTRO' }] }).some(({ campo }) => campo.endsWith('.alcance'))).toBe(true);
   });
 });
+
+describe('códigos de categoría en toda la versión (decisión 2026-11-12)', () => {
+  it('no repite el código entre la etapa escrita y la oral, porque la activación lo exige', () => {
+    const [escrita, oral] = crearEstructuraInicialRubrica();
+    let estructura = agregarCategoriaRubrica([escrita, oral], escrita.claveLocal);
+    estructura = agregarCategoriaRubrica(estructura, escrita.claveLocal);
+    estructura = agregarCategoriaRubrica(estructura, oral.claveLocal);
+    expect(estructura.map((etapa) => etapa.categorias.map(({ codigo }) => codigo))).toEqual([['C1', 'C2'], ['C3']]);
+  });
+});
