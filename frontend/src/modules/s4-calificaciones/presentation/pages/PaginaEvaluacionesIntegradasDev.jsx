@@ -5,12 +5,13 @@ import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../component
 import { FormularioRubrica } from '../components/FormularioRubrica';
 import { DialogoGenares } from '../components/dialogos';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
+import { etiquetaEstadoTrabajo } from '../../domain/seguimientoAcademico';
 import { adaptarEtapaRubricaMer, obtenerCalificacionesEditables, obtenerObservacionesEditables } from '../../domain/adaptacionRubricaMer';
 import { cerrarEvaluacionOralMerDev, construirPuntajesOrales, guardarBorradorOralMerDev,
   obtenerEvaluacionesMerDev, validarPuntajesOrales } from '../services/evaluacionesMerDev';
 import { claveBorrador, leerBorrador, guardarBorrador, eliminarBorrador, leerExpediente,
   guardarExpediente, etiquetaSincronizacion, ESTADO_LOCAL, sincronizarBorrador,
-  RESULTADO_SINCRONIZACION, estadoAlConsultarExpediente } from '../../domain/borradoresLocales';
+  RESULTADO_SINCRONIZACION, estadoAlConsultarExpediente, marcarEnEdicion } from '../../domain/borradoresLocales';
 import { usarConexion, esErrorDeConexion } from '../hooks/usarConexion';
 import { usarRespaldoBorradores } from '../hooks/usarRespaldoBorradores';
 import './evaluacionesMerDev.css';
@@ -87,6 +88,8 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
   const claveRespaldo = claveBorrador({
     asignacionId, tipo, idEtapa: etapa?.id, idTitular, idEvaluador: evaluador?.id,
   });
+  // RF-31: esta página sincroniza su propio borrador; la sincronización global lo omite mientras está abierta.
+  useEffect(() => marcarEnEdicion(claveRespaldo), [claveRespaldo]);
   const cerrado = evaluacion && evaluacion.estado !== 'BORRADOR';
   const editable = !!datos?.puedeGuardarBorradores && !cerrado && !!claveRespaldo;
   const completo = indicadores.length > 0 && indicadores.every(({ id }) => {
@@ -242,7 +245,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
       <section className="card em-ficha">
         <div><span className="section-kicker">Rúbrica asignada · S4</span><h2>{datos.tema}</h2></div>
         <dl><div><dt>Versión</dt><dd>{datos.versionRubrica}</dd></div>
-          <div><dt>Proceso</dt><dd>{datos.estadoProceso}</dd></div>
+          <div><dt>Estado del trabajo</dt><dd>{etiquetaEstadoTrabajo(datos.estadoProceso)}</dd></div>
           <div><dt>Etapas</dt><dd>{datos.etapas.length}</dd></div>
           <div><dt>Evaluadores de S3</dt><dd>{datos.evaluadores.length}</dd></div></dl>
       </section>

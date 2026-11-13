@@ -3,6 +3,7 @@ import {
   ESTADO_LOCAL, claveBorrador, eliminarBorrador, etiquetaSincronizacion, guardarBorrador, guardarExpediente,
   leerBorrador, leerExpediente, listarPendientes, mismasNotas, resolverRecuperacion,
   RESULTADO_SINCRONIZACION, sincronizarBorrador, estadoAlConsultarExpediente,
+  contextoDeClave, estaEnEdicion, marcarEnEdicion,
 } from './borradoresLocales';
 
 /** Imita localStorage: persiste entre "recargas" mientras se reutilice la misma instancia. */
@@ -30,6 +31,27 @@ describe('clave del borrador local', () => {
 
   it('no crea clave oral sin estudiante', () => {
     expect(claveBorrador({ ...base, idTitular: null })).toBeNull();
+  });
+
+  it('recupera la evaluación desde la clave para sincronizarla fuera de su página (RF-31)', () => {
+    expect(contextoDeClave(claveBorrador(base))).toEqual(base);
+    const escrita = { ...base, tipo: 'ESCRITA', idTitular: null };
+    expect(contextoDeClave(claveBorrador(escrita))).toEqual(escrita);
+    expect(contextoDeClave('genares:borrador:v1:oral:a1:e1:compartida:ev-1')).toBeNull();
+    expect(contextoDeClave('genares:expediente:v1:a1')).toBeNull();
+  });
+});
+
+describe('evaluaciones abiertas en esta pestaña', () => {
+  it('se marcan mientras la página está abierta y se liberan una sola vez', () => {
+    const clave = claveBorrador(base);
+    const liberarA = marcarEnEdicion(clave);
+    const liberarB = marcarEnEdicion(clave);
+    liberarA();
+    liberarA();
+    expect(estaEnEdicion(clave)).toBe(true);
+    liberarB();
+    expect(estaEnEdicion(clave)).toBe(false);
   });
 });
 

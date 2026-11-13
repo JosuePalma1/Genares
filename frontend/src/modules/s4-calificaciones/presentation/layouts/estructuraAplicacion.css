@@ -81,3 +81,46 @@
 }
 
 .app-movil-nav .mobile-links .nav-insignia { border-color: var(--color-border-default); }
+
+/* RF-31/RF-32 · Borradores del dispositivo aún no confirmados por el servidor. */
+.cola-borradores-chip {
+  /* Contiene su texto .sr-only (position: absolute) para que no se escape del aviso. */
+  position: relative;
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid var(--color-state-warning-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-state-warning-surface);
+  color: var(--color-state-warning-text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cola-borradores-chip.cola-borradores-conflicto {
+  border-color: var(--color-state-danger-border);
+  background: var(--color-state-danger-surface);
+  color: var(--color-state-danger-text);
+}
+
+@media (max-width: 480px) {
+  .cola-borradores-chip { padding: 0.08rem 0.3rem; font-size: 0.6rem; }
+}
+
+/*
+ * RNF-14 · Encabezado de página. Con 3 o 4 botones, el bloque de acciones no se encogía y a 768 px
+ * dejaba el título en una columna estrecha con los botones encima del texto. Ahora los botones pasan
+ * a otra fila y el título conserva un ancho legible.
+ */
+/* Solo en fila (> 720 px): en columna, flex-basis actuaría como altura y dejaría un hueco. */
+@media (min-width: 721px) {
+  .react-app-shell .page-header { flex-wrap: wrap; }
+  .react-app-shell .page-header-copy { flex: 1 1 20rem; }
+  .react-app-shell .page-header-side { flex: 0 1 auto; min-width: 0; max-width: 100%; }
+  .react-app-shell .page-header-actions { justify-content: flex-end; }
+}
+
+@media (max-width: 720px) {
+  /* Cada botón ocupa al menos su contenido: si no caben, pasan a otra fila (antes la flecha de «Volver» se salía). */
+  .react-app-shell .page-header-actions .button { flex: 1 1 auto; min-width: max-content; }
+}

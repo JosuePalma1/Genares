@@ -8,6 +8,7 @@ import { iniciales } from '../../domain/flujoTrabajo';
 import { registrarRutaInterna } from '../../domain/navegacionRetorno';
 import { EXIGENCIA, filtrarNavegacion, rutaActiva } from '../../domain/navegacion';
 import { usarPermisosNavegacion } from '../hooks/usarPermisosNavegacion';
+import { avisoColaBorradores, usarSincronizacionBorradores } from '../hooks/usarSincronizacionBorradores';
 import './estructuraAplicacion.css';
 
 // Las nueve opciones de la matriz de navegación (Paso 2, Anexo A.1).
@@ -133,11 +134,26 @@ export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = ''
   );
 }
 
+/** RF-31/RF-32 · Borradores del dispositivo que aún no confirma el servidor. */
+export function IndicadorBorradores({ aviso }) {
+  return (
+    <span className="cola-borradores-estado" role="status" aria-live="polite">
+      {aviso && (
+        <span className={`cola-borradores-chip cola-borradores-${aviso.tono}`} title={aviso.texto}>
+          {aviso.corto}
+          <span className="sr-only">. {aviso.texto}</span>
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function EstructuraAplicacion({ children }) {
   const ubicacion = useLocation();
   const referenciaNavegacionMovil = useRef(null);
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
   const permisos = usarPermisosNavegacion();
+  const avisoBorradores = avisoColaBorradores(usarSincronizacionBorradores());
   const esVistaEvaluacionesApi = ubicacion.pathname === '/mis-evaluaciones'
     || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/');
 
@@ -185,13 +201,14 @@ export function EstructuraAplicacion({ children }) {
         </div>
 
         <div className="topbar-actions">
+          <IndicadorBorradores aviso={avisoBorradores} />
           {/* Fuera de .user-box: los estilos compartidos ocultan esa caja en pantallas de 360 px. */}
           {IDENTIDAD_LOCAL && (
             <span className="demo-mode-chip" title="Identidad local de desarrollo: los permisos no corresponden a un usuario institucional">
               Accesos simulados
             </span>
           )}
-          <div className="user-box" aria-label="Sesión activa">
+          <div className="user-box" role="group" aria-label="Sesión activa">
             <div className="user-meta">
               <strong>{IDENTIDAD_LOCAL ? 'Identidad local' : 'Sesión activa'}</strong>
             </div>

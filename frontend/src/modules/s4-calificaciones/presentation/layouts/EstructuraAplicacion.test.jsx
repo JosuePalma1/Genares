@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import { ESTADO_PERMISO } from '../../domain/navegacion';
-import { NAVEGACION, Navegacion } from './EstructuraAplicacion';
+import { IndicadorBorradores, NAVEGACION, Navegacion } from './EstructuraAplicacion';
+import { avisoColaBorradores } from '../hooks/usarSincronizacionBorradores';
 
 const { PERMITIDO, DENEGADO, CONSULTANDO } = ESTADO_PERMISO;
 const TODOS = { rubricas: PERMITIDO, modalidades: PERMITIDO, carreras: PERMITIDO, programaciones: PERMITIDO, auditoria: PERMITIDO, correcciones: PERMITIDO };
@@ -93,5 +94,15 @@ describe('barra lateral de Genares', () => {
   it('distingue los accesos simulados de la identidad local de desarrollo', () => {
     expect(renderizar({ identidadLocal: true })).toContain('Accesos simulados');
     expect(renderizar({ identidadLocal: false })).not.toContain('Accesos simulados');
+  });
+});
+
+describe('indicador de borradores sin sincronizar (RF-31/RF-32)', () => {
+  it('muestra la cola del dispositivo y queda vacío cuando no hay nada pendiente', () => {
+    const conPendientes = renderToStaticMarkup(<IndicadorBorradores aviso={avisoColaBorradores({ pendientes: 3, conflictos: 0, sincronizando: false })} />);
+    expect(conPendientes).toContain('role="status"');
+    expect(conPendientes).toContain('3 sin sincronizar');
+    expect(conPendientes).toContain('Se enviarán al servidor cuando haya conexión');
+    expect(renderToStaticMarkup(<IndicadorBorradores aviso={null} />)).not.toContain('cola-borradores-chip');
   });
 });

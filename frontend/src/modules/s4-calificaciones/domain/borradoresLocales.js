@@ -27,10 +27,44 @@ export function configurarEspejoBorradores(funcion) {
   espejo = typeof funcion === 'function' ? funcion : null;
 }
 
+// RF-31/RF-32 · Avisos a quien muestra el estado de la cola (p. ej. el indicador de la barra superior).
+const suscriptores = new Set();
+
+export function suscribirCambiosBorradores(funcion) {
+  suscriptores.add(funcion);
+  return () => suscriptores.delete(funcion);
+}
+
 function reflejar(clave, texto, almacen) {
   // Solo se refleja el almacén real del dispositivo, no los almacenes que inyectan las pruebas.
-  if (!espejo || almacen !== almacenPorDefecto()) return;
+  if (almacen !== almacenPorDefecto()) return;
+  if (clave.startsWith(PREFIJO)) {
+    for (const funcion of suscriptores) {
+      try { funcion(); } catch { /* un aviso nunca bloquea el guardado local */ }
+    }
+  }
+  if (!espejo) return;
   try { espejo(clave, texto); } catch { /* la copia duradera nunca bloquea el guardado local */ }
+}
+
+// RF-31 · Evaluaciones abiertas en esta pestaña: su propia página las sincroniza, así que la
+// sincronización global no las envía a la vez.
+const enEdicion = new Map();
+
+export function marcarEnEdicion(clave) {
+  if (!clave) return () => {};
+  enEdicion.set(clave, (enEdicion.get(clave) ?? 0) + 1);
+  let liberada = false;
+  return () => {
+    if (liberada) return;
+    liberada = true;
+    const restantes = (enEdicion.get(clave) ?? 1) - 1;
+    if (restantes > 0) enEdicion.set(clave, restantes); else enEdicion.delete(clave);
+  };
+}
+
+export function estaEnEdicion(clave) {
+  return enEdicion.has(clave);
 }
 
 /** Claves que se respaldan: borradores y copias de expediente de S4. */
@@ -82,6 +116,19 @@ export function claveBorrador({ asignacionId, tipo, idEtapa, idTitular, idEvalua
   return `${PREFIJO}${tipo === 'ORAL' ? 'oral' : 'escrita'}:${asignacionId}:${idEtapa}:${idTitular ?? 'compartida'}:${idEvaluador}`;
 }
 
+/** Inverso de claveBorrador: a qué evaluación pertenece un borrador. Null si la clave no es válida. */
+export function contextoDeClave(clave) {
+  if (typeof clave !== 'string' || !clave.startsWith(PREFIJO)) return null;
+  const partes = clave.slice(PREFIJO.length).split(':');
+  if (partes.length !== 5 || partes.some((parte) => !parte)) return null;
+  const [tipoClave, asignacionId, idEtapa, titular, idEvaluador] = partes;
+  if (tipoClave !== 'oral' && tipoClave !== 'escrita') return null;
+  const tipo = tipoClave === 'oral' ? 'ORAL' : 'ESCRITA';
+  const idTitular = titular === 'compartida' ? null : titular;
+  if (tipo === 'ORAL' && !idTitular) return null;
+  return { asignacionId, tipo, idEtapa, idTitular, idEvaluador };
+}
+
 export function leerBorrador(clave, almacen = almacenPorDefecto()) {
   if (!clave || !almacen) return null;
   try {
@@ -116,15 +163,15 @@ export function eliminarBorrador(clave, almacen = almacenPorDefecto()) {
   } catch { /* sin almacenamiento disponible */ }
 }
 
-/** Borradores que esperan conexión para enviarse al servidor. */
-export function listarPendientes(almacen = almacenPorDefecto()) {
+/** Borradores del dispositivo en los estados indicados (por defecto, los que esperan conexión). */
+export function listarPendientes(almacen = almacenPorDefecto(), estados = [ESTADO_LOCAL.PENDIENTE]) {
   if (!almacen) return [];
   const pendientes = [];
   for (let i = 0; i < almacen.length; i += 1) {
     const clave = almacen.key(i);
     if (!clave?.startsWith(PREFIJO)) continue;
     const registro = leerBorrador(clave, almacen);
-    if (registro?.estado === ESTADO_LOCAL.PENDIENTE) pendientes.push({ clave, ...registro });
+    if (estados.includes(registro?.estado)) pendientes.push({ clave, ...registro });
   }
   return pendientes;
 }
