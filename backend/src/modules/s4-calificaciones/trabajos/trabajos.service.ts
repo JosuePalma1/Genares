@@ -3,12 +3,92 @@ import { DataSource } from 'typeorm';
 import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
 import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from './paginacion-trabajos';
 
+/** Los ocho estados del Paso 1 §3.1, en orden de avance (posición 1 a 8). */
+export const ESTADOS_PROCESO_ORDENADOS = [
+  'REGISTRADO', 'TRIBUNAL_ASIGNADO', 'REVISION_ESCRITA_PENDIENTE', 'REVISION_ESCRITA_COMPLETADA',
+  'SUSTENTACION_PROGRAMADA', 'SUSTENTACION_PENDIENTE', 'EVALUACION_COMPLETADA', 'FINALIZADO',
+] as const;
+const ARREGLO_ESTADOS = `ARRAY[${ESTADOS_PROCESO_ORDENADOS.map((estado) => `'${estado}'`).join(', ')}]::text[]`;
+
+/**
+ * Estado del proceso calculado desde los datos (Paso 1 §3.1; RF-22, RF-24), no leído de un campo guardado.
+ * Requiere los alias a (s2.asignacion_tema), p (s4.procesos_evaluacion, puede ser NULL) y
+ * vr (versión de rúbrica visible, puede ser NULL). Expone estado_calculado.estado y estado_calculado.estudiantes.
+ *
+ * Por estudiante se toma el primer caso que se cumple:
+ *   8 Finalizado: cierre administrativo confirmado del trabajo (único estado que se guarda).
+ *   1 Registrado: sin tribunal registrado por S3.
+ *   2 Tribunal asignado: tribunal, pero sin proceso o sin versión de rúbrica visible.
+ *   7 Evaluación completada: cada etapa visible tiene la evaluación CERRADA (con total) de todos los
+ *     miembros del tribunal; la compartida por trabajo y la individual por estudiante.
+ *   3 Revisión escrita pendiente: falta cerrar alguna etapa ESCRITA (si la rúbrica no tiene, se omite).
+ *   4 Revisión escrita completada: escritas cerradas y el estudiante aún sin sesión vigente.
+ *   6 Sustentación pendiente: llegó la fecha y hora programadas de su sesión y falta cerrar su oral.
+ *   5 Sustentación programada: su sesión vigente es futura.
+ * El estado del trabajo es el del estudiante con menor avance. Solo cuenta lo visible (estado_registro = 1).
+ */
+export const ESTADO_CALCULADO_TRABAJO = `
+LEFT JOIN LATERAL (
+  SELECT
+    COALESCE((${ARREGLO_ESTADOS})[min(por_estudiante.rango)],
+      CASE WHEN p.estado = 'FINALIZADO' THEN 'FINALIZADO' ELSE 'REGISTRADO' END) AS estado,
+    COALESCE(jsonb_agg(jsonb_build_object(
+      'idEstudiante', por_estudiante.id, 'estado', (${ARREGLO_ESTADOS})[por_estudiante.rango]
+    ) ORDER BY por_estudiante.id), '[]'::jsonb) AS estudiantes
+  FROM (
+    SELECT s.id, CASE
+      WHEN p.estado = 'FINALIZADO' THEN 8
+      WHEN tribunal.miembros = 0 THEN 1
+      WHEN p.id IS NULL OR vr.id IS NULL THEN 2
+      WHEN etapas.completo THEN 7
+      WHEN NOT etapas.escrita_completa THEN 3
+      WHEN sesion.inicio IS NULL THEN 4
+      WHEN sesion.inicio <= LOCALTIMESTAMP THEN 6
+      ELSE 5
+    END AS rango
+    FROM (
+      SELECT a.estudiante_id AS id WHERE a.estudiante_id IS NOT NULL
+      UNION
+      SELECT gi.estudiante_id FROM s2.grupo_integrante gi
+      WHERE a.grupo_id IS NOT NULL AND gi.grupo_id = a.grupo_id AND gi.estado = 'ACTIVO'
+    ) s
+    CROSS JOIN (
+      SELECT count(*)::integer AS miembros FROM s3.asignacion_tribunal at_e WHERE at_e.asignacion_tema_id = a.id
+    ) tribunal
+    CROSS JOIN LATERAL (
+      SELECT count(*) > 0 AND bool_and(cerradas.n = tribunal.miembros) AS completo,
+        COALESCE(bool_and(cerradas.n = tribunal.miembros) FILTER (WHERE er.kind = 'ESCRITA'), true) AS escrita_completa
+      FROM s4.etapas_rubrica er
+      CROSS JOIN LATERAL (
+        SELECT count(DISTINCT ev.id_asignacion_tribunal)::integer AS n
+        FROM s4.evaluaciones ev
+        JOIN s3.asignacion_tribunal at_c
+          ON at_c.asignacion_tribunal_id = ev.id_asignacion_tribunal AND at_c.asignacion_tema_id = a.id
+        WHERE ev.id_proceso_evaluacion = p.id AND ev.id_version_rubrica = p.id_version_rubrica
+          AND ev.id_etapa_rubrica = er.id AND ev.estado_registro = 1
+          AND ev.estado = 'CERRADA' AND ev.calificacion_total IS NOT NULL
+          AND CASE WHEN er.scope = 'TRABAJO_COMPARTIDO' THEN ev.id_estudiante IS NULL ELSE ev.id_estudiante = s.id END
+      ) cerradas
+      WHERE er.id_version_rubrica = vr.id AND er.estado_registro = 1
+    ) etapas
+    CROSS JOIN LATERAL (
+      SELECT min(ps.fecha_programada + ps.hora_programada) AS inicio
+      FROM s4.programaciones_sustentacion ps
+      JOIN s4.programacion_estudiante pe
+        ON pe.programacion_sustentacion_id = ps.id AND pe.id_estudiante = s.id AND pe.estado_registro = 1
+      WHERE ps.id_proceso_evaluacion = p.id AND ps.estado_registro = 1 AND ps.estado <> 'CANCELADA'
+    ) sesion
+  ) por_estudiante
+) estado_calculado ON true
+`;
+
 export const CONSULTA_TRABAJOS_MER = `
 SELECT
   a.id AS id,
   a.id::text AS codigo,
   t.titulo AS titulo,
-  COALESCE(p.estado, 'REGISTRADO') AS estado,
+  estado_calculado.estado AS estado,
+  estado_calculado.estudiantes AS "estadosEstudiantes",
   t.carrera_id AS "idCarrera", c.codigo AS "codigoCarrera", c.nombre AS carrera,
   t.periodo_academico_id AS "idPeriodo", pa.codigo AS periodo,
   t.modalidad_id AS "idModalidad", m.codigo AS "codigoModalidad", m.nombre AS modalidad,
@@ -127,6 +207,7 @@ LEFT JOIN gen.carrera c ON c.id = t.carrera_id
 LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
 LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
 LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+${ESTADO_CALCULADO_TRABAJO}
 WHERE ((($1::uuid IS NULL AND a.estado = 'VIGENTE') OR a.id = $1::uuid)
   AND ($2::uuid[] IS NULL OR a.id = ANY($2::uuid[]))
   AND (p.id IS NULL OR p.estado_registro = 1)
@@ -145,6 +226,7 @@ LEFT JOIN gen.carrera c ON c.id = t.carrera_id
 LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
 LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
 LEFT JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+${ESTADO_CALCULADO_TRABAJO}
 WHERE a.estado = 'VIGENTE'
   AND (p.id IS NULL OR p.estado_registro = 1)
   AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
@@ -189,7 +271,7 @@ export const CONSULTA_PAGINA_TRABAJOS_MER = `
 WITH filtrados AS (
   SELECT a.id, t.titulo
   ${FILTRO_TRABAJOS_MER}
-    AND ($2::text IS NULL OR COALESCE(p.estado, 'REGISTRADO') = $2::text)
+    AND ($2::text IS NULL OR estado_calculado.estado = $2::text)
     AND ($3::text IS NULL OR ($3::text = 'con') = EXISTS (
       SELECT 1 FROM s3.asignacion_tribunal at
       JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
@@ -212,7 +294,7 @@ SELECT
 `;
 
 const CONSULTA_ESTADOS_TRABAJOS_MER = `
-SELECT DISTINCT COALESCE(p.estado, 'REGISTRADO') AS estado
+SELECT DISTINCT estado_calculado.estado AS estado
 ${FILTRO_TRABAJOS_MER}
 ORDER BY 1
 `;

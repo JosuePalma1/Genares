@@ -4,7 +4,7 @@ import { EstadoTrabajo } from '../../../common/domain/enums-dominio';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 import { pendientesActa } from '../documentos/modelo-documental';
 import { EvaluacionesService } from '../evaluaciones/evaluaciones.service';
-import { CONSULTA_PERIODOS, TEXTO_BUSCABLE_TRABAJO } from '../trabajos/trabajos.service';
+import { CONSULTA_PERIODOS, ESTADO_CALCULADO_TRABAJO, TEXTO_BUSCABLE_TRABAJO } from '../trabajos/trabajos.service';
 import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from '../trabajos/paginacion-trabajos';
 import { ConsultarFinalizacionDto } from './consultar-finalizacion.dto';
 import { evaluarFinalizacion } from './finalizacion.reglas';
@@ -105,8 +105,14 @@ export class FinalizacionService {
   async consultar(trabajoId: string, actor: string, accesoLocal: boolean) {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, accesoLocal);
     const procesoId = datos.trabajo.procesoId as string;
-    const [proceso]: Array<{ estado: string | null }> = await this.db.query(
-      'SELECT estado FROM s4.procesos_evaluacion WHERE id = $1 AND estado_registro = 1', [procesoId]);
+    // estado: el guardado (decide si ya está finalizado); estadoCalculado: el que se muestra (Paso 1 §3.1).
+    const [proceso]: Array<{ estado: string | null; estadoCalculado?: string | null }> = await this.db.query(`
+      SELECT p.estado, estado_calculado.estado AS "estadoCalculado"
+      FROM s4.procesos_evaluacion p
+      JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id
+      LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
+      ${ESTADO_CALCULADO_TRABAJO}
+      WHERE p.id = $1 AND p.estado_registro = 1`, [procesoId]);
     if (!proceso) throw new NotFoundException('No existe un proceso de evaluación vigente para este trabajo.');
     const conActa = new Set((await this.db.query(`
       SELECT DISTINCT id_estudiante AS "idEstudiante" FROM s4.actas_archivadas
@@ -126,7 +132,7 @@ export class FinalizacionService {
       trabajo: {
         id: datos.trabajo.id as string, titulo: datos.trabajo.titulo as string,
         carrera: datos.trabajo.carrera as string, codigoCarrera: datos.trabajo.carreraCodigo as string,
-        periodo: datos.trabajo.periodo as string, estado: proceso.estado ?? EstadoTrabajo.REGISTRADO,
+        periodo: datos.trabajo.periodo as string, estado: proceso.estadoCalculado ?? proceso.estado ?? EstadoTrabajo.REGISTRADO,
       },
       ...evaluacion,
     };

@@ -1,6 +1,6 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { IsOptional, IsString, MaxLength } from 'class-validator';
-import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { exigirConsultaGeneralLocal } from '../trabajos/trabajos.controller';
 import { SeguimientoService } from './seguimiento.service';
@@ -20,6 +20,6 @@ export class SeguimientoController {
   @RequiereCapacidades('trabajos:leer', 'evaluaciones:leer')
   resumen(@Query() filtros: ConsultarResumenDto, @Req() solicitud: SolicitudConIdentidad) {
     exigirConsultaGeneralLocal(solicitud);
-    return this.servicio.resumen(actorValidadoDe(solicitud), puedeConsultarDemostracion(solicitud), filtros.periodo);
+    return this.servicio.resumen(filtros.periodo);
   }
 }

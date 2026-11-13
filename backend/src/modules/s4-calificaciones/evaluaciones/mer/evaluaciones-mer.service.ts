@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import { GuardarBorradorOralDto } from './borrador-oral.dto';
 import { detallarConsolidacionMer, validarPuntajesBorrador, validarPuntajesCierre } from './borrador-oral.reglas';
 import { establecerActorAuditoria } from '../../auditoria/contexto-auditoria';
+import { ESTADO_CALCULADO_TRABAJO } from '../../trabajos/trabajos.service';
 
 interface IdentidadProceso {
   procesoId: string;
@@ -32,6 +33,81 @@ export interface EtapaMer {
 export interface ParticipanteMer {
   id: string;
   nombre: string;
+}
+
+/** Proceso evaluable del trabajo con su versión de rúbrica visible ($1 = asignación). */
+export const CONSULTA_PROCESO_EXPEDIENTE = `
+  SELECT p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
+         p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica",
+         -- Paso 1 §3.1: el estado del trabajo se calcula desde los datos, como en Trabajos e Inicio.
+         estado_calculado.estado AS "estadoProceso",
+         p.estado_registro AS "estadoRegistro",
+         has_column_privilege('s4.evaluaciones', 'estado', 'UPDATE')
+           AND has_column_privilege('s4.evaluaciones', 'cerrada_en', 'UPDATE') AS "permisoCierre"
+  FROM s2.asignacion_tema a
+  JOIN gen.tema t ON t.id = a.tema_id
+  JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id
+  JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
+  JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+  ${ESTADO_CALCULADO_TRABAJO}
+  WHERE a.id = $1 AND a.estado = 'VIGENTE' AND p.estado_registro = 1
+    AND EXISTS (SELECT 1 FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id)
+`;
+
+/**
+ * Datos para asignar la rúbrica a un trabajo sin proceso ($1 = asignación). La versión elegida cumple
+ * las mismas condiciones que s4.validar_rubrica_proceso: ACTIVA y vigente para modalidad, carrera y período.
+ */
+export const CONSULTA_RUBRICA_VIGENTE_ASIGNACION = `
+  SELECT a.estado,
+         EXISTS (SELECT 1 FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id) AS "conTribunal",
+         (SELECT p.estado_registro FROM s4.procesos_evaluacion p WHERE p.asignacion_tema_id = a.id) AS "procesoEstadoRegistro",
+         m.nombre AS modalidad, c.nombre AS carrera, pa.codigo AS periodo,
+         candidatas.cantidad AS "versionesCandidatas",
+         CASE WHEN candidatas.cantidad = 1 THEN candidatas.id END AS "idVersion"
+  FROM s2.asignacion_tema a
+  JOIN gen.tema t ON t.id = a.tema_id
+  -- Igual que s4.incorporar_asignacion_desde_s3: solo se asigna si hay UNA candidata;
+  -- con varias queda pendiente de selección manual autorizada.
+  CROSS JOIN LATERAL (
+    SELECT count(DISTINCT vr.id)::integer AS cantidad, min(vr.id::text)::uuid AS id
+    FROM s4.versiones_rubrica vr
+    JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
+    JOIN s4.vigencias_rubrica_carrera vig ON vig.id_version_rubrica = vr.id AND vig.estado_registro = 1
+    WHERE r.id_modalidad = t.modalidad_id AND vr.periodo_academico_id = t.periodo_academico_id
+      AND vig.id_carrera = t.carrera_id AND vr.estado = 'ACTIVA' AND vr.estado_registro = 1
+      AND vig.vigente_desde <= now() AND (vig.vigente_hasta IS NULL OR vig.vigente_hasta > now())
+  ) candidatas
+  LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
+  LEFT JOIN gen.carrera c ON c.id = t.carrera_id
+  LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
+  WHERE a.id = $1
+`;
+
+interface ContextoAsignacionRubrica {
+  estado: string;
+  conTribunal: boolean;
+  procesoEstadoRegistro: 0 | 1 | null;
+  modalidad: string | null;
+  carrera: string | null;
+  periodo: string | null;
+  versionesCandidatas?: number;
+  idVersion: string | null;
+}
+
+export function mensajeSinRubricaActiva({ modalidad, carrera, periodo, versionesCandidatas = 0 }: Pick<ContextoAsignacionRubrica, 'modalidad' | 'carrera' | 'periodo' | 'versionesCandidatas'>): string {
+  const destino = [modalidad, carrera, periodo].filter(Boolean).join(' · ') || 'la modalidad, carrera y período del trabajo';
+  return versionesCandidatas > 1
+    ? `Hay ${versionesCandidatas} rúbricas activas para ${destino}. Se necesita que un responsable elija cuál aplicar.`
+    : `No hay rúbrica activa para ${destino}. Pida que se active la versión correspondiente en Rúbricas.`;
+}
+
+/** Igual que el guardado de borradores: solo en la base local de desarrollo. */
+function entornoEscrituraLocal(): boolean {
+  return process.env.NODE_ENV === 'development'
+    && process.env.ENABLE_INTEGRACION_DEV === 'true'
+    && process.env.LOCAL_DEV_OPEN_ACCESS === 'true'
+    && process.env.DB_NAME === 'genares_integrado_dev';
 }
 
 /**
@@ -73,24 +149,39 @@ export class EvaluacionesMerService {
     }));
   }
 
-  async obtenerExpediente(asignacionId: string, db: Pick<DataSource, 'query'> = this.db) {
-    const [proceso] = await db.query(`
-      SELECT p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
-             p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica",
-             p.estado AS "estadoProceso",
-             p.estado_registro AS "estadoRegistro",
-             has_column_privilege('s4.evaluaciones', 'estado', 'UPDATE')
-               AND has_column_privilege('s4.evaluaciones', 'cerrada_en', 'UPDATE') AS "permisoCierre"
-      FROM s2.asignacion_tema a
-      JOIN gen.tema t ON t.id = a.tema_id
-      JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id
-      JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
-      JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
-      WHERE a.id = $1 AND a.estado = 'VIGENTE' AND p.estado_registro = 1
-        AND EXISTS (SELECT 1 FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id)
-    `, [asignacionId]) as IdentidadProceso[];
-    if (!proceso) throw new NotFoundException('No existe proceso evaluable para esta asignación.');
+  /**
+   * RF-11/RF-19 · La primera vez que se abre la evaluación de un trabajo sin proceso, se le asigna la
+   * versión ACTIVA y vigente de su modalidad, carrera y período. Queda fija aunque luego se active otra.
+   * Si no hay ninguna, el mensaje dice qué falta. La validación final la hace s4.validar_rubrica_proceso.
+   */
+  async asignarRubricaVigente(asignacionId: string): Promise<void> {
+    await this.db.transaction(async (manager) => {
+      await establecerActorAuditoria(manager);
+      // Dos aperturas simultáneas del mismo trabajo no intentan crear dos procesos.
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`s4:proceso:${asignacionId}`]);
+      const [contexto] = await manager.query(CONSULTA_RUBRICA_VIGENTE_ASIGNACION, [asignacionId]) as ContextoAsignacionRubrica[];
+      if (!contexto) throw new NotFoundException('No existe la asignación del trabajo.');
+      if (contexto.procesoEstadoRegistro !== null) return; // Ya tiene proceso (visible u oculto): no se toca.
+      if (contexto.estado !== 'VIGENTE' || !contexto.conTribunal) return; // Aún no es evaluable.
+      if (!contexto.idVersion) throw new ConflictException(mensajeSinRubricaActiva(contexto));
+      await manager.query(
+        'INSERT INTO s4.procesos_evaluacion (asignacion_tema_id, id_version_rubrica) VALUES ($1, $2)',
+        [asignacionId, contexto.idVersion],
+      );
+    });
+  }
 
+  async obtenerExpediente(asignacionId: string, db: Pick<DataSource, 'query'> = this.db) {
+    let [proceso] = await db.query(CONSULTA_PROCESO_EXPEDIENTE, [asignacionId]) as IdentidadProceso[];
+    if (!proceso && db === this.db && entornoEscrituraLocal()) {
+      await this.asignarRubricaVigente(asignacionId);
+      [proceso] = await db.query(CONSULTA_PROCESO_EXPEDIENTE, [asignacionId]) as IdentidadProceso[];
+    }
+    if (!proceso) throw new NotFoundException('No existe proceso evaluable para esta asignación.');
+    return this.armarExpediente(asignacionId, proceso, db);
+  }
+
+  private async armarExpediente(asignacionId: string, proceso: IdentidadProceso, db: Pick<DataSource, 'query'>) {
     const [etapas, estudiantes, evaluadores, evaluaciones] = await Promise.all([
       this.obtenerEtapas(proceso.idVersionRubrica, db),
       db.query<ParticipanteMer[]>(`SELECT est.id, TRIM(CONCAT_WS(' ', persona.nombres, persona.apellidos)) AS nombre
