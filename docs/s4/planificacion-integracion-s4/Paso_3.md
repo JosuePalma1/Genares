@@ -18,9 +18,9 @@ Sistema de gestión de evaluaciones de trabajos de titulación
 
 **CARRERAS** Tecnologías de la Información y Software
 
-**ESTADO** Diseño arquitectónico base para implementación
+**ESTADO** Diseño arquitectónico base para implementación · **versión 1.1**: nombres del MER vigente y decisiones ya tomadas al implementar (ver «Control de cambios»)
 
-**FECHA** 2 de noviembre de 2026
+**FECHA** 12 de noviembre de 2026 (versión 1.0: 2 de noviembre de 2026)
 
 **Criterio central**
 
@@ -49,7 +49,7 @@ Genares (S4) cubre las carreras de Tecnologías de la Información y Software. C
 | **Decisión** | **Definición adoptada** |
 | --- | --- |
 | Patrón general | Monolito modular; organización interna con Clean Architecture aplicada de forma práctica. |
-| Frontend | React con TypeScript y Vite; interfaz administrativa web y APK Android únicamente para el tribunal de S4. |
+| Frontend | React y Vite; interfaz administrativa web y APK Android únicamente para el tribunal de S4. Los puntos de entrada están en TypeScript; el módulo S4 está escrito en JavaScript (JSX) y no se convierte en bloque. |
 | Backend | NestJS; TypeORM propuesto para persistencia PostgreSQL. |
 | Persistencia | Una base PostgreSQL y un MER único, con esquemas gen, s1, s2, s3 y s4. |
 | Comunicación | Clientes → API HTTP/JSON NestJS → base PostgreSQL; S3/S4 comparten datos mediante consultas del backend a la misma BD. |
@@ -92,10 +92,10 @@ La base entregada contiene React y TypeScript con Vite. Las versiones se toman d
 | **Elemento** | **Situación documentada** | **Aplicación prevista** |
 | --- | --- | --- |
 | React + React DOM | Declarado en frontend/package.json: ^19.3.1. | Interfaces administrativas y vistas del tribunal. |
-| TypeScript | Declarado: ~6.0.3. | Tipado de pantallas, contratos de API y lógica. |
+| TypeScript | Declarado: ~6.0.3. | Puntos de entrada (main.tsx, App.tsx). El módulo S4 usa JavaScript (JSX); se acepta así para no reescribir código probado. |
 | Vite | Declarado: ^8.3.4. | Desarrollo y compilación del frontend. |
-| Enrutamiento / estado | React Router, Context API y hooks aparecen en el README; no como dependencias instaladas en el manifiesto examinado. | Integrar cuando se desarrollen pantallas y navegación. |
-| Capacitor | Decisión de arquitectura para S4; no aparece instalado en la base examinada. | Empaquetado de la experiencia del tribunal en APK Android. |
+| Enrutamiento / estado | React Router instalado y en uso; estado con hooks. | Navegación del módulo S4 en routes.jsx. |
+| Capacitor | Instalado (@capacitor/android y @capacitor/preferences). Ya genera una APK de desarrollo. | Empaquetado de la experiencia del tribunal en APK Android. Falta la entrada propia del tribunal (ver Paso 4, sección 4.2). |
 | CSS / iconografía / alertas | Design system y bibliotecas propuestas en README; verificar e integrar dependencias al implementar. | Identidad visual institucional y experiencia consistente. |
 
 ## 3.2. Experiencias de uso
@@ -160,10 +160,10 @@ Se utilizará una sola instancia lógica de PostgreSQL con el MER institucional 
 | **Datos / tablas** | **Responsable** | **Uso desde S4** |
 | --- | --- | --- |
 | gen.persona, gen.estudiante, gen.docente, gen.carrera, gen.periodo\_academico, gen.tema | Compartido / módulos académicos | Contexto del expediente; lectura según permisos. |
-| s2.estudiantes\_trabajo, s2.asignaciones\_tutor\_trabajo | S2 | Consultar integrantes y tutor del trabajo. |
-| s3.trabajos\_titulacion | S3 en el MER vigente | Identificar el trabajo y su relación con las evaluaciones de S4. |
-| s3.asignaciones\_tribunal, s3.miembros\_tribunal | S3 | Comprobar tribunal asignado y evaluadores habilitados. |
-| s4.programaciones\_sustentacion | S4 | Registrar y reprogramar la sustentación oficial, consultada también por S3. |
+| s2.asignacion\_tema, s2.grupo\_integrante, s2.asignacion\_tutor | S2 | Identificar el trabajo evaluable (asignación de tema), sus integrantes (binas) y su tutor. |
+| s3.asignacion\_tribunal, s3.miembros\_tribunal, s3.docente\_carrera\_periodo | S3 | Comprobar tribunal asignado y evaluadores habilitados. |
+| s4.procesos\_evaluacion | S4 | Enlazar cada asignación de S2 con su versión de rúbrica. |
+| s4.programaciones\_sustentacion, s4.programacion\_estudiante | S4 | Registrar y reprogramar la sustentación oficial y sus participantes; consultada también por S3. |
 | s4.rubricas, s4.versiones\_rubrica y componentes | S4 | Definir instrumentos de evaluación y sus versiones. |
 | s4.evaluaciones, s4.calificaciones\_evaluacion | S4 | Guardar calificaciones escritas/orales por evaluador y estudiante cuando corresponda. |
 | s4.eventos\_trazabilidad\_trabajo, s4.actas\_archivadas y auditoría | S4 | Trazabilidad y documentos de calificación. |
@@ -174,11 +174,17 @@ Según el paquete MER\_unificado\_S2\_S3\_S4\_tablas\_ubicadas.zip, el diseño d
 
 La fuente oficial de programación será s4.programaciones\_sustentacion. S4 la crea y actualiza, mientras S3 consulta las fechas. La estructura s3.defensa fue retirada del modelo operativo para evitar un calendario paralelo; sus antecedentes permanecen en las fuentes originales del MER. Los tribunales son asignados por S3 y consultados por S4.
 
-## 5.4. Aspectos del diseño físico por concretar
+## 5.4. Diseño físico de sesiones y cambios de esquema
 
-Se elimina la restricción UNIQUE(id\_trabajo) de la tabla s4.programaciones\_sustentacion para permitir múltiples sesiones si fuera necesario. Se incorpora formalmente la tabla asociativa s4.estudiantes\_sesion\_sustentacion (id\_sesion, id\_estudiante) y la clave foránea desde s4.evaluaciones hacia la sesión oral, garantizando el soporte físico completo tanto para defensas conjuntas como para sesiones separadas.
+Ya implementado en la base de desarrollo:
 
-La estrategia de migraciones, restricciones adicionales, permisos SQL y semillas de desarrollo se resolverá al comenzar la persistencia. Los cambios sobre una base real deberán ser versionados y no destructivos.
+* s4.programaciones\_sustentacion no tiene restricción de una sola sesión por trabajo, así que admite varias sesiones del mismo trabajo.
+* Los participantes de cada sesión se registran en la tabla asociativa s4.programacion\_estudiante (programacion\_sustentacion\_id, id\_estudiante).
+* Cada evaluación oral apunta a su sesión con s4.evaluaciones.id\_programacion\_sustentacion. PostgreSQL exige que la sesión sea del mismo proceso y que el estudiante participe en ella.
+
+Con esto quedan cubiertas las defensas conjuntas y las sesiones separadas.
+
+**Cambios de esquema.** No se usan migraciones automáticas ni sincronización del ORM. La base es compartida por varios equipos y la aplicación se conecta con un usuario (genares) que no puede cambiar la estructura. Cada cambio de S4 es un script SQL idempotente en backend/fixtures/, que se revisa y ejecuta a mano como postgres. Así cambia el esquema de forma versionada en el repositorio y no destructiva. La forma de aplicarlo en los ambientes reales se acordará con el responsable de integración.
 
 |  |
 | --- |
@@ -214,7 +220,13 @@ El tribunal podrá continuar sobre evaluaciones previamente descargadas cuando p
 * La APK identifica si una operación está pendiente, sincronizándose o confirmada por el servidor.
 * Las operaciones de sincronización deben evitar duplicados y pérdidas de cambios; los conflictos no se sobrescriben silenciosamente.
 * Cerrar una evaluación es una operación definitiva del servidor: una nota guardada localmente no se considera cerrada hasta confirmarse.
-* La tecnología específica de almacenamiento local (por ejemplo, IndexedDB o SQLite integrado) y la política detallada de conflictos se elegirán al implementar la APK.
+* Almacenamiento local elegido:
+  * en la web, los borradores se guardan en localStorage;
+  * en la APK se copian además en el almacenamiento nativo (@capacitor/preferences) y se restauran al abrir, por si el WebView se vacía.
+* Política de conflictos:
+  * cada envío lleva la revisión base y un identificador de operación, así que un reenvío no se aplica dos veces;
+  * si el servidor tiene otra revisión, se conservan las dos versiones y decide el usuario;
+  * la cola de pendientes se envía sola al volver la conexión.
 
 ## 6.4. Seguridad de la comunicación
 
@@ -254,7 +266,17 @@ La arquitectura técnica proporciona soporte a los siete módulos funcionales y 
 * Pruebas de escritura compartida frente a oral individual y recuperación/sincronización en tablets.
 * Pruebas de integración de FKs y consulta desde S4 a tablas S2/S3.
 
-El repositorio examinado incluye scripts Jest en el backend; la selección de herramientas de prueba del frontend y automatización de CI se concretará cuando las funcionalidades estén presentes.
+Herramientas en uso:
+
+* **Backend:** Jest.
+* **Frontend:** Vitest.
+* **Accesibilidad:** se revisó con axe-core.
+* **Rendimiento:** prueba de carga con un script propio (docs/s4/validacion-rnf-03-carga.md).
+
+Pendiente:
+
+* la suite de aceptación de extremo a extremo (PA-01 a PA-18);
+* la integración automática (CI) que compile y pruebe cada solicitud de integración.
 
 # 9. Decisiones diferidas sin bloquear el desarrollo
 
@@ -282,6 +304,13 @@ Queda seleccionada una arquitectura de monolito modular: frontend React/TypeScri
 * Resolver el ajuste del MER para sustentaciones separadas antes de programar ese flujo.
 * Preparar la distribución Android del tribunal, incluidos almacenamiento local y sincronización.
 * Validar las reglas con las pruebas de aceptación del Paso 1.
+
+# Control de cambios
+
+| **Versión** | **Cambios** |
+| --- | --- |
+| 1.1 — 12/11/2026 | Nombres de tablas del MER vigente (s2.asignacion\_tema, s3.asignacion\_tribunal, s4.programacion\_estudiante, s4.procesos\_evaluacion), en lugar de los nombres anteriores (s2.estudiantes\_trabajo, s3.trabajos\_titulacion, s4.estudiantes\_sesion\_sustentacion). El módulo S4 en JavaScript (JSX). React Router y Capacitor, ya instalados. Diseño físico de sesiones ya implementado. Cambios de esquema mediante scripts SQL manuales en lugar de migraciones automáticas. Almacenamiento local y política de conflictos elegidos. Herramientas de prueba en uso. No cambia la arquitectura ni el alcance funcional. |
+| 1.0 — 02/11/2026 | Diseño arquitectónico base. |
 
 # Anexo A. Fuentes de referencia y vigencia
 

@@ -13,7 +13,7 @@ Plan ejecutable para el equipo de Genares (S4), sin asignar tareas a S1, S2 ni S
 | Referencias | Pasos 1, 2, 3 y 4; MER unificado; repositorio compartido |
 | Responsables propuestos | S4-A (frontend / APK) y S4-B (backend / datos), nombres por completar |
 | Planificación | Entregas secuenciales por criterios de aceptación; sin fechas fijadas |
-| Estado | Propuesta operativa para iniciar desarrollo — 02 nov 2026 |
+| Estado | Propuesta operativa para iniciar desarrollo — 02 nov 2026. **Versión 1.1 (12 nov 2026):** nombres del MER vigente y estado de las tareas (sección 4.1). |
 
 |  |
 | --- |
@@ -38,7 +38,7 @@ El Paso 5 convierte los siete módulos funcionales y tres componentes transversa
 | **Puesto propuesto** | **Responsabilidad principal** | **Revisión / apoyo** |
 | --- | --- | --- |
 | S4-A — Frontend y APK | Rutas React, pantallas, formularios, experiencia del tribunal, Capacitor, persistencia local y sincronización del cliente. | Revisa cambios de API y valida experiencia de usuario. |
-| S4-B — Backend y datos | NestJS, casos de uso, permisos, consultas al MER, evaluación, cálculo, PDFs, auditoría, migraciones de S4. | Revisa contratos usados por frontend y las pruebas. |
+| S4-B — Backend y datos | NestJS, casos de uso, permisos, consultas al MER, evaluación, cálculo, PDFs, auditoría, scripts SQL de S4 (backend/fixtures/). | Revisa contratos usados por frontend y las pruebas. |
 | Ambos — integración y calidad | Criterios de aceptación, pruebas de flujo completo, documentación, demostraciones, revisión cruzada y entregas. | Cada PR tiene autor y revisor diferentes cuando sea posible. |
 | Coordinación S4 — rol rotativo o designado | Ordena prioridades, mantiene tablero GitHub y confirma que las entregas cumplan su lista de verificación. | No sustituye la revisión técnica de ambos. |
 
@@ -76,7 +76,7 @@ Las siguientes tareas son tarjetas de trabajo iniciales para GitHub Projects. Se
 | S4-04 | Ficha de trabajo y consulta académica S4. | S4-A | Flujo de búsqueda y ficha visible. |
 | S4-05 | Reglas, versiones y validación de rúbricas. | S4-B | Pruebas de máximos y versión utilizada. |
 | S4-06 | Editor/consulta de rúbricas S4. | S4-A | Validaciones UI conectadas al backend. |
-| S4-07 | Programar/reprogramar sesiones, soporte a s4.estudiantes\_sesion\_sustentacion y registrar cambios. | S4-B | API que conserva ID; migración sin restricción UNIQUE(id\_trabajo); trazabilidad. |
+| S4-07 | Programar/reprogramar sesiones, soporte a s4.programacion\_estudiante (participantes) y registrar cambios. | S4-B | API que conserva ID; varias sesiones por trabajo; trazabilidad con motivo. |
 | S4-08 | Cronograma y agenda por permisos. | S4-A | Pantalla de consulta/programación funcional. |
 | S4-09 | Crear, guardar y cerrar evaluaciones con validaciones. | S4-B | API con estados y cierre confirmado. |
 | S4-10 | Formulario de evaluación y revisión de faltantes. | S4-A | Notas/observaciones y subtotales operativos. |
@@ -89,6 +89,18 @@ Las siguientes tareas son tarjetas de trabajo iniciales para GitHub Projects. Se
 | S4-17 | Pruebas end-to-end, seguridad y correcciones. | S4-B | Flujos de aceptación ejecutados; S4-A revisa y apoya. |
 
 El orden real permite trabajo paralelo: por ejemplo, S4-A puede desarrollar las pantallas con contratos simulados mientras S4-B desarrolla la API. Antes de marcar “Terminado”, ambas partes deben funcionar integradas.
+
+## 4.1. Estado de las tareas (12/11/2026)
+
+Estado funcional en la rama `feature/mer-unificado-pasos-3-4`. Según la sección 7, ninguna tarea cuenta como «Terminado» hasta tener su PR fusionado: todavía no hay issues ni PR en GitHub.
+
+| **Estado** | **Tareas** |
+| --- | --- |
+| Hecha en la rama | S4-01, S4-02, S4-03, S4-04, S4-05, S4-06, S4-07, S4-08, S4-10, S4-11, S4-12, S4-14, S4-16 |
+| Parcial | **S4-09:** guardar y cerrar solo en modo de desarrollo, sin identidad real. **S4-13:** actas sin códigos académicos reales. **S4-15:** la APK funciona, pero sin entrada propia del tribunal. |
+| Pendiente | **S4-17:** pruebas de aceptación de extremo a extremo y revisión de seguridad. |
+
+Detalle y orden sugerido: [docs/s4/PENDIENTES.md](../PENDIENTES.md).
 
 # 5. GitHub: organización del trabajo S4
 
@@ -166,7 +178,7 @@ Mientras el backend compartido se integra, S4 puede usar datos de prueba consist
 | Responsabilidad | El módulo escribe solo tablas bajo responsabilidad S4; consulta datos de S2/S3 conforme al MER. |
 | Permisos | Operaciones sensibles se validan en backend por usuario, carrera y tribunal, no solo en React. |
 | Evaluación | Escrita compartida y oral individual según rúbrica; no existen duplicados indebidos. |
-| Cronograma | Reprogramar conserva ID, implementa la tabla asociativa s4.estudiantes\_sesion\_sustentacion y deja historial; no se recrea s3.defensa. |
+| Cronograma | Reprogramar conserva ID, usa la tabla asociativa s4.programacion\_estudiante y deja historial; no se recrea s3.defensa. |
 | Notas | Cálculo mantiene precisión completa y muestra dos decimales aplicando la regla de redondeo comercial estándar (HALF\_UP, donde el tercer decimal ≥ 5 incrementa la centésima). |
 | Sincronización | Un corte de Internet no borra el avance; reenvíos no duplican; conflictos no sobrescriben en silencio. |
 | Cierre y documentos | Cierre solo con confirmación de servidor; PDFs se generan a partir de resultados cerrados; respaldos PDF de correcciones extraordinarias almacenados en /storage/auditoria/justificativos/. |
@@ -205,3 +217,9 @@ Para comenzar sin bloquearse, el equipo S4 solo necesita ejecutar estas acciones
 # 10. Referencias de continuidad
 
 Paso 1: Especificación de requisitos S4. Paso 2: Módulos funcionales MF-01…MF-07 y componentes transversales CT-01…CT-03. Paso 3: Arquitectura y tecnologías. Paso 4: Estructura de carpetas y responsables. MER unificado y repositorio compartido de Gestión de Titulación.
+# Control de cambios
+
+| **Versión** | **Cambios** |
+| --- | --- |
+| 1.1 — 12/11/2026 | Tabla asociativa con su nombre del MER vigente, s4.programacion\_estudiante, en S4-07 y en el criterio de cronograma. Scripts SQL de S4 en lugar de migraciones. Nueva sección 4.1 con el estado de las tareas. El plan, los responsables, las reglas de GitHub y los hitos E0–E7 no cambian. |
+| 1.0 — 02/11/2026 | Propuesta operativa para iniciar desarrollo. |

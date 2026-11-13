@@ -1,7 +1,7 @@
 # Lo que falta en Genares S4
 
 **Actualizado:** 12/11/2026.
-Para poner el proyecto en marcha, ver [PRIMEROS-PASOS.md](PRIMEROS-PASOS.md). El detalle de cada requisito está en [estado-paso-1.md](estado-paso-1.md).
+Para poner el proyecto en marcha, ver [PRIMEROS-PASOS.md](PRIMEROS-PASOS.md). El detalle de cada requisito está en [estado-paso-1.md](estado-paso-1.md). Los Pasos 3, 4 y 5 se actualizaron a la versión 1.1, con los nombres reales de las tablas y el estado de la estructura y de las tareas.
 
 ## En pocas palabras
 
@@ -26,7 +26,10 @@ Lo que falta:
 
 | Tarea | Qué hay que hacer |
 | --- | --- |
+| **App solo para el tribunal** (Paso 4, tarea S4-15) | Hoy la APK es la web completa: en el teléfono se ven Rúbricas, Auditoría, Seguimiento… El Paso 4 pide una entrada propia (`frontend/src/apps/tribunal/`) con solo lo del tribunal: su agenda, sus evaluaciones y la recuperación de borradores. Debe reutilizar las pantallas y reglas del módulo S4, no copiarlas. |
 | **Mejorar la experiencia y la interfaz** | Ver la sección 3. Es lo más visible para quien use el sistema. |
+| **Organizar el trabajo en GitHub** (Paso 5) | Todavía no hay issues, tablero ni solicitudes de integración (PR). Todo está en una sola rama. Hay que crear las tarjetas S4-01 a S4-17 (su estado está en el Paso 5, sección 4.1) y trabajar con una rama por cambio y PR revisado por otra persona. |
+| **Comprobación automática en GitHub** (CI) | Que cada PR compile y pase las pruebas solo, sin depender de que alguien lo haga a mano. |
 | **Pruebas completas de aceptación** (RNF-17, tarea S4-17) | Automatizar los escenarios PA-02 a PA-18 del Paso 1 (sección 9) contra el sistema funcionando de verdad. Hoy hay unas 560 pruebas automáticas, pero cada una prueba una pieza suelta. Sugerencia: usar datos de prueba propios (por ejemplo, con el prefijo «E2E») y ocultarlos al terminar. |
 | **Revisión de seguridad** | Revisar el servidor de S4: permisos, datos que se aceptan y mensajes de error. |
 | **Completar el README** | Añadir `s4-asignacion-rubrica-proceso.sql` a la tabla de scripts del `README.md` principal. El orden completo ya está en PRIMEROS-PASOS.md. |
@@ -41,6 +44,7 @@ Lo que falta:
 | **Nota mínima** | El 7,00 está puesto como provisional. | Institución. |
 | **Trabajos terminados** | Confirmar si S2 cambia el estado de una asignación cuando el trabajo termina, para la consulta del historial. | Equipo de S2. |
 | **Correos automáticos** | No están en los requisitos aprobados. Hay que confirmar si se piden. | Coordinación. |
+| **Acuerdos con otros equipos** (Paso 2, D-05 a D-08) | Cerrar por escrito: <br>· cómo llega la identidad; <br>· quién crea los trabajos y sus estudiantes; <br>· qué parte del historial lee S3; <br>· si S3 consultará los resultados de S4; <br>· qué se hace con la tabla antigua `s3.defensa`. <br>Conviene guardarlos en `docs/contracts/`. | Equipos de S2 y S3, e identidad. |
 | **Ambiente de aceptación** | Publicar el sistema con HTTPS, repetir ahí la prueba de rendimiento y probar en tablet Android e iPad. | Responsable de despliegue. |
 
 ## 3. Experiencia e interfaz (UX/UI)

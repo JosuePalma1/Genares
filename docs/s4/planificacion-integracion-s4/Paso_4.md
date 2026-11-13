@@ -12,7 +12,7 @@ Ubicación de componentes · Límites de modificación · Reglas para trabajar e
 | Sistema | Genares (S4), integrado con S1, S2 y S3 |
 | Carreras | Tecnologías de la Información y Software |
 | Base del diseño | Pasos 1, 2 y 3; repositorio y MER unificado entregados |
-| Fecha / estado | 2 de noviembre de 2026 / estructura propuesta para implementación |
+| Fecha / estado | 2 de noviembre de 2026 / estructura propuesta para implementación. **Versión 1.1 (12/11/2026):** nombres del MER vigente y estado real de la estructura (sección 2.1 y «Control de cambios»). |
 
 |  |
 | --- |
@@ -39,6 +39,17 @@ Se inspeccionó el ZIP «Sistema-de-Gestion-Titulacion-main.zip». Las carpetas 
 | Sistema-de-Gestion-Titulacion-main/  |-- frontend/  | |-- src/main.tsx, App.tsx  | |-- src/modules/{s1-requisitos,s2-temas,s3-documentos,s4-calificaciones}/  | |-- src/shared/  | `-- package.json  |-- backend/  | |-- src/main.ts, app.module.ts  | |-- src/modules/{s1-requisitos,s2-temas,s3-documentos,s4-calificaciones}/  | |-- src/auth/, common/, config/database.ts  | `-- package.json  `-- docs/ |
 
 En el frontend, S4 ya tiene domain/, application/useCase/, infrastructure/, presentation/ y routes.tsx. En el backend sus carpetas están preparadas, pero todavía no incluyen todas las capas y funciones. El documento propone ampliaciones conforme se implementen; NO afirma que ya existan.
+
+# 2.1. Estado real de la estructura (12/11/2026)
+
+| **Parte** | **Cómo quedó** | **Respecto de este documento** |
+| --- | --- | --- |
+| Módulo frontend S4 | `domain/`, `infrastructure/`, `presentation/` (pages, components, hooks, services, layouts) y `routes.jsx`, en JavaScript (JSX). | Coincide. No se creó `application/` porque no hizo falta, como permite la sección 4.1. |
+| Módulo backend S4 | Una carpeta por función: `rubricas/`, `trabajos/`, `evaluaciones/`, `sustentaciones/`, `seguimiento/`, `finalizacion/`, `documentos/`, `correcciones/`, `auditoria/`… Cada una con su controlador, servicio, reglas y pruebas. | Distinto de las capas propuestas en 5.1. Se mantiene, porque 5.1 es una propuesta gradual y las reglas del módulo prohíben reorganizar solo por estética. |
+| Aplicación del tribunal | Capacitor instalado; `frontend/android/` y `capacitor.config.json` generados; APK de desarrollo funcionando. | **Pendiente.** La APK empaqueta toda la web. Falta la entrada propia `frontend/src/apps/tribunal/`, con navegación reducida (sección 4.2). |
+| Cambios de base de datos | Scripts SQL manuales e idempotentes en `backend/fixtures/`, más la base de prueba en `docs/s4/base-datos-dev/`. | Sustituye a `backend/src/database/` (sección 6.1), porque no se usan migraciones automáticas (Paso 3, sección 5.4). |
+| Justificativos PDF | `storage/auditoria/justificativos/` en la raíz del repositorio. | Coincide con la sección 6.1. |
+| Documentación | `docs/s4/`: decisiones, instalación, validaciones, primeros pasos y pendientes. | Aún no existen `docs/architecture/` ni `docs/contracts/` para los acuerdos entre equipos. |
 
 # 3. Vista global de carpetas
 
@@ -105,10 +116,10 @@ La ubicación de una tabla en S2, S3 o S4 indica quién administra sus registros
 
 | **Dato / entidad en MER actualizado** | **Escribe / administra** | **Consulta** |
 | --- | --- | --- |
-| s2.estudiantes\_trabajo; s2.asignaciones\_tutor\_trabajo | S2 | S3 y S4 según permisos |
-| s3.trabajos\_titulacion | S3 según MER actualizado | S4 para evaluar y programar |
-| s3.asignaciones\_tribunal; s3.miembros\_tribunal | S3 | S4 para verificar evaluadores |
-| s4.programaciones\_sustentacion; s4.estudiantes\_sesion\_sustentacion | S4 | S3 y otros módulos autorizados |
+| s2.asignacion\_tema; s2.grupo\_integrante; s2.asignacion\_tutor | S2 | S3 y S4 según permisos (la asignación de tema identifica el trabajo evaluable) |
+| s3.asignacion\_tribunal; s3.miembros\_tribunal; s3.docente\_carrera\_periodo | S3 | S4 para verificar evaluadores |
+| s4.procesos\_evaluacion | S4 | Enlaza cada asignación de S2 con su versión de rúbrica |
+| s4.programaciones\_sustentacion; s4.programacion\_estudiante | S4 | S3 y otros módulos autorizados |
 | s4.rubricas, s4.evaluaciones y calificaciones | S4 | Módulos autorizados a consultar |
 
 Nota de alcance: el MER más reciente reubicó cinco tablas entre S2/S3. La documentación de código debe ajustarse a esos nombres de diseño; si existe una base física con nombres anteriores, su adecuación se hará mediante migraciones coordinadas, no simplemente moviendo archivos.
@@ -123,7 +134,7 @@ Regla: cada equipo propone los cambios que necesita en sus entidades. El respons
 
 |  |
 | --- |
-| **PUNTO IMPORTANTE**  La tabla s3.defensa se retiró del MER operativo de diseño. s4.programaciones\_sustentacion es el calendario oficial. Se incluirá la migración para eliminar la restricción UNIQUE(id\_trabajo) y crear la tabla asociativa s4.estudiantes\_sesion\_sustentacion (id\_sesion, id\_estudiante), asegurando el soporte físico tanto para defensas conjuntas como para sesiones separadas. |
+| **PUNTO IMPORTANTE**  La tabla s3.defensa se retiró del MER operativo de diseño. s4.programaciones\_sustentacion es el calendario oficial. Ya está implementado en la base de desarrollo: no hay restricción de una sola sesión por trabajo, los participantes se registran en la tabla asociativa s4.programacion\_estudiante (programacion\_sustentacion\_id, id\_estudiante) y cada evaluación oral apunta a su sesión (s4.evaluaciones.id\_programacion\_sustentacion). Así se cubren las defensas conjuntas y las sesiones separadas. Queda por acordar con S3 qué hacer con las referencias antiguas a s3.defensa. |
 
 # 7. Dónde van los siete módulos funcionales de S4
 
@@ -188,7 +199,7 @@ Ejemplos concretos: Editor de rúbricas → presentation/pages/rubricas y applic
 | 3 | Crear consultas backend de lectura hacia las tablas de S2/S3 definidas en el MER. | Datos para las pantallas S4 sin duplicación. |
 | 4 | Implementar casos de uso y pantallas por MF-01…MF-07. | Avance trazable al Paso 2. |
 | 5 | Preparar la entrada tribunal y Capacitor cuando exista el flujo de evaluación. | APK aislada de la web administrativa. |
-| 6 | Añadir migraciones y pruebas con revisión cruzada cuando existan cambios físicos. | Base unificada protegida. |
+| 6 | Añadir scripts SQL revisados (backend/fixtures/) y pruebas con revisión cruzada cuando existan cambios físicos. | Base unificada protegida. |
 
 # 11. Criterio de cierre del Paso 4
 
@@ -216,6 +227,13 @@ El Paso 4 queda diseñado cuando cada componente de Genares tenga una ruta propu
 **•** ¿Cambia una tabla o configuración global? Documenta el impacto y coordina la integración.
 
 **•** ¿Pertenece a S2 o S3? Consúmelo, no copies su lógica ni su información.
+
+# Control de cambios
+
+| **Versión** | **Cambios** |
+| --- | --- |
+| 1.1 — 12/11/2026 | Nueva sección 2.1 con el estado real de la estructura. Tabla de la sección 6 y «Punto importante» con los nombres del MER vigente: s2.asignacion\_tema, s3.asignacion\_tribunal, s4.programacion\_estudiante y s4.procesos\_evaluacion, en lugar de s2.estudiantes\_trabajo, s3.trabajos\_titulacion y s4.estudiantes\_sesion\_sustentacion. Cambios de base mediante scripts SQL en lugar de migraciones. La propuesta de carpetas y las reglas de colaboración no cambian. |
+| 1.0 — 02/11/2026 | Estructura propuesta para implementación. |
 
 # Referencias utilizadas
 
