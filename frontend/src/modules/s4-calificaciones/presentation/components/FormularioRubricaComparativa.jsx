@@ -130,7 +130,7 @@ export function FormularioRubricaComparativa({
               ))}
             </div>
 
-            <div className="rubrica-comparativa-subtotales" aria-label={`Subtotales de la categoría ${categoria.codigo}`}>
+            <div className="rubrica-comparativa-subtotales" role="group" aria-label={`Subtotales de la categoría ${categoria.codigo}`}>
               {estudiantes.map((estudiante, studentIndex) => (
                 <div key={estudiante.id}>
                   <span>Estudiante {String.fromCharCode(65 + studentIndex)} · {estudiante.nombres}</span>

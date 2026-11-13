@@ -127,6 +127,15 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain('No hay tutor registrado.');
   });
 
+  it('muestra el estado calculado de cada estudiante en el expediente (RF-22)', () => {
+    usarTrabajoApi.mockReturnValue({
+      estado: 'listo', recargar: vi.fn(),
+      trabajo: { ...trabajo, estado: 'SUSTENTACION_PROGRAMADA', estadosEstudiantes: [{ idEstudiante: estudianteId, estado: 'SUSTENTACION_PENDIENTE' }] },
+    });
+    const html = renderEnRuta(`/trabajos/${trabajoId}`, <PaginaDetalleTrabajoApi />);
+    expect(html).toContain('Estudiante · autoría 1 · Sustentación pendiente');
+  });
+
   it('presenta el tribunal como consulta y no como formulario de asignación', () => {
     const html = renderEnRuta(`/trabajos/${trabajoId}`, <PaginaTribunalTrabajoApi />);
     expect(html).toContain('Consulta de asignación');

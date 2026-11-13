@@ -216,7 +216,8 @@ function AvanceTrabajoApi({ trabajo, consultaEvaluaciones }) {
         <InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado>
       </div>
 
-      <div className="card-body trabajo-progress-timeline">
+      {/* Se desplaza en horizontal en pantallas medianas: debe poder alcanzarse con el teclado (WCAG 2.1.1). */}
+      <div className="card-body trabajo-progress-timeline" tabIndex={0} role="region" aria-label="Avance del proceso; desplazamiento horizontal disponible">
         <ol className="process-steps" aria-label="Etapas del trabajo">
           {PASOS_PROCESO.map((paso, indice) => {
             const progreso = estadoEtapas(paso.id);
@@ -575,11 +576,15 @@ export function PaginaDetalleTrabajoApi() {
         <section className="trabajo-detail-card" aria-labelledby="trabajo-api-participantes">
           <header><div><span className="section-kicker">Relaciones actuales</span><h2 id="trabajo-api-participantes">Estudiantes y tutoría</h2></div><UsersRound size={22} aria-hidden="true" /></header>
           <div className="trabajo-participant-list">
-            {trabajo.estudiantes.map((estudiante) => (
-              <article key={estudiante.id}><span className="avatar" aria-hidden="true">{nombre(estudiante).charAt(0)}</span><div><small>Estudiante · autoría {estudiante.ordenAutoria}</small><strong>{nombre(estudiante)}</strong></div>
+            {trabajo.estudiantes.map((estudiante) => {
+              // RF-22: estado propio de cada estudiante, calculado por el servidor.
+              const estadoEstudiante = trabajo.estadosEstudiantes?.find(({ idEstudiante }) => idEstudiante === estudiante.id)?.estado;
+              return (
+              <article key={estudiante.id}><span className="avatar" aria-hidden="true">{nombre(estudiante).charAt(0)}</span><div><small>Estudiante · autoría {estudiante.ordenAutoria}{estadoEstudiante ? ` · ${estadoLegible(estadoEstudiante)}` : ''}</small><strong>{nombre(estudiante)}</strong></div>
                 {estudiantesConResultado.has(estudiante.id) && <Link className="button button-sm button-outline" to={`/resultados/${trabajo.id}/${estudiante.id}`}>Ver resultado</Link>}
               </article>
-            ))}
+              );
+            })}
             {trabajo.estudiantes.length === 0 && <p>No hay estudiantes asociados a este trabajo.</p>}
           </div>
           <div className="trabajo-api-tutors">

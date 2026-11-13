@@ -269,7 +269,7 @@ function PaginaCoordinacionPrototipo() {
                 <h2 id="coordinacion-summary-title">Resumen del proceso</h2>
               </div>
             </div>
-            <div className="coordinacion-metric-grid" aria-label="Indicadores de Coordinación">
+            <div className="coordinacion-metric-grid" role="group" aria-label="Indicadores de Coordinación">
               {metricas.map((metrica) => (
                 <article className={`coordinacion-metric-card ${metrica.className}`.trim()} key={metrica.etiqueta}>
                   <span>{metrica.etiqueta}</span>

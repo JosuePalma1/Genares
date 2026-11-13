@@ -119,7 +119,7 @@ function PaginaSecretariaPrototipo() {
           </div>
           <InsigniaEstado tono="neutral">{estado.trabajos.length} trabajos</InsigniaEstado>
         </div>
-        <div className="secretaria-metric-grid" aria-label="Indicadores para Secretaría">
+        <div className="secretaria-metric-grid" role="group" aria-label="Indicadores para Secretaría">
           {metricas.map((metrica) => (
             <article className={`secretaria-metric-card ${metrica.className}`.trim()} key={metrica.etiqueta}>
               <span>{metrica.etiqueta}</span>

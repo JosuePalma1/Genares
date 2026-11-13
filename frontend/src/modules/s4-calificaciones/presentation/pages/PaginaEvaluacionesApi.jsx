@@ -214,7 +214,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
           return (
             <section className="evaluaciones-api-stage" key={etapa.id} aria-labelledby={`etapa-${etapa.id}`}>
               <div className="evaluaciones-api-stage-heading">
-                <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3 id={`etapa-${etapa.id}`}>{etapa.nombre}</h3><p aria-label={`${etiquetaAlcanceEtapa(etapa.alcance)} (${etapa.alcance})`}>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
+                <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3 id={`etapa-${etapa.id}`}>{etapa.nombre}</h3><p>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
                 <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               </div>
               {esCompartida && <AlertaInstitucional tono="info">Una evaluación del trabajo puede traspasarse a cada estudiante. Se muestra la evaluación original y sus traspasos registrados.</AlertaInstitucional>}
@@ -285,7 +285,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
         <div className="evaluaciones-api-stage-results">
           {resultado.etapas.map((etapa) => (
             <article className="evaluaciones-api-stage-result-card" key={etapa.id}>
-              <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3>{etapa.nombre}</h3><p aria-label={`${etiquetaAlcanceEtapa(etapa.alcance)} (${etapa.alcance})`}>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
+              <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3>{etapa.nombre}</h3><p>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
               <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               <div className="evaluaciones-api-stage-grade"><span>Promedio presentado</span><strong><Calificacion valor={etapa.promedioEtapa?.presentado ?? null} /></strong></div>
               {etapa.evaluadoresPendientes.length > 0 && <div className="evaluaciones-api-pending"><strong>Evaluadores pendientes</strong><ul>{etapa.evaluadoresPendientes.map((pendiente) => <li key={pendiente.idMiembroTribunal}>Miembro {pendiente.posicion} · {pendiente.causa}</li>)}</ul></div>}
@@ -298,7 +298,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
           {resultado.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion}</strong> : <strong className="evaluaciones-api-no-final">No disponible · {estadoLegible(resultado.estado)}</strong>}
         </div>
         <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final. El resultado final se expresa sobre 10.00.</p>
-        {miembros.length > 0 && <div className="form-actions resultado-miembro-actions" aria-label="Rúbricas PDF por miembro del tribunal">
+        {miembros.length > 0 && <div className="form-actions resultado-miembro-actions" role="group" aria-label="Rúbricas PDF por miembro del tribunal">
           {miembros.map((miembro) => <Link
             className="button button-outline"
             key={miembro.idMiembroTribunal}

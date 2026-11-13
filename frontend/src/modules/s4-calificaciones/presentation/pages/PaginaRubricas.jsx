@@ -115,7 +115,7 @@ export default function PaginaRubricas() {
           </span>
         </header>
 
-        <div className="rubricas-filtros" aria-label="Filtros de rúbricas">
+        <div className="rubricas-filtros" role="group" aria-label="Filtros de rúbricas">
           <label className="rubricas-busqueda" htmlFor="rubricas-buscar">
             Buscar rúbricas
             <input
@@ -191,7 +191,7 @@ export default function PaginaRubricas() {
             {avisoSinVigencia && <p className="rubricas-aviso-vigencia" role="status">
               No hay una versión vigente para la combinación consultada; las versiones anteriores siguen disponibles.
             </p>}
-            <div className="rubricas-tabla-scroll" tabIndex={0} aria-label="Tabla de rúbricas; desplazamiento horizontal disponible">
+            <div className="rubricas-tabla-scroll" tabIndex={0} role="region" aria-label="Tabla de rúbricas; desplazamiento horizontal disponible">
               <table className="rubricas-tabla">
                 <caption className="visually-hidden">Rúbricas, versiones y vigencias por carrera</caption>
                 <thead>

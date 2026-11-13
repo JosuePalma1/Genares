@@ -330,7 +330,7 @@ export default function PaginaDetalleRubrica() {
           <h2>Etapas, categorías e indicadores</h2>
           <p>El máximo de cada categoría es la suma de sus indicadores. El máximo de cada etapa suma sus categorías.</p>
         </div>
-        <div className="rubrica-score-legend" aria-label="Leyenda de puntuaciones">
+        <div className="rubrica-score-legend" role="group" aria-label="Leyenda de puntuaciones">
           <span><i className="is-indicator" /> Indicador</span>
           <span><i className="is-category" /> Categoría</span>
           <span><i className="is-stage" /> Etapa</span>

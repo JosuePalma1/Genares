@@ -107,7 +107,7 @@ function PaginaImpresionRubricaPrototipo() {
         <div><FileText size={18} aria-hidden="true" /><span>Formato</span><strong>A4 vertical · {etapas.length} páginas</strong></div>
       </section>
 
-      <div className="print-toolbar no-print" aria-label="Acciones del documento">
+      <div className="print-toolbar no-print" role="toolbar" aria-label="Acciones del documento">
         <BotonVolver respaldo={`/resultados/${trabajo.id}/${estudiante.id}`}>Volver a resultados</BotonVolver>
         <div>
           <span className="print-preview-hint">Revise estudiante y evaluador antes de imprimir.</span>
@@ -137,7 +137,7 @@ function PaginaImpresionRubricaPrototipo() {
                 <div className="print-categorias">
                   {categorias.map((categoria) => <CategoriaRubrica key={categoria.id} categoria={categoria} calificaciones={calificaciones} />)}
                 </div>
-                <div className="print-stage-total" aria-label={`Subtotal de ${etapa.nombre}`}>
+                <div className="print-stage-total" role="group" aria-label={`Subtotal de ${etapa.nombre}`}>
                   <span>Subtotal · {etapa.nombreCorto ?? etapa.nombre}</span>
                   <strong>{calificacionEtapa(evaluacion, etapa.id, estudiante.id).toFixed(2)} / {maximoEtapa(rubrica, etapa.id).toFixed(2)}</strong>
                 </div>

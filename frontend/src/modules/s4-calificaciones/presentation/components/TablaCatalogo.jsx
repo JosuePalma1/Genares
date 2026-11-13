@@ -92,7 +92,7 @@ export function TablaCatalogo({
         {onReintentar && <button className="button button-outline" type="button" onClick={onReintentar}>Reintentar lectura</button>}
       </div> : cargando ? <p className="tabla-catalogo-cargando" role="status">Actualizando {etiquetaRegistro}…</p> : null}
 
-      {!error && !cargando && (ordenados.length === 0 ? contenidoVacio() : <div className="tabla-catalogo-scroll" tabIndex="0" aria-label={`${caption}; desplazamiento horizontal disponible`}>
+      {!error && !cargando && (ordenados.length === 0 ? contenidoVacio() : <div className="tabla-catalogo-scroll" tabIndex="0" role="region" aria-label={`${caption}; desplazamiento horizontal disponible`}>
         <table>
           <caption className="visually-hidden">{caption}</caption>
           <thead>
