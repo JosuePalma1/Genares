@@ -1,6 +1,6 @@
 # Lo que falta en Genares S4
 
-**Actualizado:** 16/11/2026, con la revisión de pantallas (sección 4).
+**Actualizado:** 16/11/2026, con el plan del núcleo y la revisión de pantallas (sección 4).
 Para poner el proyecto en marcha, ver [PRIMEROS-PASOS.md](PRIMEROS-PASOS.md). El detalle de cada requisito está en [estado-paso-1.md](estado-paso-1.md). Los Pasos 3, 4 y 5 se actualizaron a la versión 1.1, con los nombres reales de las tablas y el estado de la estructura y de las tareas.
 
 ## En pocas palabras
@@ -88,6 +88,7 @@ Orden de trabajo:
 | **Trabajos terminados** | Confirmar si S2 cambia el estado de una asignación cuando el trabajo termina, para la consulta del historial. | Equipo de S2. |
 | **Correos automáticos** | No están en los requisitos aprobados. Hay que confirmar si se piden. | Coordinación. |
 | **Acuerdos con otros equipos** (Paso 2, D-05 a D-08) | Cerrar por escrito: <br>· cómo llega la identidad; <br>· quién crea los trabajos y sus estudiantes; <br>· qué parte del historial lee S3; <br>· si S3 consultará los resultados de S4; <br>· qué se hace con la tabla antigua `s3.defensa`. <br>Conviene guardarlos en `docs/contracts/`. | Equipos de S2 y S3, e identidad. |
+| **Respuestas de las autoridades** | Quién autoriza las correcciones y con qué documento, de dónde salen los datos de las actas, qué acta va con cada período, la regla de redondeo en pasos y el modo sin conexión. Ver la sección 4, «Preguntas para las autoridades». | Coordinación y autoridades de la facultad. |
 | **Ambiente de aceptación** | Publicar el sistema con HTTPS, repetir ahí la prueba de rendimiento y probar en tablet Android e iPad. | Responsable de despliegue. |
 
 ## 3. Experiencia e interfaz (UX/UI)
@@ -135,7 +136,7 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
 | Dónde | Qué pasa | Causa comprobada |
 | --- | --- | --- |
 | Detalle de una modalidad | Sale «No fue posible cargar el detalle · Seleccione una modalidad válida» | La pantalla exige un formato concreto de identificador (UUID versión 4), y los de la base de prueba no lo cumplen. Debe aceptar cualquier identificador válido de PostgreSQL, como ya hacen Carreras y otras pantallas (`esUuidPostgres`). Archivo: `presentation/services/modalidadesApi.js`. |
-| Crear la rúbrica oficial | La rúbrica real (Parte I: A 1,00 + B 1,00 + C 3,00 = 5 puntos; Parte II: D 2,50 + E 2,50 = 5 puntos) **no se puede crear tal cual** | «Nueva rúbrica» obliga a que cada etapa sume exactamente 10,00. Hay que permitir que cada etapa tenga sus puntos reales (5 + 5) y que la nota final siga saliendo sobre 10. Ver «Configuración académica de escalas». |
+| Crear la rúbrica oficial | La rúbrica real (Parte I: A 1,00 + B 1,00 + C 3,00 = 5 puntos; Parte II: D 2,50 + E 2,50 = 5 puntos) **no se puede crear tal cual** | «Nueva rúbrica» obliga a que cada etapa sume exactamente 10,00. Hay que permitir que cada etapa tenga sus puntos reales (5 + 5) y que la nota final salga sobre la escala de la rúbrica (en este caso, 10). Ver «Configuración académica de escalas». |
 | Cronograma | Se pueden programar fechas pasadas y a cualquier hora (00:00–23:59) | El servidor solo comprueba que la fecha exista y que la hora sea válida. |
 
 ### Inicio y navegación
@@ -283,6 +284,45 @@ Así un cambio de año es solo una versión nueva de la rúbrica. Ver «Si la no
 - **Más adelante:** guardar los PDF definitivos con ese nombre.
 - **Depende de otros:** la cédula viene de los datos de S2. Si falta, hoy sale «Por confirmar».
 
+### PDF de la rúbrica y de las actas
+
+**Plantillas oficiales** en [Plantillas-documentos/](Plantillas-documentos/), en Word y en PDF:
+- la rúbrica de 5 puntos (2 páginas);
+- el acta PAT-01-F-019 (1 página);
+- el acta PAT-04-F-017 (1 página).
+
+Los PDF están exportados desde Word y no tienen campos de formulario.
+
+**Cómo funciona hoy:**
+- el sistema abre el Word original con **Microsoft Word instalado en Windows**;
+- sustituye los textos de ejemplo («XX/10», «… (NOMBRES)»…);
+- lo exporta a PDF.
+
+En un servidor Linux no funcionaría. Además, si alguien cambia la redacción del Word, el sistema deja de encontrar esos textos.
+
+**Lo decidido (plan del núcleo, arriba):**
+- **Rúbrica:**
+  - el sistema **dibuja el PDF a partir de la versión de rúbrica** guardada, con el formato oficial: encabezado y logo, títulos, tablas «Indicadores · Valoración · Calificación», sumatorias, resumen y firma;
+  - se hace con `pdfkit`, que ya está instalado;
+  - una rúbrica nueva sale en PDF sin tocar plantillas ni código;
+  - los textos largos bajan solos y se añaden páginas si hace falta.
+
+  Contrapartida: tendrá el mismo formato, pero no será idéntica píxel a píxel al original. Hay que comparar la primera versión con el PDF oficial y ajustar márgenes y tipos de letra.
+- **Actas, al final:** hasta entonces siguen saliendo del Word. Cuando se aborden:
+  1. se usa el PDF oficial con **casillas con nombre** (estudiante, notas, nota en letras…);
+  2. el sistema las rellena y las convierte en texto fijo;
+  3. su forma casi nunca cambia, y si sale una revisión nueva del acta, se le ponen las casillas una vez.
+
+  Para eso:
+  - **`pdf-lib` en el backend.** Cambia `backend/package.json`, que es compartido, así que hay que avisar a integración.
+  - **Crear las casillas con un script de una sola vez**, que genera un PDF de muestra con las casillas marcadas para revisar que están en su sitio. También se pueden crear a mano con Acrobat Pro, en «Preparar formulario».
+  - **Textos largos:** dentro de una casilla el texto pasa a la línea siguiente y, si aun así no cabe, se reduce la letra. Lo que hay debajo no baja, porque un PDF no recoloca el contenido. La casilla debe reservar varias líneas, y hay que probarla con el título más largo que exista.
+- **El PDF se genera en el momento**, con la cédula en el nombre del archivo. Las actas definitivas archivadas siguen su propio proceso.
+
+**Limpieza pendiente:**
+- **La plantilla de rúbrica lleva datos reales** en el Word y en el PDF: el título de una tesis y los nombres de un estudiante y de un tutor. No salen en los PDF generados, porque se sustituyen, pero sí están en el repositorio. Hay que cambiarlos por textos de ejemplo.
+- **No subir los archivos `~$….docx`.** Son temporales de Word mientras el documento está abierto.
+
 ### Corrección de una nota cerrada
 
 Ya existe: Auditoría › Solicitudes de corrección.
@@ -294,52 +334,15 @@ Ya existe: Auditoría › Solicitudes de corrección.
 ### Preguntas para las autoridades
 
 1. **Corrección de notas:** ¿quién autoriza (qué cargo) y qué documento debe adjuntarse? El sistema ya pide un PDF, pero no sabe qué documento es válido ni quién puede aprobar.
-2. **PDF idéntico a la plantilla oficial.** Los originales ya están en [Plantillas-documentos/](Plantillas-documentos/):
-   - la rúbrica de 5 puntos;
-   - el acta PAT-01-F-019;
-   - el acta PAT-04-F-017.
-
-   El sistema **ya los usa**: abre el Word original, sustituye los textos de ejemplo («XX/10», «… (NOMBRES)»…) y lo exporta a PDF. Falta:
-   - **Microsoft Word en el servidor.** Hoy el PDF se genera con Word instalado en Windows. En un servidor Linux no funcionaría, así que hay que decidirlo con integración (otra opción es LibreOffice).
-   - **Campos que se quedan sin rellenar:**
+2. **Datos de las actas.**
+   - **Campos que hoy se quedan sin rellenar:**
      - fecha y hora en letras;
      - ciudad;
      - título académico;
      - nombres y títulos del tribunal, del decano y del secretario.
 
-     Hay que saber de dónde salen esos datos (S1, S2 o S3) o si se escriben a mano.
-   - **Subir una plantilla nueva sin tocar código.** Hoy el sistema busca los textos de ejemplo exactos. Si alguien cambia la redacción del Word, deja de encontrarlos. Lo seguro es poner marcas fijas, por ejemplo `{{ESTUDIANTE}}`, y comprobar la plantilla al subirla.
-   - **Actualizado por el plan del núcleo (arriba):**
-     - la rúbrica se dibuja desde los datos;
-     - lo de las casillas solo se aplicaría a las actas, y queda para el final.
-
-     Se conserva el análisis:
-   - **Decisión (16/11/2026): generar a partir del PDF, no del Word**, para no depender de Word. Los tres PDF ya están en [Plantillas-documentos/](Plantillas-documentos/):
-     - la rúbrica de 5 puntos (2 páginas);
-     - PAT-01-F-019 (1 página);
-     - PAT-04-F-017 (1 página).
-
-     Los tres están exportados desde Word y ninguno tiene campos de formulario. El PDF se genera en el momento y no se guarda en el sistema; las actas definitivas archivadas siguen su propio proceso. Acordado:
-     - **Añadir `pdf-lib`** al backend. Cambia `backend/package.json`, que es compartido, así que hay que avisar a integración.
-     - **Añadir campos de formulario con nombre** a los tres PDF: estudiante, tutor, título, una casilla por indicador, subtotales, notas y nota en letras. El sistema los rellena y después los convierte en texto fijo. Propuesta: los crea un script de una sola vez que use `pdf-lib`, y genera un PDF de muestra con las casillas marcadas para que alguien compruebe que están en su sitio. También se pueden crear a mano con Acrobat Pro, en «Preparar formulario».
-     - **Textos largos** (título de la tesis, nombres): el texto pasa a la línea siguiente **dentro de la casilla**, y la letra se reduce solo si aun así no cabe. Un PDF no recoloca el contenido, así que lo que hay debajo no baja. Por eso la casilla del título debe reservar varias líneas, y hay que probarla con el título más largo que exista.
-     - **La estructura del PDF es fija.** Sirve para esta rúbrica: 5 categorías y 15 indicadores. Si otro año cambian las categorías o el número de indicadores, la plantilla con casillas deja de servir.
-     - **Propuesta para que una rúbrica nueva no rompa nada:** tratar distinto las actas y la rúbrica.
-       - **Actas (PAT-01 y PAT-04):**
-         - PDF oficial con casillas;
-         - su forma casi nunca cambia: siempre tres filas de notas, el estudiante y el tribunal;
-         - si la institución publica una revisión nueva, se le ponen las casillas una vez.
-       - **Rúbrica:**
-         - el sistema **dibuja el PDF a partir de la versión de rúbrica** guardada, con el mismo formato que el oficial: encabezado y logo tomados del PDF, títulos, tablas «Indicadores · Valoración · Calificación», sumatorias, resumen y firma;
-         - se puede hacer con `pdfkit`, que ya está instalado;
-         - una rúbrica nueva creada en el sistema sale en PDF **sin tocar plantillas ni código**;
-         - los textos largos bajan solos y se añaden páginas si hace falta.
-
-         Es lo que ya hace hoy el código con el Word: rehace las tablas a partir de la rúbrica.
-       - **Contrapartida:** la rúbrica tendrá el mismo formato, pero no será idéntica píxel a píxel al Word original. Hay que comparar la primera versión con el original y ajustar márgenes y tipos de letra.
-     - **Las plantillas deben ir limpias.** El PDF de la rúbrica lleva datos reales, igual que el Word: título de la tesis, estudiante y tutor. Hay que sustituirlos por textos de ejemplo y dejar vacías las casillas.
-     - **No subir los archivos `~$….docx`.** Son temporales de Word mientras el documento está abierto.
-   - **Datos reales dentro de la plantilla de rúbrica.** El Word de ejemplo lleva el título de una tesis y los nombres de un estudiante y de un tutor reales. No salen en los PDF, porque se sustituyen, pero sí están en el repositorio. Conviene cambiarlos por marcas.
+     ¿De dónde salen: de S1, S2 o S3, o se escriben a mano?
+   - **¿Qué acta corresponde a cada período?** La PAT-04-F-017 suma sobre 20 (7/10 + 9/10 = 16/20) y la PAT-01-F-019 sobre 10. La parte técnica está en «PDF de la rúbrica y de las actas», más arriba.
 3. **Redondeo y decimales.** Hay que confirmar por escrito:
    - **Cómo funciona hoy el sistema:**
      - las notas de cada indicador se escriben con hasta 2 decimales;
@@ -375,7 +378,7 @@ Ya existe: Auditoría › Solicitudes de corrección.
    - cómo se promedian los evaluadores;
    - cómo pesa cada etapa;
    - cómo se calcula la nota final;
-   - el redondeo confirmado (5 o más);
+   - el redondeo: 5 o más sube, y la regla en pasos cuando las autoridades la confirmen (pregunta 3);
    - cómo funciona el modo sin conexión.
 
    Puede ser un documento nuevo en `docs/s4/`, con ejemplos numéricos.
@@ -383,7 +386,48 @@ Ya existe: Auditoría › Solicitudes de corrección.
 ## 5. Datos útiles
 
 - **Base local:** además de los 2 trabajos DEV, tiene 200 trabajos «CARGA» de prueba. Se ocultan con `backend/fixtures/s4-carga-volumen-dev-ocultar.sql`.
+- **Usuarios de prueba por rol:** están en la rama aparte `demo/accesos-por-rol`, con 9 usuarios de las fases 1 y 2. Sirven para demostrar qué ve cada rol. Las instrucciones están en `docs/s4/demo-usuarios.md` **de esa rama**, y antes hay que ejecutar `backend/fixtures/demo-usuarios-por-rol.sql`. Esa rama no se integra: el trabajo sigue en `feature/mer-unificado-pasos-3-4`.
 - **Rendimiento:** con 202 trabajos y 25 usuarios a la vez, el sistema responde rápido (ver [validacion-rnf-03-carga.md](validacion-rnf-03-carga.md)). La pantalla más lenta es Finalización.
 - **Avisos ya conocidos:**
   - si un trabajo tuviera un proceso antiguo sin rúbrica, la evaluación muestra un mensaje genérico;
   - al copiar una versión de rúbrica y editarla en el mismo paso, los porcentajes se reparten por igual.
+
+## 6. Otros puntos a tener en cuenta (16/11/2026)
+
+Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resueltos.
+
+### Pueden bloquear el plan del núcleo
+
+1. **Que no se asigne la rúbrica oficial.**
+   - La asignación automática solo funciona si hay **exactamente una** versión activa para esa modalidad y período.
+   - Si al cargar la oficial sigue activa la rúbrica DEV, habrá dos candidatas y no se asignará ninguna.
+   - Hay que archivar la DEV o activar la oficial en otro período.
+2. **Los trabajos que ya tienen rúbrica asignada.** Los trabajos DEV ya están ligados a la versión antigua. Para pasarlos a la oficial hay que reasignarlos, y eso solo se puede si aún no tienen evaluaciones. Lo hace una persona autorizada.
+3. **Pruebas que fallarán a propósito.** Hoy las pruebas comprueban que «cada etapa suma 10». Al cambiar la regla, esas pruebas fallarán. No es un error, es el cambio aprobado. Hay que actualizarlas y dejar constancia de que la regla cambió con permiso, porque las reglas del módulo prohíben cambiar resultados esperados por cuenta propia.
+4. **Documentos oficiales del Paso 1 y del Paso 2.** Si cambian la escala o el redondeo, sus reglas de negocio (RN) dejarán de coincidir con el sistema. Hay que actualizar esos documentos, no solo el código.
+
+### Preguntas para las autoridades (además de las de la sección 4)
+
+5. **¿Qué pasa si un miembro del tribunal no califica?** Por enfermedad, ausencia u olvido.
+   - Hoy la nota final exige que **todos** cierren, así que ese estudiante se queda bloqueado.
+   - ¿Se reemplaza al miembro? El tribunal lo gestiona S3.
+   - ¿Qué pasa con lo que ya calificó?
+6. **¿Hay un límite de diferencia entre los dos miembros?** Algunas facultades piden un tercer evaluador si las notas se separan mucho, por ejemplo 3 puntos. Si existe esa regla, hay que programarla.
+7. **¿Hay segunda oportunidad si el estudiante reprueba?** ¿Existe una nueva sustentación? ¿Va con una rúbrica nueva o con la misma?
+
+### Para la entrega y la demostración
+
+8. **La rama demo se quedará atrás.** `demo/accesos-por-rol` se hizo a partir del estado del 16/11/2026. Cada mejora nueva habrá que llevarla también a esa rama, o la demostración mostrará la versión vieja.
+9. **Manual corto para quien use el sistema.** Hay guías para desarrolladores (PRIMEROS-PASOS), pero no para docentes ni coordinación:
+   - cómo calificar;
+   - cómo cerrar;
+   - qué hacer sin conexión;
+   - cómo sacar los PDF.
+
+   Una página con capturas basta.
+10. **Datos personales en la APK.** Descargar todo lo asignado guarda datos de estudiantes en los teléfonos. Hay que confirmar con la institución que cumple la Ley Orgánica de Protección de Datos Personales de Ecuador. Ya está anotado que se borren al cerrar sesión y que se cifren (sección 4, pregunta 4).
+11. **Actualizar la evaluación ISO/IEC 25010** ([calidad-iso-25010.md](calidad-iso-25010.md)) cuando cambien la seguridad y el modo sin conexión.
+
+### Organización
+
+12. **Poner una fecha límite.** El plan del núcleo tiene orden, pero no fechas. Con la fecha de entrega o de la primera sustentación real se sabe qué es obligatorio y qué queda para si hay tiempo. Por ahora, los pasos 1 y 2 del plan son los imprescindibles.
