@@ -2,7 +2,7 @@
 
 Scripts para crear desde cero la base local `genares_integrado_dev` con el MER unificado (`gen`, `s1`, `s2`, `s3`, `s4`) y datos de prueba.
 
-**Solo para desarrollo.** Todos los datos son ficticios: personas, códigos y matrículas llevan el prefijo `DEV` y los correos usan el dominio reservado `.invalid`. No representan datos institucionales ni rúbricas oficiales. Los datos de S1, S2 y S3 son simulados para que S4 pueda probarse; sus equipos siguen siendo los dueños de esos esquemas.
+**Solo para desarrollo.** Todos los datos son ficticios: personas, códigos y matrículas llevan el prefijo `DEV` y los correos usan el dominio reservado `.invalid`. No representan datos institucionales. La única excepción es la rúbrica: `002` carga la rúbrica vigente de Proyecto Integrador tal como está en la plantilla oficial. Para cargarla en otra base, usa `backend/fixtures/s4-rubrica-vigente-proyecto-integrador.sql`. Los datos de S1, S2 y S3 son simulados para que S4 pueda probarse; sus equipos siguen siendo los dueños de esos esquemas.
 
 ## Archivos
 
@@ -10,7 +10,7 @@ Scripts para crear desde cero la base local `genares_integrado_dev` con el MER u
 | --- | --- | --- |
 | `instalacion_inicial_dev.sql` | Esquemas, las 80 tablas, claves foráneas y reglas de integración S2–S3–S4. | **No.** Solo en una base vacía. |
 | `001_catalogos_y_personas_dev.sql` | Carreras, modalidad, período, roles, personas, usuarios, docentes y estudiantes. | Sí. |
-| `002_integracion_s2_s3_s4_dev.sql` | Tema, bina e individual de S2; tribunal de S3; rúbrica `DEV-1` y procesos de S4. | Solo antes de instalar la retención de S4 (ver abajo). |
+| `002_integracion_s2_s3_s4_dev.sql` | Tema, bina e individual de S2; tribunal de S3; **rúbrica vigente de Proyecto Integrador** (versión `V1`, 5 + 5, copiada de la plantilla oficial) y procesos de S4. | Solo antes de instalar la retención de S4 (ver abajo). |
 | `003_escenarios_evaluaciones_cronograma_dev.sql` | Evaluaciones escritas cerradas y dos sustentaciones en aulas distintas. | Solo antes de instalar la retención de S4 (ver abajo). |
 | `004_rol_aplicacion_genares_dev.sql` | Rol de aplicación `genares` (sin contraseña) y su acceso básico: esquemas, lecturas y columnas de evaluaciones. | Sí. No modifica un rol existente. |
 
@@ -29,7 +29,7 @@ Ejecuta todo como `postgres`, conectado a una base **nueva** llamada `genares_in
    ```sql
    ALTER ROLE genares WITH PASSWORD 'tu-contraseña-local';
    ```
-6. Los scripts de S4 de `backend/fixtures`, en el orden del [README principal](../../../README.md#scripts-sql-de-backendfixtures): permisos, retención/auditoría y verificación.
+6. Los scripts de S4 de `backend/fixtures`, empezando por `s4-escalas-calificacion.sql`, en el orden del [README principal](../../../README.md#scripts-sql-de-backendfixtures): permisos, retención/auditoría y verificación.
 
 Los permisos se reparten así: `004` da el acceso básico y `backend/fixtures` agrega las escrituras de rúbricas, cronograma y actas, y la retención. Juntos reproducen exactamente los permisos con los que funciona la base local.
 

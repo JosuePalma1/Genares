@@ -7,6 +7,9 @@ import {
   crearEvaluacionApi,
   guardarPuntajesEvaluacionApi,
 } from '../services/evaluacionesApi';
+import { mensajeErrorDocumento, rutaPdfRubrica } from '../../domain/documentosRubrica';
+import { obtenerPdfDocumento } from '../services/documentosApi';
+import { BotonPdf } from '../components/BotonPdf';
 
 export function mensajeErrorEscrituraEvaluacion(error) {
   if (error?.status === 400) return error.details?.length ? error.details.join(' ') : 'Revise los puntajes y los indicadores de la rúbrica.';
@@ -371,10 +374,10 @@ export function EditorEvaluacionApi({
                 </select>
                 <p>La evaluación compartida sigue siendo un único registro; el PDF consulta el traspaso correspondiente al estudiante.</p>
               </div>}
-              {idEstudiante && idMiembroTribunal && <a
-                className="button button-outline"
-                href={`/rubrica/${encodeURIComponent(idTrabajo)}/${encodeURIComponent(idEstudiante)}/${encodeURIComponent(idMiembroTribunal)}`}
-              ><FileText size={16} /> Abrir rúbrica PDF de {nombreEstudiante(estudianteSeleccionado)}</a>}
+              {idEstudiante && idMiembroTribunal && <BotonPdf
+                obtenerPdf={() => obtenerPdfDocumento(rutaPdfRubrica(idTrabajo, idEstudiante, idMiembroTribunal))}
+                mensajeError={(error) => mensajeErrorDocumento(error, rutaPdfRubrica(idTrabajo, idEstudiante, idMiembroTribunal))}
+              ><FileText size={16} /> Abrir rúbrica PDF de {nombreEstudiante(estudianteSeleccionado)}</BotonPdf>}
             </>
           ) : (
             <>

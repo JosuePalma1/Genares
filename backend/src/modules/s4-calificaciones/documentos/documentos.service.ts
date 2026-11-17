@@ -8,7 +8,7 @@ import { pendientesActa, resultadoFinalActa, rubricaDocumental } from './modelo-
 import { archivarActaEn } from './archivo-actas';
 import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental';
 import { PLANTILLAS } from './plantillas-institucionales';
-import { centesimasActa, decimalActaDesdeCentesimas, notaAprobada } from './reglas-acta';
+import { centesimasActa, decimalActaDesdeCentesimas, notaAprobada, notaMinimaEnEscala } from './reglas-acta';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 
 const acceso = `EXISTS (
@@ -53,16 +53,18 @@ export class DocumentosService {
       this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion),
       this.valorNotaMinima(),
     ]);
+    const escala = datos.rubrica.escalaFinal ?? 10;
+    const umbral = notaMinimaEnEscala(configuracion.valor, escala);
     return { trabajo: datos.trabajo, estudiantes: datos.estudiantes, evaluadores: datos.evaluadores,
-      notaMinimaProvisional: configuracion.valor,
+      notaMinimaProvisional: umbral,
       actas: datos.estudiantes.map((estudiante: { id: string }) => {
         const pendientes = pendientesActa(datos, estudiante.id);
         const resultado = resultadoFinalActa(datos, estudiante.id);
         return { estudianteId: estudiante.id, estadoConsolidacion: (datos.consolidacion.estudiantes as Array<Record<string, any>>)
           .find((c) => c.estudiante.id === estudiante.id)?.estado ?? 'SIN_EVALUACIONES',
-          calificacionFinal: resultado?.calificacion ?? null, escala: resultado?.calificacionMaxima ?? '10.00',
-          notaMinimaProvisional: configuracion.valor,
-          aprobadoProvisional: resultado?.calificacion ? notaAprobada(resultado.calificacion, configuracion.valor) : null,
+          calificacionFinal: resultado?.calificacion ?? null, escala: escala.toFixed(2),
+          notaMinimaProvisional: umbral,
+          aprobadoProvisional: resultado?.calificacion ? notaAprobada(resultado.calificacion, umbral, escala) : null,
           puedeEmitir: puedeEmitirDocumentos && pendientes.length === 0, pendientes };
       }) };
   }
@@ -74,21 +76,21 @@ export class DocumentosService {
   }
 
   async actualizarNotaMinima(dto: ActualizarNotaMinimaDto, actor: string) {
-    const centesimas = centesimasActa(dto.notaMinima, 'La nota mínima');
+    const centesimas = centesimasActa(dto.notaMinima, 'La nota mínima porcentual', 100);
     const valor = decimalActaDesdeCentesimas(centesimas);
     return this.db.transaction(async (manager) => {
       await establecerActorAuditoria(manager, actor);
-      const [actual] = await manager.query(`SELECT valor::text, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
+      const [actual] = await manager.query(`SELECT porcentaje::text AS valor, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
         FROM s4.configuracion_nota_minima WHERE id=1 FOR UPDATE`);
       if (!actual) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
       if (actual.valor === valor) return { notaMinima: actual.valor, provisional: true,
         actualizadoEn: actual.actualizadoEn, actualizadoPor: actual.actualizadoPor, cambio: false };
       const [filasActualizadas] = await manager.query(`UPDATE s4.configuracion_nota_minima
-        SET valor=$1, actualizado_en=now(), actualizado_por=$2 WHERE id=1
-        RETURNING valor::text AS "valor", actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"`, [valor, actor]);
+        SET porcentaje=$1, actualizado_en=now(), actualizado_por=$2 WHERE id=1
+        RETURNING porcentaje::text AS "valor", actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"`, [valor, actor]);
       const [actualizada] = filasActualizadas ?? [];
       if (!actualizada) throw new ConflictException('No se pudo guardar la configuración académica de nota mínima.');
-      await manager.query(`INSERT INTO s4.historial_nota_minima(id,valor_anterior,valor_nuevo,cambiado_en,cambiado_por)
+      await manager.query(`INSERT INTO s4.historial_nota_minima(id,porcentaje_anterior,porcentaje_nuevo,cambiado_en,cambiado_por)
         SELECT COALESCE(max(id), 0) + 1, $1, $2, now(), $3 FROM s4.historial_nota_minima`, [actual.valor, valor, actor]);
       return { notaMinima: actualizada.valor, provisional: true, actualizadoEn: actualizada.actualizadoEn,
         actualizadoPor: actualizada.actualizadoPor, cambio: true };
@@ -107,7 +109,7 @@ export class DocumentosService {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion);
     const pendientes = pendientesActa(datos, estudianteId);
     const configuracion = await this.valorNotaMinima();
-    return pdfActaPreliminar(datos, estudianteId, formato, pendientes, configuracion.valor);
+    return pdfActaPreliminar(datos, estudianteId, formato, pendientes, notaMinimaEnEscala(configuracion.valor, datos.rubrica.escalaFinal ?? 10));
   }
 
   async emitir(trabajoId: string, estudianteId: string, dto: FormatoActaDto, actor: string, puedeConsultarDemostracion = false) {
@@ -115,24 +117,26 @@ export class DocumentosService {
     const pendientes = pendientesActa(datos, estudianteId);
     if (pendientes.length) throw new ConflictException({ message: 'No se puede generar todavía el documento interno.', details: pendientes });
     const resultado = resultadoFinalActa(datos, estudianteId);
-    if (!resultado?.calificacion || resultado.calificacionMaxima !== '10.00') {
-      throw new ConflictException({ message: 'No existe una calificación final consolidada válida sobre 10.00.', details: [] });
+    if (!resultado?.calificacion) {
+      throw new ConflictException({ message: 'No existe una calificación final consolidada válida para la escala de la rúbrica.', details: [] });
     }
 
     return this.db.transaction(async (manager) => {
       await establecerActorAuditoria(manager, actor);
       // Bloquea el umbral durante la emisión para que el PDF y su snapshot coincidan.
-      const [configuracion] = await manager.query(`SELECT valor::text FROM s4.configuracion_nota_minima WHERE id=1 FOR SHARE`);
+      const [configuracion] = await manager.query(`SELECT porcentaje::text AS valor FROM s4.configuracion_nota_minima WHERE id=1 FOR SHARE`);
       if (!configuracion) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
-      const aprobado = notaAprobada(resultado.calificacion, configuracion.valor);
+      const escala = Number(resultado.calificacionMaxima);
+      const umbral = notaMinimaEnEscala(configuracion.valor, escala);
+      const aprobado = notaAprobada(resultado.calificacion, umbral, escala);
       const trabajo = datos.trabajo;
       const estudiante = estudianteId;
       const acta = await archivarActaEn(manager, {
         trabajoId, estudianteId: estudiante, carreraId: trabajo.carreraId, periodoId: trabajo.periodoId,
         periodo: trabajo.periodo, carreraCodigo: trabajo.carreraCodigo, formato: dto.formato, actor,
-        notaFinal: resultado.calificacion, notaMinimaAplicada: configuracion.valor, aprobado,
+        notaFinal: resultado.calificacion, notaMinimaAplicada: umbral, escala, aprobado,
       }, (numero) => pdfActaInterna(datos, estudiante, dto.formato, numero,
-        resultado.calificacion, configuracion.valor, aprobado));
+        resultado.calificacion, umbral, aprobado));
       return acta;
     });
   }
@@ -158,7 +162,7 @@ export class DocumentosService {
   private consultarActas(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion: boolean,
     limite: number | null, desplazamiento: number, conTotal = false) {
     return this.db.query(`SELECT ar.id,${conTotal ? 'count(*) OVER()::integer AS total,' : ''}ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
-      ar.nota_final::text AS "notaFinal",ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado,
+      ar.nota_final::text AS "notaFinal",ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.escala_final AS escala,ar.aprobado,
       p.nombres || ' ' || p.apellidos AS estudiante,c.nombre AS carrera,ar.periodo
       FROM s4.actas_archivadas ar
       JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
@@ -174,7 +178,7 @@ export class DocumentosService {
   async archivada(id: string, actor: string, conPdf = false, puedeConsultarDemostracion = false) {
     const [acta] = await this.db.query(`SELECT ar.id,ar.numero,ar.formato,ar.revision,
       ar.generado_en AS "generadoEn",ar.sha256,ar.nota_final::text AS "notaFinal",
-      ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado${conPdf ? ',ar.pdf' : ''}
+      ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.escala_final AS escala,ar.aprobado${conPdf ? ',ar.pdf' : ''}
       FROM s4.actas_archivadas ar
       JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id
@@ -184,7 +188,7 @@ export class DocumentosService {
   }
 
   private async valorNotaMinima(): Promise<{ valor: string; actualizadoEn: Date; actualizadoPor: string }> {
-    const [configuracion] = await this.db.query(`SELECT valor::text, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
+    const [configuracion] = await this.db.query(`SELECT porcentaje::text AS valor, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
       FROM s4.configuracion_nota_minima WHERE id=1`);
     if (!configuracion) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
     return configuracion;

@@ -13,7 +13,8 @@ BEGIN
   END IF;
 
   SELECT * INTO STRICT base FROM s4.versiones_rubrica
-  WHERE id = '00db1712-d483-e1b5-e858-459f293ff7fa' AND version = 'DEV-1';
+  -- Versión base de docs/s4/base-datos-dev («version-proyecto»: DEV-1 en bases antiguas, V1 en las nuevas).
+  WHERE id = '00db1712-d483-e1b5-e858-459f293ff7fa';
 
   IF NOT EXISTS (SELECT 1 FROM s4.versiones_rubrica WHERE id = version_prueba) THEN
     INSERT INTO s4.versiones_rubrica

@@ -63,17 +63,27 @@ export interface NotaConsolidada {
 }
 
 export function detallarConsolidacionMer<T extends EtapaConsolidada>(
-  etapas: T[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string,
+  etapas: T[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string, escala = 10,
 ) {
   let resultado = racional(0n);
   let ponderacion = racional(0n);
-  const ponderacionUniforme = etapas.length > 0 && etapas.every((etapa) => etapa.porcentaje == null)
-    ? racional(100n, BigInt(etapas.length)) : null;
+  // Sin porcentajes guardados, cada etapa pesa según lo que vale: la nota final es la suma de las partes
+  // llevada a la escala elegida (5 + 5 → 50 % y 50 %; 3 + 7 → 30 % y 70 %). Con partes iguales equivale a repartir por igual.
+  const sinPorcentajes = etapas.length > 0 && etapas.every((etapa) => etapa.porcentaje == null);
+  const sumaMaximos = sinPorcentajes
+    ? etapas.reduce((suma, etapa) => sumarRacionales(suma, racionalDesdeDecimal(etapa.calificacionMaxima ?? '0')), racional(0n))
+    : null;
+  const pesoPorValor = (etapa: T) => {
+    if (!sumaMaximos || sumaMaximos.numerador === 0n || !etapa.calificacionMaxima) return null;
+    const maximo = racionalDesdeDecimal(etapa.calificacionMaxima);
+    return racional(100n * maximo.numerador * sumaMaximos.denominador, maximo.denominador * sumaMaximos.numerador);
+  };
+  const ponderacionUniforme = sinPorcentajes && sumaMaximos !== null && sumaMaximos.numerador > 0n;
   const detalle = etapas.map((etapa) => {
     const titular = etapa.scope === 'TRABAJO_COMPARTIDO' ? null : estudiante;
     const deEtapa = notas.filter((nota) => nota.idEtapaRubrica === etapa.id && nota.idEstudiante === titular);
     const maximo = etapa.calificacionMaxima ? racionalDesdeDecimal(etapa.calificacionMaxima) : null;
-    const peso = etapa.porcentaje ? racionalDesdeDecimal(etapa.porcentaje) : ponderacionUniforme;
+    const peso = etapa.porcentaje ? racionalDesdeDecimal(etapa.porcentaje) : pesoPorValor(etapa);
     const puntos: ReturnType<typeof racional>[] = [];
     const pendientes = evaluadores.flatMap((id, i) => {
       const nota = deEtapa.find((item) => item.idAsignacionTribunal === id);
@@ -88,8 +98,8 @@ export function detallarConsolidacionMer<T extends EtapaConsolidada>(
     if (peso) ponderacion = sumarRacionales(ponderacion, peso);
     if (promedio && maximo?.numerador && peso) {
       resultado = sumarRacionales(resultado, racional(
-        promedio.numerador * maximo.denominador * peso.numerador,
-        promedio.denominador * maximo.numerador * peso.denominador * 10n,
+        promedio.numerador * maximo.denominador * peso.numerador * BigInt(escala),
+        promedio.denominador * maximo.numerador * peso.denominador * 100n,
       ));
     }
     return {
@@ -116,13 +126,13 @@ export function detallarConsolidacionMer<T extends EtapaConsolidada>(
         ? 'EVALUACIONES_CERRADAS_INCOMPLETAS' : 'SIN_EVALUACIONES',
     resultadoFinal: completo ? {
       exacto: serializarRacional(resultado), calificacion: redondearRacionalHalfUp(resultado),
-      calificacionMaxima: '10.00', redondeo: 'HALF_UP_A_DOS_DECIMALES',
+      calificacionMaxima: escala.toFixed(2), redondeo: 'HALF_UP_A_DOS_DECIMALES',
     } : null,
   };
 }
 
 export function calcularConsolidadoMer(
-  etapas: EtapaConsolidada[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string,
+  etapas: EtapaConsolidada[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string, escala = 10,
 ): string | null {
-  return detallarConsolidacionMer(etapas, evaluadores, notas, estudiante).resultadoFinal?.calificacion ?? null;
+  return detallarConsolidacionMer(etapas, evaluadores, notas, estudiante, escala).resultadoFinal?.calificacion ?? null;
 }

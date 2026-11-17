@@ -21,7 +21,7 @@ export function notaEtapaSobreDiez(etapa: {
 export interface FilaDocumento { indicador: string; descripcion: string; maximo: string; nota: string | null; }
 export interface CategoriaDocumento { nombre: string; maximo: string; subtotal: string | null; filas: FilaDocumento[]; }
 export interface EtapaDocumento {
-  id: string; nombre: string; alcance: string; maximo: string; estado: string;
+  id: string; nombre: string; alcance: string; maximo: string; porcentaje: string | null; estado: string;
   evaluacionId: string | null; traspaso: boolean; total: string | null; categorias: CategoriaDocumento[];
 }
 
@@ -52,7 +52,7 @@ export function rubricaDocumental(datos: DatosDocumentales, estudianteId: string
     });
     const completa = evaluacion?.estado === 'CERRADA' && categorias.length > 0
       && categorias.every((c) => c.filas.length > 0 && c.filas.every((f) => f.nota !== null));
-    return { id: etapa.id, nombre: etapa.nombre, alcance: etapa.scope, maximo: etapa.calificacionMaxima,
+    return { id: etapa.id, nombre: etapa.nombre, alcance: etapa.scope, maximo: etapa.calificacionMaxima, porcentaje: etapa.porcentaje ?? null,
       estado: completa ? 'CERRADA' : 'INCOMPLETA', evaluacionId: (evaluacion?.id as string) ?? null,
       traspaso: etapa.scope === 'TRABAJO_COMPARTIDO' && completa,
       total: completa ? evaluacion.calificacionTotal as string : null, categorias };
@@ -98,11 +98,11 @@ export function pendientesActa(datos: DatosDocumentales, estudianteId: string): 
     }
   }
   const resultado = consolidacion?.resultadoFinal;
-  if (!resultado || resultado.calificacionMaxima !== '10.00'
+  if (!resultado || !['10.00', '20.00', '100.00'].includes(resultado.calificacionMaxima)
     || typeof resultado.calificacion !== 'string'
-    || !/^(?:0|[1-9]\d?)(?:\.\d{2})$/.test(resultado.calificacion)
-    || BigInt(resultado.calificacion.replace('.', '')) > 1000n) {
-    pendientes.push('No se dispone de una calificación final consolidada válida sobre 10.00.');
+    || !/^(?:0|[1-9]\d{0,2})(?:\.\d{2})$/.test(resultado.calificacion)
+    || Number(resultado.calificacion) > Number(resultado.calificacionMaxima)) {
+    pendientes.push('No se dispone de una calificación final consolidada válida para la escala de la rúbrica.');
   }
   return pendientes;
 }

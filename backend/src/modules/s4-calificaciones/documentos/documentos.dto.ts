@@ -30,6 +30,6 @@ export class BuscarTrabajosDocumentosDto {
 
 export class ActualizarNotaMinimaDto {
   @IsString()
-  @Matches(/^(?:0|[1-9]\d?)(?:\.\d{1,2})?$/)
+  @Matches(/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/)
   notaMinima!: string;
 }

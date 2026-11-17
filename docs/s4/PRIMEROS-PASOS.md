@@ -41,14 +41,31 @@ En pgAdmin, conectado como el usuario `postgres`:
    ALTER ROLE genares WITH PASSWORD 'elige-una-contraseña';
    ```
 4. Ejecuta estos archivos de `backend/fixtures/`, en este orden:
-   1. `permisos-consulta-mer.sql`
-   2. `permisos-operacion-s4.sql`
-   3. `s4-retencion-visibilidad-auditoria.sql`
-   4. `s4-correccion-calificaciones.sql`
-   5. `s4-sesion-evaluacion-oral.sql`
-   6. `s4-asignacion-rubrica-proceso.sql`
-   7. `s4-indices-rendimiento.sql`: recomendado, hace más rápidas las consultas.
-   8. `verificar-retencion-visibilidad-auditoria.sql`: solo comprueba que todo quedó bien; no cambia nada.
+   1. `s4-escalas-calificacion.sql`: escala final de las rúbricas (10, 20 o 100) y nota mínima en porcentaje.
+   2. `permisos-consulta-mer.sql`
+   3. `permisos-operacion-s4.sql`
+   4. `s4-retencion-visibilidad-auditoria.sql`
+   5. `s4-correccion-calificaciones.sql`
+   6. `s4-sesion-evaluacion-oral.sql`
+   7. `s4-asignacion-rubrica-proceso.sql`
+   8. `s4-indices-rendimiento.sql`: recomendado, hace más rápidas las consultas.
+   9. `verificar-retencion-visibilidad-auditoria.sql`: solo comprueba que todo quedó bien; no cambia nada.
+
+**Si tu base ya estaba creada,** ejecuta una vez `s4-escalas-calificacion.sql` antes de arrancar esta versión del backend. Sin él, el backend falla porque busca la columna `escala_final`.
+
+**La rúbrica vigente ya viene cargada:** `002` crea la rúbrica oficial de Proyecto Integrador (versión V1: A–C en la parte escrita y D–E en la oral, 5 + 5 puntos) y la deja vigente.
+
+**Para una base ya creada o para la base integrada con S1, S2 y S3:**
+1. Abre `backend/fixtures/s4-rubrica-vigente-proyecto-integrador.sql`.
+2. Cambia solo el bloque PARÁMETROS: códigos de modalidad, período y carreras.
+3. Ejecútalo como `postgres`.
+
+El script:
+- crea la versión V1 en la rúbrica de esa modalidad;
+- la activa (la versión activa anterior pasa a archivada);
+- la deja vigente en cada carrera.
+
+Se puede repetir sin duplicar nada. Los trabajos que ya tenían rúbrica la conservan.
 
 **Opcional:** `s4-carga-volumen-dev.sql` añade 200 trabajos de prueba. Para quitarlos de las pantallas después, usa `s4-carga-volumen-dev-ocultar.sql`.
 

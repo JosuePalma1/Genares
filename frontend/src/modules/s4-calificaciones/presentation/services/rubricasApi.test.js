@@ -178,10 +178,11 @@ describe('contratos HTTP de preparación de escritura', () => {
 
   it('guarda la estructura completa en una sola petición POST con asociaciones y ámbitos', async () => {
     const solicitarJson = vi.fn().mockResolvedValue({ id: ids.version });
+    // Esquema «sumar puntos» como la rúbrica oficial: 5 + 5 = 10.
     const etapa = (codigo, alcance) => ({
       codigo, nombre: codigo, alcance,
       categorias: [{ codigo: 'C1', nombre: 'Contenido', indicadores: [
-        { label: 'I1', descripcion: 'Introducción', calificacionMaxima: '10.00' },
+        { label: 'I1', descripcion: 'Introducción', calificacionMaxima: '5.00' },
       ] }],
     });
     await crearRubricaCompletaApi({

@@ -226,6 +226,7 @@ export function adaptarRubricaApi(rubricaDto, versionesDto) {
       descripcion: rubricaDto.descripcion,
       modalidad: rubricaDto.modalidad.nombre,
       version: versionDto.version,
+      ...(versionDto.escalaFinal === undefined ? {} : { escalaFinal: versionDto.escalaFinal }),
       periodo: versionDto.periodo.codigo,
       periodoId: versionDto.periodo.id,
       estado: versionDto.estado,

@@ -105,7 +105,13 @@ export function mapearCrearRubricaCompletaDto(datos) {
     throw new ErrorMapeoEscrituraRubrica('Seleccione al menos una carrera.');
   }
 
+  // Esquema de calificación: «porcentajes» envía el peso de cada etapa; «sumar puntos» no envía ninguno.
+  const escalaFinal = datos.escalaFinal ?? 10;
+  if (![10, 20, 100].includes(escalaFinal)) throw new ErrorMapeoEscrituraRubrica('Seleccione una escala final válida.');
+  const conPorcentajes = datos.esquema?.modo === 'PORCENTAJES';
   const codigosEtapa = new Set();
+  let centesimasPartes = 0n;
+  let centesimasPesos = 0n;
   const etapas = datos.etapas.map((etapa, indiceEtapa) => {
     if (!objeto(etapa) || !ALCANCES.has(etapa.alcance) || !Array.isArray(etapa.categorias) || etapa.categorias.length === 0) {
       throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1} requiere nombre, ámbito y categorías.`);
@@ -146,18 +152,34 @@ export function mapearCrearRubricaCompletaDto(datos) {
       };
     });
     const centesimasEtapa = categorias.reduce((total, categoria) => total + categoria.centesimas, 0n);
-    if (centesimasEtapa !== 1000n) {
-      throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1} debe sumar exactamente 10.00 puntos.`);
+    // Cada etapa vale lo que suman sus indicadores (por ejemplo 5 + 5); el servidor admite hasta 100.00.
+    if (centesimasEtapa <= 0n || centesimasEtapa > 10000n) {
+      throw new ErrorMapeoEscrituraRubrica(`La etapa ${indiceEtapa + 1} debe valer más de 0 y como máximo 100.00 puntos.`);
+    }
+    centesimasPartes += centesimasEtapa;
+    let porcentaje;
+    if (conPorcentajes) {
+      porcentaje = decimal(etapa.porcentaje, `etapas[${indiceEtapa}].porcentaje`);
+      const [entero, fraccion = ''] = porcentaje.split('.');
+      centesimasPesos += BigInt(entero) * 100n + BigInt(fraccion.padEnd(2, '0') || '0');
     }
     return {
       codigo,
       nombre: texto(etapa.nombre, `etapas[${indiceEtapa}].nombre`, 220),
       alcance: etapa.alcance,
+      ...(conPorcentajes ? { porcentaje } : {}),
       ...(etapa.descripcion === undefined ? {} : { descripcion: descripcionOpcional(etapa.descripcion, `etapas[${indiceEtapa}].descripcion`) }),
       orden: indiceEtapa + 1,
       categorias: categorias.map(({ centesimas: _centesimas, ...categoria }) => categoria),
     };
   });
+
+  if (conPorcentajes && centesimasPesos !== 10000n) {
+    throw new ErrorMapeoEscrituraRubrica('Los porcentajes de las etapas deben sumar 100.');
+  }
+  if (!conPorcentajes && centesimasPartes !== BigInt(escalaFinal * 100)) {
+    throw new ErrorMapeoEscrituraRubrica(`Sin porcentajes, las etapas se suman y deben dar la nota final ${escalaFinal.toFixed(2)}.`);
+  }
 
   const idsCarrera = new Set();
   const carreras = datos.carreras.map((carrera, indice) => {
@@ -186,6 +208,7 @@ export function mapearCrearRubricaCompletaDto(datos) {
     nombre: texto(datos.nombre, 'nombre', 220),
     ...(datos.descripcion === undefined ? {} : { descripcion: datos.descripcion === null ? null : texto(datos.descripcion, 'descripcion', 1000) }),
     version: texto(datos.version, 'version', 30),
+    ...(datos.escalaFinal === undefined ? {} : { escalaFinal }),
     etapas,
     carreras,
   };
@@ -208,11 +231,14 @@ export function mapearCrearVersionCompletaRubrica(datos) {
     periodoId: datos.periodoId ?? versionBase.periodoId,
     nombre: versionBase.titulo,
     version: 'ASIGNADA-POR-SERVIDOR',
+    escalaFinal: datos.escalaFinal ?? versionBase.escalaFinal,
+    esquema: datos.esquema,
     etapas: datos.etapas,
     carreras: datos.carreras,
   });
   const dto = {
     periodoId: estructura.periodoId,
+    ...(estructura.escalaFinal === undefined ? {} : { escalaFinal: estructura.escalaFinal }),
     copiarDesdeVersionId: versionBaseId,
     revisionBase: versionBase.revision,
     carreras: estructura.carreras,

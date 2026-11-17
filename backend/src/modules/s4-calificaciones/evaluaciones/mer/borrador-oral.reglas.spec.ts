@@ -49,3 +49,43 @@ it('consolida la escrita compartida y la oral propia solo cuando ambos evaluador
   expect(calcularConsolidadoMer(etapas, ['a', 'b'], notas, 'juan')).toBe('8.24');
   expect(calcularConsolidadoMer(etapas, ['a', 'b'], notas, 'maria')).toBeNull();
 });
+
+describe('sin porcentajes guardados, cada parte pesa según lo que vale', () => {
+  const cerradas = (escrita: [string, string], oral: [string, string]) => [
+    { idEtapaRubrica: 'escrita', idAsignacionTribunal: 'a', idEstudiante: null, estado: 'CERRADA', total: escrita[0] },
+    { idEtapaRubrica: 'escrita', idAsignacionTribunal: 'b', idEstudiante: null, estado: 'CERRADA', total: escrita[1] },
+    { idEtapaRubrica: 'oral', idAsignacionTribunal: 'a', idEstudiante: 'juan', estado: 'CERRADA', total: oral[0] },
+    { idEtapaRubrica: 'oral', idAsignacionTribunal: 'b', idEstudiante: 'juan', estado: 'CERRADA', total: oral[1] },
+  ];
+  const partes = (escrita: string, oral: string) => [
+    { id: 'escrita', scope: 'TRABAJO_COMPARTIDO', porcentaje: null, calificacionMaxima: escrita },
+    { id: 'oral', scope: 'ESTUDIANTE_INDIVIDUAL', porcentaje: null, calificacionMaxima: oral },
+  ];
+
+  it('rúbrica oficial 5 + 5: la nota final es la suma de las partes (4.5 + 4 = 8.50)', () => {
+    expect(calcularConsolidadoMer(partes('5.00', '5.00'), ['a', 'b'], cerradas(['4.5', '4.5'], ['4', '4']), 'juan')).toBe('8.50');
+  });
+
+  it('partes de distinto valor 3 + 7: pesan 30 % y 70 %, no 50 % y 50 %', () => {
+    // Suma de las partes: 3 + 3.5 = 6.50 sobre 10. Repartido por igual habría dado (3/3 + 3.5/7) × 5 = 7.50.
+    expect(calcularConsolidadoMer(partes('3.00', '7.00'), ['a', 'b'], cerradas(['3', '3'], ['3.5', '3.5']), 'juan')).toBe('6.50');
+  });
+
+  it('partes de 10 + 10 sin porcentajes: 50 % y 50 %, sobre 10', () => {
+    expect(calcularConsolidadoMer(partes('10.00', '10.00'), ['a', 'b'], cerradas(['8', '9'], ['7', '7']), 'juan')).toBe('7.75');
+  });
+});
+
+it.each([[10, '7.00'], [20, '13.99'], [100, '69.96']])(
+  'aplica la escala %i antes de redondear el resultado consolidado', (escala, esperado) => {
+    const etapas = [
+      { id: 'escrita', scope: 'TRABAJO_COMPARTIDO', porcentaje: '60', calificacionMaxima: '10' },
+      { id: 'oral', scope: 'ESTUDIANTE_INDIVIDUAL', porcentaje: '40', calificacionMaxima: '10' },
+    ];
+    const notas = [
+      { idEtapaRubrica: 'escrita', idAsignacionTribunal: 'a', idEstudiante: null, estado: 'CERRADA', total: '7.02' },
+      { idEtapaRubrica: 'oral', idAsignacionTribunal: 'a', idEstudiante: 'juan', estado: 'CERRADA', total: '6.96' },
+    ];
+    expect(calcularConsolidadoMer(etapas, ['a'], notas, 'juan', escala)).toBe(esperado);
+  },
+);

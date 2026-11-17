@@ -7,7 +7,7 @@
 --   · 200 temas y asignaciones VIGENTES de S2 en DEV-2026B, mitad DEV-TI y mitad DEV-SOFT;
 --     40 % son binas. Unos 280 estudiantes ficticios.
 --   · Un tribunal propio por carrera (2 docentes CARGA), para no ocupar el horario de los docentes DEV.
---   · El proceso S4 de cada trabajo con s4.incorporar_asignacion_desde_s3 (rúbrica DEV-1).
+--   · El proceso S4 de cada trabajo con s4.incorporar_asignacion_desde_s3 (rúbrica de docs/s4/base-datos-dev, «version-proyecto»).
 --   · Avance variado, para que haya todos los estados:
 --       20 % sin evaluaciones · 20 % con una escrita cerrada · 20 % con las dos escritas cerradas
 --       20 % además con sustentación programada · 20 % además con las orales cerradas.
@@ -30,8 +30,10 @@ BEGIN
                  WHERE table_schema = 's4' AND table_name = 'evaluaciones' AND column_name = 'id_programacion_sustentacion') THEN
     RAISE EXCEPTION 'Ejecuta antes s4-sesion-evaluacion-oral.sql';
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM s4.versiones_rubrica WHERE id = s4.uuid_fixture('version-proyecto') AND estado = 'ACTIVA') THEN
-    RAISE EXCEPTION 'La versión DEV-1 debe estar ACTIVA para asignar la rúbrica a los trabajos CARGA';
+  -- Solo hace falta si quedan trabajos CARGA por crear: los ya creados conservan su rúbrica aunque luego se archive.
+  IF NOT EXISTS (SELECT 1 FROM s4.versiones_rubrica WHERE id = s4.uuid_fixture('version-proyecto') AND estado = 'ACTIVA')
+     AND (SELECT count(*) FROM gen.tema WHERE id IN (SELECT s4.uuid_fixture('carga-tema-' || n) FROM generate_series(1, 200) n)) < 200 THEN
+    RAISE EXCEPTION 'La versión de rúbrica de docs/s4/base-datos-dev (version-proyecto) debe estar ACTIVA para asignarla a los trabajos CARGA';
   END IF;
 END
 $$;
@@ -68,8 +70,9 @@ DECLARE
   v_version uuid := s4.uuid_fixture('version-proyecto');
   et_escrita uuid := s4.uuid_fixture('stage-written');
   et_oral uuid := s4.uuid_fixture('stage-oral');
-  ind_escrito uuid := s4.uuid_fixture('ind-written');
-  ind_oral uuid := s4.uuid_fixture('ind-oral');
+  -- Cada evaluación puntúa todos los indicadores de su etapa; sirve para cualquier estructura de rúbrica.
+  max_escrita numeric := (SELECT calificacion_maxima FROM s4.etapas_rubrica WHERE id = s4.uuid_fixture('stage-written'));
+  max_oral numeric := (SELECT calificacion_maxima FROM s4.etapas_rubrica WHERE id = s4.uuid_fixture('stage-oral'));
   pt uuid := s4.uuid_fixture('periodo-titulacion');
   miembro text;
 BEGIN
@@ -138,7 +141,7 @@ BEGIN
 
     proceso := s4.incorporar_asignacion_desde_s3(asig);
     IF (SELECT id_version_rubrica FROM s4.procesos_evaluacion WHERE id = proceso) IS DISTINCT FROM v_version THEN
-      RAISE EXCEPTION 'El trabajo CARGA % no recibió la rúbrica DEV-1', i;
+      RAISE EXCEPTION 'El trabajo CARGA % no recibió la rúbrica de version-proyecto', i;
     END IF;
 
     -- Escritas: con avance 1 cierra solo el evaluador A; con avance ≥ 2, los dos.
@@ -149,13 +152,18 @@ BEGIN
       INSERT INTO s4.evaluaciones (id, id_proceso_evaluacion, id_asignacion_tribunal, id_version_rubrica, id_etapa_rubrica,
         etapa, estado, instantanea_rubrica, instantanea_calificacion_maxima, revision)
       VALUES (ev, proceso, s4.uuid_fixture('carga-at-' || i || '-' || miembro), v_version, et_escrita, 'ESCRITA', 'BORRADOR',
-        jsonb_build_object('rubricVersionId', v_version::text, 'fixture', 'CARGA'), 10.00, 0)
+        jsonb_build_object('rubricVersionId', v_version::text, 'fixture', 'CARGA'), max_escrita, 0)
       ON CONFLICT (id) DO NOTHING;
+      -- «nota» está sobre 10: cada indicador recibe esa proporción de su máximo.
       INSERT INTO s4.calificaciones_evaluacion (id, id_evaluacion, id_indicador, score, instantanea_calificacion_maxima)
-      SELECT s4.uuid_fixture('carga-cal-escrita-' || i || '-' || miembro), ev, ind_escrito, nota, 10.00
-      WHERE EXISTS (SELECT 1 FROM s4.evaluaciones WHERE id = ev AND estado = 'BORRADOR')
+      SELECT s4.uuid_fixture('carga-cal-escrita-' || i || '-' || miembro || '-' || ind.label), ev, ind.id,
+        round(ind.calificacion_maxima * nota / 10, 2), ind.calificacion_maxima
+      FROM s4.indicadores_rubrica ind JOIN s4.categorias_rubrica cat ON cat.id = ind.id_categoria
+      WHERE cat.id_etapa_rubrica = et_escrita AND ind.estado_registro = 1 AND cat.estado_registro = 1
+        AND EXISTS (SELECT 1 FROM s4.evaluaciones WHERE id = ev AND estado = 'BORRADOR')
       ON CONFLICT (id) DO NOTHING;
-      UPDATE s4.evaluaciones SET estado = 'CERRADA', calificacion_total = nota, cerrada_en = now(), revision = 1
+      UPDATE s4.evaluaciones SET estado = 'CERRADA', cerrada_en = now(), revision = 1,
+        calificacion_total = (SELECT sum(score) FROM s4.calificaciones_evaluacion WHERE id_evaluacion = ev)
       WHERE id = ev AND estado = 'BORRADOR';
     END LOOP;
 
@@ -185,14 +193,18 @@ BEGIN
           INSERT INTO s4.evaluaciones (id, id_proceso_evaluacion, id_asignacion_tribunal, id_version_rubrica, id_etapa_rubrica,
             id_estudiante, etapa, estado, instantanea_rubrica, instantanea_calificacion_maxima, revision, id_programacion_sustentacion)
           VALUES (ev, proceso, s4.uuid_fixture('carga-at-' || i || '-' || miembro), v_version, et_oral, estudiantes[j], 'ORAL',
-            'BORRADOR', jsonb_build_object('rubricVersionId', v_version::text, 'fixture', 'CARGA'), 10.00, 0,
+            'BORRADOR', jsonb_build_object('rubricVersionId', v_version::text, 'fixture', 'CARGA'), max_oral, 0,
             s4.uuid_fixture('carga-sesion-' || i))
           ON CONFLICT (id) DO NOTHING;
           INSERT INTO s4.calificaciones_evaluacion (id, id_evaluacion, id_indicador, score, instantanea_calificacion_maxima)
-          SELECT s4.uuid_fixture('carga-cal-oral-' || i || '-' || j || '-' || miembro), ev, ind_oral, nota, 10.00
-          WHERE EXISTS (SELECT 1 FROM s4.evaluaciones WHERE id = ev AND estado = 'BORRADOR')
+          SELECT s4.uuid_fixture('carga-cal-oral-' || i || '-' || j || '-' || miembro || '-' || ind.label), ev, ind.id,
+            round(ind.calificacion_maxima * nota / 10, 2), ind.calificacion_maxima
+          FROM s4.indicadores_rubrica ind JOIN s4.categorias_rubrica cat ON cat.id = ind.id_categoria
+          WHERE cat.id_etapa_rubrica = et_oral AND ind.estado_registro = 1 AND cat.estado_registro = 1
+            AND EXISTS (SELECT 1 FROM s4.evaluaciones WHERE id = ev AND estado = 'BORRADOR')
           ON CONFLICT (id) DO NOTHING;
-          UPDATE s4.evaluaciones SET estado = 'CERRADA', calificacion_total = nota, cerrada_en = now(), revision = 1
+          UPDATE s4.evaluaciones SET estado = 'CERRADA', cerrada_en = now(), revision = 1,
+            calificacion_total = (SELECT sum(score) FROM s4.calificaciones_evaluacion WHERE id_evaluacion = ev)
           WHERE id = ev AND estado = 'BORRADOR';
         END LOOP;
       END LOOP;

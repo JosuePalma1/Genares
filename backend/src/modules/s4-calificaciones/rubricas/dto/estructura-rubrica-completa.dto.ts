@@ -5,6 +5,7 @@ import {
   IsBoolean,
   IsDefined,
   IsEnum,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -95,6 +96,16 @@ export class EtapaRubricaCompletaDto {
   @IsEnum(AlcanceEtapaRubrica)
   alcance!: AlcanceEtapaRubrica;
 
+  /**
+   * Esquema «porcentajes»: peso de la etapa en la nota final (todas las etapas lo llevan y suman 100).
+   * Sin porcentaje (esquema «sumar puntos») las etapas se suman y deben dar la escala final.
+   */
+  @IsOptional()
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @IsString()
+  @Matches(decimalRegex)
+  porcentaje?: string | null;
+
   @IsOptional()
   @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
   @IsString()
@@ -139,6 +150,10 @@ export class AsociacionCarreraRubricaDto {
 }
 
 export class CrearRubricaCompletaDto {
+  @ValidateIf((_dto, valor) => valor !== undefined)
+  @IsIn([10, 20, 100])
+  escalaFinal?: number;
+
   @IsUUID('loose')
   modalidadId!: string;
 
@@ -176,6 +191,10 @@ export class CrearRubricaCompletaDto {
 }
 
 export class CrearVersionRubricaCompletaDto {
+  @ValidateIf((_dto, valor) => valor !== undefined)
+  @IsIn([10, 20, 100])
+  escalaFinal?: number;
+
   @IsUUID('loose')
   periodoId!: string;
 

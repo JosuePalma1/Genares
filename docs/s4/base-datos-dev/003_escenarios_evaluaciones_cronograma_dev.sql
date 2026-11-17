@@ -3,32 +3,34 @@
 -- Bina TI: una sesión con dos participantes. Software: una sesión individual.
 -- No se crean fechas reales del usuario ni datos institucionales.
 
+-- Cada evaluador puntúa los 9 indicadores de la parte escrita (A–C, sobre 5.00). La nota de cada indicador
+-- es su máximo por el factor del evaluador, redondeada a 2 decimales; el total es la suma de esas notas.
 INSERT INTO s4.evaluaciones
  (id,id_proceso_evaluacion,id_asignacion_tribunal,id_version_rubrica,id_etapa_rubrica,
   etapa,estado,instantanea_rubrica,instantanea_calificacion_maxima,
   calificacion_total,cerrada_en,revision)
-VALUES
-(s4.uuid_fixture('eval-ti1'),(SELECT id FROM s4.procesos_evaluacion WHERE asignacion_tema_id=s4.uuid_fixture('asig-ti')),
- s4.uuid_fixture('at-ti1'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
- 'ESCRITA','CERRADA',jsonb_build_object('rubricVersionId',s4.uuid_fixture('version-proyecto')::text,'fixture','DEV'),10.00,8.20,now(),1),
-(s4.uuid_fixture('eval-ti2'),(SELECT id FROM s4.procesos_evaluacion WHERE asignacion_tema_id=s4.uuid_fixture('asig-ti')),
- s4.uuid_fixture('at-ti2'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
- 'ESCRITA','CERRADA',jsonb_build_object('rubricVersionId',s4.uuid_fixture('version-proyecto')::text,'fixture','DEV'),10.00,8.60,now(),1),
-(s4.uuid_fixture('eval-soft1'),(SELECT id FROM s4.procesos_evaluacion WHERE asignacion_tema_id=s4.uuid_fixture('asig-soft')),
- s4.uuid_fixture('at-soft1'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
- 'ESCRITA','CERRADA',jsonb_build_object('rubricVersionId',s4.uuid_fixture('version-proyecto')::text,'fixture','DEV'),10.00,8.30,now(),1),
-(s4.uuid_fixture('eval-soft2'),(SELECT id FROM s4.procesos_evaluacion WHERE asignacion_tema_id=s4.uuid_fixture('asig-soft')),
- s4.uuid_fixture('at-soft2'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
- 'ESCRITA','CERRADA',jsonb_build_object('rubricVersionId',s4.uuid_fixture('version-proyecto')::text,'fixture','DEV'),10.00,8.50,now(),1)
+SELECT s4.uuid_fixture('eval-' || e.clave),
+ (SELECT id FROM s4.procesos_evaluacion WHERE asignacion_tema_id=s4.uuid_fixture(e.asignacion)),
+ s4.uuid_fixture(e.tribunal),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
+ 'ESCRITA','CERRADA',jsonb_build_object('rubricVersionId',s4.uuid_fixture('version-proyecto')::text,'fixture','DEV'),
+ (SELECT calificacion_maxima FROM s4.etapas_rubrica WHERE id=s4.uuid_fixture('stage-written')),
+ (SELECT sum(round(i.calificacion_maxima*e.factor,2)) FROM s4.indicadores_rubrica i
+    JOIN s4.categorias_rubrica c ON c.id=i.id_categoria WHERE c.id_etapa_rubrica=s4.uuid_fixture('stage-written')),
+ now(),1
+FROM (VALUES
+ ('ti1','asig-ti','at-ti1',0.82),('ti2','asig-ti','at-ti2',0.86),
+ ('soft1','asig-soft','at-soft1',0.83),('soft2','asig-soft','at-soft2',0.85)
+) AS e(clave,asignacion,tribunal,factor)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO s4.calificaciones_evaluacion
  (id,id_evaluacion,id_indicador,score,instantanea_calificacion_maxima)
-VALUES
-(s4.uuid_fixture('score-ti1'),s4.uuid_fixture('eval-ti1'),s4.uuid_fixture('ind-written'),8.20,10.00),
-(s4.uuid_fixture('score-ti2'),s4.uuid_fixture('eval-ti2'),s4.uuid_fixture('ind-written'),8.60,10.00),
-(s4.uuid_fixture('score-soft1'),s4.uuid_fixture('eval-soft1'),s4.uuid_fixture('ind-written'),8.30,10.00),
-(s4.uuid_fixture('score-soft2'),s4.uuid_fixture('eval-soft2'),s4.uuid_fixture('ind-written'),8.50,10.00)
+SELECT s4.uuid_fixture('score-' || e.clave || '-' || i.label),s4.uuid_fixture('eval-' || e.clave),
+ i.id,round(i.calificacion_maxima*e.factor,2),i.calificacion_maxima
+FROM (VALUES ('ti1',0.82),('ti2',0.86),('soft1',0.83),('soft2',0.85)) AS e(clave,factor)
+CROSS JOIN s4.indicadores_rubrica i
+JOIN s4.categorias_rubrica c ON c.id=i.id_categoria
+WHERE c.id_etapa_rubrica=s4.uuid_fixture('stage-written')
 ON CONFLICT (id) DO NOTHING;
 
 -- Dos sustentaciones el mismo día y hora: correcto porque aulas y docentes difieren.

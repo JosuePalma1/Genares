@@ -25,19 +25,19 @@ GRANT INSERT ON s4.eventos_trazabilidad_trabajo TO genares;
 GRANT INSERT ON s4.actas_archivadas, s4.historial_nota_minima TO genares;
 GRANT SELECT (id) ON s4.historial_nota_minima TO genares;
 GRANT SELECT, INSERT, UPDATE ON s4.consecutivos_acta TO genares;
-GRANT UPDATE (valor, actualizado_en, actualizado_por) ON s4.configuracion_nota_minima TO genares;
+GRANT UPDATE (porcentaje, actualizado_en, actualizado_por) ON s4.configuracion_nota_minima TO genares;
 -- SE-03: la finalización administrativa cambia el estado del proceso a FINALIZADO.
 GRANT UPDATE (estado) ON s4.procesos_evaluacion TO genares;
 
 -- Valor provisional vigente en Genares, con historial solo si se inicializa.
 WITH inicial AS (
-  INSERT INTO s4.configuracion_nota_minima (id, valor, actualizado_en, actualizado_por)
-  VALUES (1, 7.00, now(), 'sistema:valor-inicial')
+  INSERT INTO s4.configuracion_nota_minima (id, porcentaje, actualizado_en, actualizado_por)
+  VALUES (1, 70.00, now(), 'sistema:valor-inicial')
   ON CONFLICT (id) DO NOTHING
-  RETURNING valor
+  RETURNING porcentaje
 )
-INSERT INTO s4.historial_nota_minima (id, valor_anterior, valor_nuevo, cambiado_en, cambiado_por)
+INSERT INTO s4.historial_nota_minima (id, porcentaje_anterior, porcentaje_nuevo, cambiado_en, cambiado_por)
 SELECT (SELECT COALESCE(max(id), 0) + 1 FROM s4.historial_nota_minima),
-  NULL, valor, now(), 'sistema:valor-inicial' FROM inicial;
+  NULL, porcentaje, now(), 'sistema:valor-inicial' FROM inicial;
 
 COMMIT;

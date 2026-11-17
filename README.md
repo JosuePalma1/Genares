@@ -89,7 +89,7 @@ npm --prefix .\frontend test
 
 ## Scripts SQL de `backend/fixtures`
 
-Son operaciones manuales para la base local: no son migraciones y no se ejecutan durante el arranque. Todos comprueban que la conexión sea `genares_integrado_dev` y se detienen si no lo es. Ejecútalos en pgAdmin (o `psql`) en este orden:
+Son operaciones manuales para la base local: no son migraciones y no se ejecutan durante el arranque. Todos comprueban que la conexión sea `genares_integrado_dev` y se detienen si no lo es. Antes de estos scripts, aplica [el script de escalas](backend/fixtures/s4-escalas-calificacion.sql). Ejecuta los scripts en pgAdmin (o `psql`) en este orden:
 
 | Orden | Archivo | Conectado como | Qué hace |
 | --- | --- | --- | --- |

@@ -39,19 +39,64 @@ describe('normalizarEstructuraRubricaCompleta', () => {
     },
   );
 
-  it('valida diez puntos por etapa aunque la r\u00fabrica mezcle sus alcances', () => {
+  it('admite dos etapas de 10 con porcentajes 50 y 50 aunque mezclen sus alcances', () => {
     const estructura = [
-      { ...etapa('COMPARTIDA'), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO },
-      { ...etapa('INDIVIDUAL', 2), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL },
+      { ...etapa('COMPARTIDA'), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, porcentaje: '50' },
+      { ...etapa('INDIVIDUAL', 2), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL, porcentaje: '50.00' },
     ] as EtapaRubricaCompletaDto[];
-    expect(normalizarEstructuraRubricaCompleta(estructura)).toHaveLength(2);
+    expect(normalizarEstructuraRubricaCompleta(estructura).map(({ porcentaje }) => porcentaje)).toEqual(['50.00', '50.00']);
   });
 
+  describe('esquema de calificaci\u00f3n', () => {
+    const dos = (porcentajes: Array<string | undefined>, valores = ['1.25', '0.75', '3.00', '2.00', '3.00']) => [
+      { ...etapa('ESCRITA', 1, valores), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, porcentaje: porcentajes[0] },
+      { ...etapa('ORAL', 2, valores), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL, porcentaje: porcentajes[1] },
+    ] as EtapaRubricaCompletaDto[];
+
+    it('\u00absumar puntos\u00bb: sin porcentajes, las etapas deben sumar 10.00', () => {
+      expect(() => normalizarEstructuraRubricaCompleta(dos([undefined, undefined])))
+        .toThrow('Sin porcentajes, las etapas se suman y deben dar la nota final 10.00 (suman 20.00).');
+    });
+
+    it('\u00abporcentajes\u00bb: van en todas las etapas o en ninguna', () => {
+      expect(() => normalizarEstructuraRubricaCompleta(dos(['50', undefined]))).toThrow('Indique el porcentaje de todas las etapas o de ninguna.');
+    });
+
+    it('\u00abporcentajes\u00bb: deben sumar 100', () => {
+      expect(() => normalizarEstructuraRubricaCompleta(dos(['40', '50']))).toThrow('Los porcentajes de las etapas deben sumar 100 (suman 90.00).');
+      expect(normalizarEstructuraRubricaCompleta(dos(['30', '70'])).map(({ porcentaje }) => porcentaje)).toEqual(['30.00', '70.00']);
+    });
+  });
+
+  // Escalas configurables (aprobado el 16/11/2026): cada etapa vale lo que suman sus indicadores.
   it.each([
+    ['5.00', ['0.33', '0.67', '1.00', '1.00', '2.00']],
     ['9.99', ['1.25', '0.75', '3.00', '2.00', '2.99']],
-    ['10.01', ['1.25', '0.75', '3.00', '2.00', '3.01']],
-  ])('rechaza una etapa con total %s', (_total, valores) => {
-    expect(() => normalizarEstructuraRubricaCompleta([etapa('PRODUCTO', 1, valores)])).toThrow(BadRequestException);
+    ['10.00', ['1.25', '0.75', '3.00', '2.00', '3.00']],
+    ['20.00', ['2.50', '1.50', '6.00', '4.00', '6.00']],
+  ])('con porcentaje, acepta una etapa que vale %s y guarda ese máximo', (total, valores) => {
+    const unica = { ...etapa('PRODUCTO', 1, valores), porcentaje: '100' };
+    expect(normalizarEstructuraRubricaCompleta([unica as EtapaRubricaCompletaDto])[0].calificacionMaxima).toBe(total);
+  });
+
+  it('acepta la rúbrica oficial 5 + 5 con sus categorías A–E', () => {
+    const parte = (codigo: string, orden: number, categorias: Array<[string, string[]]>) => ({
+      codigo, nombre: codigo, alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, orden,
+      categorias: categorias.map(([codigoCategoria, pesos], i) => ({
+        codigo: codigoCategoria, nombre: codigoCategoria, orden: i + 1, indicadores: pesos.map((peso, j) => indicador(j + 1, peso)),
+      })),
+    });
+    const resultado = normalizarEstructuraRubricaCompleta([
+      parte('ESCRITA', 1, [['A', ['0.33', '0.33', '0.34']], ['B', ['0.33', '0.33', '0.34']], ['C', ['1.00', '1.00', '1.00']]]),
+      parte('ORAL', 2, [['D', ['0.83', '0.83', '0.84']], ['E', ['0.83', '0.83', '0.84']]]),
+    ] as EtapaRubricaCompletaDto[]);
+    expect(resultado.map(({ calificacionMaxima }) => calificacionMaxima)).toEqual(['5.00', '5.00']);
+    expect(resultado[1].categorias.map(({ calificacionMaxima }) => calificacionMaxima)).toEqual(['2.50', '2.50']);
+  });
+
+  it('rechaza una etapa de más de 100 puntos, que sería un error de tecleo', () => {
+    const grande = etapa('ENORME', 1, ['100.00', '0.01', '1.00', '1.00', '1.00']);
+    expect(() => normalizarEstructuraRubricaCompleta([grande as EtapaRubricaCompletaDto])).toThrow(BadRequestException);
   });
 
   it('acepta cinco indicadores cuando su suma exacta es diez', () => {
@@ -88,8 +133,8 @@ describe('normalizarEstructuraRubricaCompleta', () => {
 // Decisión 2026-11-12: una versión creada desde «Nueva rúbrica» debe poder activarse (BORRADOR → ACTIVA).
 describe('versión completa lista para activarse', () => {
   const escritaYOral = () => normalizarEstructuraRubricaCompleta([
-    { ...etapa('PARTE_I', 1), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO },
-    { ...etapa('PARTE_II', 2), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL },
+    { ...etapa('PARTE_I', 1), alcance: AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, porcentaje: '50' },
+    { ...etapa('PARTE_II', 2), alcance: AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL, porcentaje: '50' },
   ] as EtapaRubricaCompletaDto[]);
 
   it('la etapa compartida es ESCRITA y la individual es ORAL', () => {

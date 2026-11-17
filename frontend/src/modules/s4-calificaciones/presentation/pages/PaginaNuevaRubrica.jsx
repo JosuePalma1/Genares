@@ -8,15 +8,22 @@ import {
   agregarCategoriaRubrica,
   agregarEtapaRubrica,
   agregarIndicadorRubrica,
+  aplicarAtajoEsquemaRubrica,
+  ATAJOS_ESQUEMA,
   cambiarCategoriaRubrica,
   cambiarEtapaRubrica,
   cambiarIndicadorRubrica,
+  cambiarModoEsquemaRubrica,
+  crearEsquemaInicialRubrica,
   crearEstructuraInicialRubrica,
+  ESQUEMA_CALIFICACION,
   eliminarCategoriaRubrica,
   eliminarEtapaRubrica,
   eliminarIndicadorRubrica,
   formatearCentesimas,
   moverElementoRubrica,
+  pesosEtapasPorValor,
+  resumenEsquemaRubrica,
   resumenPonderacionEtapa,
   subtotalCategoriaCompleta,
   validarRubricaCompleta,
@@ -80,7 +87,9 @@ export default function PaginaNuevaRubrica() {
   const [cargando, setCargando] = useState(esApi);
   const [actualizando, setActualizando] = useState(false);
   const [errorCarga, setErrorCarga] = useState(null);
-  const [datos, setDatos] = useState(() => ({ modalidadId: '', periodoId: '', nombre: '', version: '', etapas: crearEstructuraInicialRubrica() }));
+  const [datos, setDatos] = useState(() => ({
+    modalidadId: '', periodoId: '', nombre: '', version: '', escalaFinal: 10, esquema: crearEsquemaInicialRubrica(), etapas: crearEstructuraInicialRubrica(),
+  }));
   const [seleccionCarreras, setSeleccionCarreras] = useState({});
   const [tieneCambios, setTieneCambios] = useState(false);
   const [intentoGuardar, setIntentoGuardar] = useState(false);
@@ -162,6 +171,17 @@ export default function PaginaNuevaRubrica() {
     intentoGuardar, datos, carrerasDto,
   ]);
   const resumenes = datos.etapas.map((etapa) => resumenPonderacionEtapa(etapa));
+  const modoEsquema = datos.esquema?.modo ?? ESQUEMA_CALIFICACION.SUMA;
+  const resumenEsquema = resumenEsquemaRubrica(datos);
+  // Peso de cada etapa en la nota final: el elegido («porcentajes») o según lo que vale («sumar puntos»).
+  const pesos = modoEsquema === ESQUEMA_CALIFICACION.PORCENTAJES
+    ? (resumenEsquema.estado === 'completa' ? datos.etapas.map((etapa) => Number(etapa.porcentaje)) : null)
+    : pesosEtapasPorValor(resumenes.map(({ total }) => total));
+
+  function cambiarEsquema(transformar) {
+    setDatos((actual) => transformar(actual));
+    setTieneCambios(true);
+  }
 
   function cambiarDato(campo, valor) {
     setDatos((actual) => ({ ...actual, [campo]: valor }));
@@ -384,8 +404,49 @@ export default function PaginaNuevaRubrica() {
         </fieldset>
       </section>
 
+      <section className="rubrica-completa-section" aria-labelledby="rubrica-completa-esquema">
+        <div className="rubrica-completa-section-heading"><span className="section-kicker">B. Esquema de calificación</span><h2 id="rubrica-completa-esquema">Cómo se calcula la nota final</h2><p>Indique primero cuánto vale cada parte y cómo se combinan. La nota final se expresa sobre {datos.escalaFinal ?? 10}.</p></div>
+        <div className="rubrica-esquema-atajos" role="group" aria-label="Esquemas frecuentes">
+          <span>Esquemas frecuentes:</span>
+          {ATAJOS_ESQUEMA.map((atajo) => <button key={atajo.id} type="button" className="button button-outline" disabled={!puedeCrear || guardando}
+            onClick={() => { cambiarEsquema((actual) => aplicarAtajoEsquemaRubrica(actual, atajo.id)); setAnuncio(`Esquema aplicado: ${atajo.etiqueta}.`); }}>{atajo.etiqueta}</button>)}
+        </div>
+        <label>Escala de la nota final
+          <select className="input" value={datos.escalaFinal ?? 10} disabled={!puedeCrear || guardando}
+            onChange={(e) => cambiarEsquema((actual) => ({ ...actual, escalaFinal: Number(e.target.value) }))}>
+            {[10, 20, 100].map((escala) => <option key={escala} value={escala}>{escala} puntos</option>)}
+          </select>
+        </label>
+        <fieldset className="rubrica-esquema-modo" disabled={!puedeCrear || guardando}>
+          <legend>Cómo se combinan las partes</legend>
+          <label><input type="radio" name="esquema-modo" value={ESQUEMA_CALIFICACION.SUMA} checked={modoEsquema === ESQUEMA_CALIFICACION.SUMA}
+            onChange={() => cambiarEsquema((actual) => cambiarModoEsquemaRubrica(actual, ESQUEMA_CALIFICACION.SUMA))} />
+            <span><strong>Sumar puntos</strong><small>Las partes suman la nota final, por ejemplo 5 + 5 = 10 o 3 + 7 = 10.</small></span></label>
+          <label><input type="radio" name="esquema-modo" value={ESQUEMA_CALIFICACION.PORCENTAJES} checked={modoEsquema === ESQUEMA_CALIFICACION.PORCENTAJES}
+            onChange={() => cambiarEsquema((actual) => cambiarModoEsquemaRubrica(actual, ESQUEMA_CALIFICACION.PORCENTAJES))} />
+            <span><strong>Porcentajes</strong><small>Cada parte vale lo que indique y usted fija cuánto pesa, por ejemplo 10 y 10 al 50 % cada una.</small></span></label>
+        </fieldset>
+        <div className="rubrica-esquema-partes">
+          {datos.etapas.map((etapa, indiceEtapa) => {
+            const nombre = etapa.nombre.trim() || `Etapa ${indiceEtapa + 1}`;
+            return <div className="rubrica-esquema-parte" key={etapa.claveLocal}>
+              <strong>{nombre}</strong>
+              <div className="field"><label htmlFor={`etapa-valor-${etapa.claveLocal}`}>Vale (puntos)</label>
+                <input id={`etapa-valor-${etapa.claveLocal}`} className="input" inputMode="decimal" placeholder="5.00" value={etapa.valor ?? ''} disabled={!puedeCrear || guardando}
+                  aria-invalid={errores.some(({ campo }) => campo === `etapas.${indiceEtapa}.valor`)}
+                  onChange={(e) => cambiarEtapas(cambiarEtapaRubrica(datos.etapas, etapa.claveLocal, { valor: e.target.value }))} /></div>
+              {modoEsquema === ESQUEMA_CALIFICACION.PORCENTAJES && <div className="field"><label htmlFor={`etapa-peso-${etapa.claveLocal}`}>Peso en la nota final (%)</label>
+                <input id={`etapa-peso-${etapa.claveLocal}`} className="input" inputMode="decimal" placeholder="50" value={etapa.porcentaje ?? ''} disabled={!puedeCrear || guardando}
+                  aria-invalid={errores.some(({ campo }) => campo === `etapas.${indiceEtapa}.porcentaje`)}
+                  onChange={(e) => cambiarEtapas(cambiarEtapaRubrica(datos.etapas, etapa.claveLocal, { porcentaje: e.target.value }))} /></div>}
+            </div>;
+          })}
+        </div>
+        <p className={`rubrica-esquema-resumen is-${resumenEsquema.estado}`} aria-live="polite" aria-invalid={errores.some(({ campo }) => campo === 'esquema')}>{resumenEsquema.mensaje}</p>
+      </section>
+
       <section className="rubrica-completa-section" aria-labelledby="rubrica-completa-etapas">
-        <div className="rubrica-completa-section-heading rubrica-completa-stages-heading"><div><span className="section-kicker">B. Estructura de evaluación</span><h2 id="rubrica-completa-etapas">Etapas</h2><p>Los ámbitos son editables y no dependen del nombre de la etapa.</p></div><button id="agregar-etapa-rubrica" className="button button-outline" type="button" disabled={!puedeCrear || guardando} onClick={() => { const etapas = agregarEtapaRubrica(datos.etapas); cambiarEtapas(etapas); setAnuncio('Etapa agregada.'); requestAnimationFrame(() => document.getElementById(`etapa-nombre-${etapas.at(-1).claveLocal}`)?.focus()); }}><Plus size={16} /> Agregar etapa</button></div>
+        <div className="rubrica-completa-section-heading rubrica-completa-stages-heading"><div><span className="section-kicker">C. Estructura de evaluación</span><h2 id="rubrica-completa-etapas">Etapas</h2><p>Los ámbitos son editables y no dependen del nombre de la etapa.</p></div><button id="agregar-etapa-rubrica" className="button button-outline" type="button" disabled={!puedeCrear || guardando} onClick={() => { const etapas = agregarEtapaRubrica(datos.etapas); cambiarEtapas(etapas); setAnuncio('Etapa agregada.'); requestAnimationFrame(() => document.getElementById(`etapa-nombre-${etapas.at(-1).claveLocal}`)?.focus()); }}><Plus size={16} /> Agregar etapa</button></div>
         <p role="status" aria-live="polite" className="rubrica-completa-announcement">{anuncio}</p>
         {datos.etapas.map((etapa, indiceEtapa) => {
           const resumen = resumenes[indiceEtapa];
@@ -399,7 +460,7 @@ export default function PaginaNuevaRubrica() {
                 <div className="field"><label htmlFor={`etapa-alcance-${etapa.claveLocal}`}>Ámbito de evaluación <span aria-hidden="true">*</span></label><select id={`etapa-alcance-${etapa.claveLocal}`} className="select" value={etapa.alcance} disabled={!puedeCrear || guardando} aria-invalid={errores.some(({ campo }) => campo === `etapas.${indiceEtapa}.alcance`)} onChange={(e) => cambiarEtapas(cambiarEtapaRubrica(datos.etapas, etapa.claveLocal, { alcance: e.target.value }))}><option value="">Seleccione un ámbito</option>{SCOPE_OPTIONS.map((opcion) => <option key={opcion.value} value={opcion.value}>{opcion.label}</option>)}</select></div>
                 <h3 id={`etapa-title-${etapa.claveLocal}`} className="sr-only">Etapa {indiceEtapa + 1}: {nombreEtapa}</h3>
               </div>
-              <div className={`rubrica-completa-total is-${resumen.estado}`} aria-live="polite" aria-invalid={errores.some(({ campo }) => campo === `etapas.${indiceEtapa}.total`)}><span>Total de etapa</span><strong>{totalTexto} <small>/ 10.00</small></strong><small>{resumen.mensaje}</small></div>
+              <div className={`rubrica-completa-total is-${resumen.estado}`} aria-live="polite" aria-invalid={errores.some(({ campo }) => campo === `etapas.${indiceEtapa}.total`)}><span>Total de etapa</span><strong>{totalTexto} <small>{resumen.declarado ? `/ ${formatearCentesimas(resumen.declarado)}` : 'puntos'}</small></strong><small>{resumen.mensaje}</small></div>
               <BotonesOrden etiqueta={nombreEtapa} indice={indiceEtapa} longitud={datos.etapas.length} bloqueado={!puedeCrear || guardando}
                 mover={(direccion) => { cambiarEtapas(moverElementoRubrica(datos.etapas, indiceEtapa, direccion)); setAnuncio(`La etapa ${nombreEtapa} fue reordenada.`); }}
                 eliminar={() => eliminarConConfirmacion(nombreEtapa, 'También se eliminarán sus categorías e indicadores.', () => cambiarEtapas(eliminarEtapaRubrica(datos.etapas, etapa.claveLocal)), 'agregar-etapa-rubrica')} />
@@ -445,13 +506,17 @@ export default function PaginaNuevaRubrica() {
       </section>
 
       <section className="rubrica-completa-section" aria-labelledby="rubrica-completa-resumen">
-        <div className="rubrica-completa-section-heading"><span className="section-kicker">C. Revisión</span><h2 id="rubrica-completa-resumen">Resumen de ponderaciones</h2></div>
+        <div className="rubrica-completa-section-heading"><span className="section-kicker">D. Revisión</span><h2 id="rubrica-completa-resumen">Resumen de ponderaciones</h2></div>
         <div className="rubrica-completa-summary" role="list">
           {datos.etapas.map((etapa, indice) => {
             const resumen = resumenes[indice];
-            return <div className={`rubrica-completa-summary-row is-${resumen.estado}`} role="listitem" key={etapa.claveLocal}><strong>{etapa.nombre.trim() || `Etapa ${indice + 1}`}</strong><span>{resumen.total === null ? '—' : `${formatearCentesimas(resumen.total)} / 10.00`}</span><small>{resumen.mensaje}</small></div>;
+            return <div className={`rubrica-completa-summary-row is-${resumen.estado}`} role="listitem" key={etapa.claveLocal}><strong>{etapa.nombre.trim() || `Etapa ${indice + 1}`}</strong><span>{resumen.total === null ? '—' : `${formatearCentesimas(resumen.total)} puntos`}</span><small>{resumen.mensaje}</small></div>;
           })}
         </div>
+        {datos.etapas.length > 0 && <p className="rubrica-completa-nota-final">
+          La nota final se expresa sobre {datos.escalaFinal ?? 10} y cada etapa pesa {modoEsquema === ESQUEMA_CALIFICACION.PORCENTAJES ? 'el porcentaje indicado' : 'según lo que vale'}
+          {pesos ? <>: {datos.etapas.map((etapa, indice) => `${etapa.nombre.trim() || `Etapa ${indice + 1}`} ${pesos[indice].toLocaleString('es-EC', { maximumFractionDigits: 2 })} %`).join(' · ')}.</> : '.'}
+        </p>}
         {errores.length > 0 && <div className="rubrica-completa-errors" role="alert" aria-labelledby="rubrica-completa-errors-title"><h3 id="rubrica-completa-errors-title" tabIndex={-1}>Revise estos campos antes de guardar</h3><ul>{errores.map((error, indice) => <li key={`${error.campo}-${indice}`}>{error.mensaje}</li>)}</ul></div>}
       </section>
 

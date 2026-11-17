@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Navigate, useLocation, useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { FileText, GraduationCap, Layers3, Printer, UserRound } from 'lucide-react';
 import { ESTADO_EVALUACION, ALCANCE_ETAPA_RUBRICA } from '../../infrastructure/datos/datosPrototipo';
 import {
@@ -13,9 +13,9 @@ import {
 } from '../../domain/flujoTrabajo';
 import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 import { BotonVolver, EstadoVacio, InsigniaEstado } from '../components/interfaz';
-import { DOCUMENTOS_API_HABILITADA } from '../services/documentosApi';
+import { DOCUMENTOS_API_HABILITADA, urlPdfDocumento } from '../services/documentosApi';
 import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';
-import { destinoDocumentosRubrica } from '../../domain/documentosRubrica';
+import { rutaPdfRubrica } from '../../domain/documentosRubrica';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 
 function formatearFechaHora(valor) {
@@ -27,7 +27,6 @@ function formatearFechaHora(valor) {
 
 export default function PaginaImpresionRubrica() {
   const { idTrabajo, idEstudiante, idMiembro } = useParams();
-  const ubicacion = useLocation();
 
   if (FUENTE_EVALUACIONES === 'api') {
     if (!DOCUMENTOS_API_HABILITADA) return <EstadoVacio
@@ -41,11 +40,16 @@ export default function PaginaImpresionRubrica() {
         accion={<a className="button button-outline" href="/trabajos">Volver a trabajos</a>}
       />;
     }
-    const autoPrint = ubicacion.state?.autoPrint || new URLSearchParams(ubicacion.search).get('autoPrint') === '1';
-    return <Navigate replace to={destinoDocumentosRubrica(idTrabajo, idEstudiante, idMiembro, autoPrint)} />;
+    return <IrAlPdfRubrica url={urlPdfDocumento(rutaPdfRubrica(idTrabajo, idEstudiante, idMiembro))} />;
   }
 
   return <PaginaImpresionRubricaPrototipo />;
+}
+
+/** Enlaces antiguos a /rubrica/…: llevan directamente al PDF, que el navegador abre en su propio visor. */
+function IrAlPdfRubrica({ url }) {
+  useEffect(() => { window.location.replace(url); }, [url]);
+  return <p role="status">Abriendo la rúbrica en PDF…</p>;
 }
 
 function PaginaImpresionRubricaPrototipo() {

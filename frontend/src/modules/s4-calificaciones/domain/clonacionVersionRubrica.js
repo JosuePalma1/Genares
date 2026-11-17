@@ -23,6 +23,9 @@ export function crearEstructuraEditorDesdeVersion(version) {
     nombre: etapa.nombre,
     alcance: etapa.alcance,
     ...(etapa.descripcion == null ? {} : { descripcion: etapa.descripcion }),
+    // Esquema de calificación de la versión base: cuánto vale la parte y, si lo tiene, su peso.
+    valor: centesimasCanonicas(etapa.maximoDecimal ?? ''),
+    porcentaje: etapa.porcentajeDecimal == null ? '' : centesimasCanonicas(etapa.porcentajeDecimal),
     categorias: version.categorias
       .filter((categoria) => categoria.etapa === etapa.id)
       .sort(porOrden)
@@ -46,6 +49,7 @@ function estructuraComparable(etapas) {
     nombre: etapa.nombre,
     alcance: etapa.alcance,
     descripcion: etapa.descripcion ?? null,
+    porcentaje: centesimasCanonicas(etapa.porcentaje ?? ''),
     categorias: etapa.categorias.map((categoria) => ({
       codigo: categoria.codigo,
       nombre: categoria.nombre,
@@ -65,6 +69,12 @@ export function estructuraEditorCoincideConVersion(etapas, version) {
     === JSON.stringify(estructuraComparable(crearEstructuraEditorDesdeVersion(version)));
 }
 
+/** Una versión con porcentaje en todas sus etapas usa «porcentajes»; si no, «sumar puntos». */
+export function esquemaDeVersion(version) {
+  const etapas = version?.etapas ?? [];
+  return etapas.length > 0 && etapas.every((etapa) => etapa.porcentajeDecimal != null) ? 'PORCENTAJES' : 'SUMA';
+}
+
 export function prepararClonVersionRubrica(version) {
   if (!version || version.fuenteDatos !== 'api') {
     throw new TypeError('La clonación requiere una versión base completa.');
@@ -75,6 +85,8 @@ export function prepararClonVersionRubrica(version) {
       periodoId: version.periodoId,
       nombre: version.titulo,
       version: '',
+      escalaFinal: version.escalaFinal ?? 10,
+      esquema: { modo: esquemaDeVersion(version) },
       etapas: crearEstructuraEditorDesdeVersion(version),
     },
     seleccionCarreras: Object.fromEntries((version.carreras ?? []).map((carrera) => [carrera.id, { vigente: false }])),

@@ -17,9 +17,83 @@ function codigoDisponible(prefijo, usados, maximo = 40) {
 
 export function crearEstructuraInicialRubrica() {
   return [
-    { claveLocal: claveLocalRubrica(), codigo: 'ETAPA_1', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', categorias: [] },
-    { claveLocal: claveLocalRubrica(), codigo: 'ETAPA_2', nombre: 'Oral', alcance: 'ESTUDIANTE_INDIVIDUAL', categorias: [] },
+    { claveLocal: claveLocalRubrica(), codigo: 'ETAPA_1', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', valor: '', porcentaje: '', categorias: [] },
+    { claveLocal: claveLocalRubrica(), codigo: 'ETAPA_2', nombre: 'Oral', alcance: 'ESTUDIANTE_INDIVIDUAL', valor: '', porcentaje: '', categorias: [] },
   ];
+}
+
+/**
+ * Esquema de calificación en «Nueva rúbrica».
+ * - SUMA: las partes suman la nota final (rúbrica oficial: 5 + 5 = 10). No se guardan porcentajes.
+ * - PORCENTAJES: cada parte vale lo que quiera y se indica su peso; los pesos suman 100 %.
+ */
+export const ESQUEMA_CALIFICACION = Object.freeze({ SUMA: 'SUMA', PORCENTAJES: 'PORCENTAJES' });
+
+export function crearEsquemaInicialRubrica() {
+  return { modo: ESQUEMA_CALIFICACION.SUMA };
+}
+
+/** Esquemas frecuentes: rellenan el valor (y el peso) de las dos partes. */
+export const ATAJOS_ESQUEMA = Object.freeze([
+  { id: 'OFICIAL_5_5', etiqueta: 'Oficial: 5 + 5 = 10', modo: ESQUEMA_CALIFICACION.SUMA, valores: ['5.00', '5.00'], porcentajes: ['', ''] },
+  { id: 'DIEZ_DIEZ_50', etiqueta: '10 + 10 al 50 % cada una', modo: ESQUEMA_CALIFICACION.PORCENTAJES, valores: ['10.00', '10.00'], porcentajes: ['50', '50'] },
+]);
+
+/** Aplica un esquema frecuente sin tocar categorías ni indicadores. */
+export function aplicarAtajoEsquemaRubrica(datos, idAtajo) {
+  const atajo = ATAJOS_ESQUEMA.find(({ id }) => id === idAtajo);
+  if (!atajo) return datos;
+  return {
+    ...datos,
+    esquema: { modo: atajo.modo },
+    etapas: datos.etapas.map((etapa, indice) => ({
+      ...etapa,
+      valor: atajo.valores[indice] ?? etapa.valor ?? '',
+      porcentaje: atajo.porcentajes[indice] ?? '',
+    })),
+  };
+}
+
+/** Cambia la forma de combinar las partes; en «sumar puntos» se vacían los pesos para no guardarlos. */
+export function cambiarModoEsquemaRubrica(datos, modo) {
+  return {
+    ...datos,
+    esquema: { modo },
+    etapas: modo === ESQUEMA_CALIFICACION.SUMA ? datos.etapas.map((etapa) => ({ ...etapa, porcentaje: '' })) : datos.etapas,
+  };
+}
+
+/** Resumen del esquema: cuánto suman las partes (modo SUMA) o los pesos (modo PORCENTAJES). */
+export function resumenEsquemaRubrica(datos) {
+  const escala = (datos?.escalaFinal ?? 10).toFixed(2);
+  const maximo = BigInt((datos?.escalaFinal ?? 10) * 100);
+  const modo = datos?.esquema?.modo ?? ESQUEMA_CALIFICACION.SUMA;
+  const etapas = datos?.etapas ?? [];
+  if (modo === ESQUEMA_CALIFICACION.PORCENTAJES) {
+    const pesos = etapas.map((etapa) => centesimasPonderacion(etapa.porcentaje));
+    if (pesos.some((peso) => peso === null || peso <= 0n)) {
+      return { modo, estado: 'incompleta', mensaje: 'Indique el peso (%) de cada parte.' };
+    }
+    const suma = pesos.reduce((total, peso) => total + peso, 0n);
+    return suma === 10000n
+      ? { modo, estado: 'completa', mensaje: 'Los pesos suman 100 %.' }
+      : { modo, estado: suma < 10000n ? 'faltante' : 'excedida', mensaje: `Los pesos deben sumar 100 % (suman ${formatearCentesimas(suma)} %).` };
+  }
+  const totales = etapas.map((etapa) => valorDeclaradoEtapa(etapa) ?? subtotalEtapaCompleta(etapa));
+  if (totales.some((total) => total === null || total <= 0n)) {
+    return { modo, estado: 'incompleta', mensaje: `Indique cuánto vale cada parte; deben sumar ${escala}.` };
+  }
+  const suma = totales.reduce((total, valor) => total + valor, 0n);
+  return suma === maximo
+    ? { modo, estado: 'completa', mensaje: `Las partes suman ${escala}, la nota final.` }
+    : { modo, estado: suma < maximo ? 'faltante' : 'excedida', mensaje: `Las partes deben sumar ${escala} (suman ${formatearCentesimas(suma)}). Ajuste los puntos o use porcentajes.` };
+}
+
+/** Valor declarado de la etapa en el esquema (null si no se indicó o no es válido). */
+export function valorDeclaradoEtapa(etapa) {
+  if (etapa?.valor === undefined || etapa?.valor === null || String(etapa.valor).trim() === '') return null;
+  const valor = centesimasPonderacion(String(etapa.valor).trim());
+  return valor !== null && valor > 0n ? valor : null;
 }
 
 export function nuevaEtapaRubrica(etapas) {
@@ -28,6 +102,8 @@ export function nuevaEtapaRubrica(etapas) {
     codigo: codigoDisponible('ETAPA_', etapas.map((etapa) => etapa.codigo)),
     nombre: 'Nueva etapa',
     alcance: '',
+    valor: '',
+    porcentaje: '',
     categorias: [],
   };
 }
@@ -150,16 +226,41 @@ export function subtotalEtapaCompleta(etapa) {
 export function resumenPonderacionEtapa(etapa) {
   const total = subtotalEtapaCompleta(etapa);
   if (total === null || !etapa.categorias.some((categoria) => categoria.indicadores.length)) {
-    return { total, estado: 'incompleta', mensaje: 'Agregue indicadores con ponderaciones válidas.' };
+    const declarado = valorDeclaradoEtapa(etapa);
+    return {
+      total, ...(declarado === null ? {} : { declarado }), estado: 'incompleta',
+      mensaje: declarado === null ? 'Agregue indicadores con ponderaciones válidas.' : `Agregue indicadores hasta llegar a ${formatearCentesimas(declarado)} puntos.`,
+    };
   }
-  if (total < 1000n) {
-    return { total, estado: 'faltante', mensaje: `Faltan ${formatearCentesimas(1000n - total)} puntos.` };
+  // Cada etapa vale lo que suman sus indicadores (5 + 5, 10 + 10…); la nota final se calcula sobre 10.
+  if (total > MAXIMO_CENTESIMAS_ETAPA) {
+    return { total, estado: 'excedida', mensaje: `Una etapa puede valer como máximo ${formatearCentesimas(MAXIMO_CENTESIMAS_ETAPA)} puntos.` };
   }
-  if (total > 1000n) {
-    return { total, estado: 'excedida', mensaje: `Excede ${formatearCentesimas(total - 1000n)} puntos.` };
+  // Con el valor declarado en el esquema, los indicadores deben llegar exactamente a ese valor.
+  const declarado = valorDeclaradoEtapa(etapa);
+  if (declarado !== null && total < declarado) {
+    return { total, declarado, estado: 'faltante', mensaje: `Faltan ${formatearCentesimas(declarado - total)} de ${formatearCentesimas(declarado)} puntos.` };
   }
-  return { total, estado: 'completa', mensaje: 'Completo.' };
+  if (declarado !== null && total > declarado) {
+    return { total, declarado, estado: 'excedida', mensaje: `Sobran ${formatearCentesimas(total - declarado)}: la etapa vale ${formatearCentesimas(declarado)} puntos.` };
+  }
+  if (declarado !== null) return { total, declarado, estado: 'completa', mensaje: `Completa: ${formatearCentesimas(total)} de ${formatearCentesimas(declarado)} puntos.` };
+  return { total, estado: 'completa', mensaje: `La etapa vale ${formatearCentesimas(total)} puntos.` };
 }
+
+/**
+ * Peso de cada etapa en la nota final, igual que la consolidación del servidor cuando la rúbrica no guarda
+ * porcentajes: según lo que vale cada etapa (5 + 5 → 50 % y 50 %; 3 + 7 → 30 % y 70 %).
+ * Devuelve null si alguna etapa todavía no tiene un total válido.
+ */
+export function pesosEtapasPorValor(totales) {
+  if (!totales.length || totales.some((total) => total === null || total <= 0n)) return null;
+  const suma = totales.reduce((acumulado, total) => acumulado + total, 0n);
+  return totales.map((total) => Number((total * 10000n) / suma) / 100);
+}
+
+/** Tope de una etapa para atrapar errores de tecleo (igual que el servidor). */
+export const MAXIMO_CENTESIMAS_ETAPA = 10000n;
 
 function agregarError(errores, campo, mensaje) {
   errores.push({ campo, mensaje });
@@ -244,10 +345,24 @@ export function validarRubricaCompleta(formulario) {
       });
     });
 
+    const valorTexto = String(etapa?.valor ?? '').trim();
+    if (valorTexto && (valorDeclaradoEtapa(etapa) === null || valorDeclaradoEtapa(etapa) > MAXIMO_CENTESIMAS_ETAPA)) {
+      agregarError(errores, `${ruta}.valor`, `${etiqueta}: indique cuánto vale la parte (más de 0 y hasta 100.00, con dos decimales como máximo).`);
+    }
+    const modo = formulario?.esquema?.modo ?? ESQUEMA_CALIFICACION.SUMA;
+    const porcentaje = centesimasPonderacion(String(etapa?.porcentaje ?? '').trim());
+    if (modo === ESQUEMA_CALIFICACION.PORCENTAJES && (porcentaje === null || porcentaje <= 0n || porcentaje > 10000n)) {
+      agregarError(errores, `${ruta}.porcentaje`, `${etiqueta}: indique su peso en la nota final (más de 0 y hasta 100 %).`);
+    }
+
     const resumen = resumenPonderacionEtapa(etapa);
     if (resumen.estado !== 'completa') {
-      agregarError(errores, `${ruta}.total`, `${etiqueta}: debe sumar exactamente 10.00 puntos. ${resumen.mensaje}`);
+      agregarError(errores, `${ruta}.total`, `${etiqueta}: ${resumen.mensaje}`);
     }
   });
+
+  // El esquema completo: las partes suman la escala final («sumar puntos») o los pesos suman 100 % («porcentajes»).
+  const esquema = resumenEsquemaRubrica(formulario);
+  if (esquema.estado === 'faltante' || esquema.estado === 'excedida') agregarError(errores, 'esquema', esquema.mensaje);
   return errores;
 }

@@ -36,7 +36,7 @@
 7. **Resultados:** no presentar una nota final definitiva mientras falten evaluaciones requeridas; tampoco contar una calificación pendiente como 0. Conservar resultados separados por estudiante y evaluador, y las sumas/promedios de cada etapa conforme a la versión de rúbrica.
 8. **Precisión y reglas:** preservar los valores exactos durante los cálculos y respetar la regla vigente del backend: **`ROUND_HALF_UP` a dos decimales únicamente al presentar calificaciones**. Ejemplos: `9,444 → 9,44`, `9,445 → 9,45`, `9,446 → 9,45`, `8,125 → 8,13`. La regla antigua de redondear al alza solo cuando el tercer decimal sea estrictamente mayor que 5 **ya fue descartada**. Evitar errores por punto flotante y no cambiar otros comportamientos ni expectativas de pruebas sin aprobación.
 9. **Escala:** el ejemplo institucional escrito 5 + oral 5 = máximo 10 no autoriza aplicar siempre la misma estructura a toda modalidad; preservar aportes originales y normalización de visualización cuando proceda.
-10. **Umbral provisional:** la nota mínima `7.00` está confirmada en desarrollo como **provisional**; no escribir mensajes que la presenten como disposición institucional definitiva.
+10. **Umbral provisional:** la nota mínima se configura como **porcentaje de la escala final** (`70` %: 7/10, 14/20, 70/100) y sigue siendo **provisional** hasta tener ratificación escrita; no escribir mensajes que la presenten como disposición institucional definitiva. Mostrar siempre las notas con la escala de su versión de rúbrica, nunca con un «10» fijo.
 
 ## 5. Cronograma, documentos y experiencia de tablet
 

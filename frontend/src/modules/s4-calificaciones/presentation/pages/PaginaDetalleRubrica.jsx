@@ -370,7 +370,7 @@ export default function PaginaDetalleRubrica() {
 
       <section className="rubrica-values-summary" aria-labelledby="rubrica-summary-title">
         <header>
-          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Esta suma describe la estructura y no es la calificación final de un estudiante. El resultado consultivo se expresa sobre 10.00.</p></div>
+          <div><span className="section-kicker">Comprobación de máximos</span><h2 id="rubrica-summary-title">Resumen de valoraciones</h2><p>Esta suma describe la estructura y no es la calificación final de un estudiante.</p></div>
           <div className="rubrica-summary-total"><span>Suma de máximos por etapa</span><strong>{puntos(maximumTotal)}</strong><small>puntos</small></div>
         </header>
         <div className="rubrica-summary-grid">

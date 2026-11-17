@@ -30,12 +30,68 @@ El núcleo de S4 es **crear la rúbrica, asignarla y calificar con ella**. Lo de
 
 Así, una rúbrica nueva funciona sin diseñar ningún PDF.
 
+**Principio: todo adaptable, nada único** (17/11/2026). Las rúbricas cambian según la modalidad y el año, y no siempre se puede preguntar a las autoridades. Por eso el sistema no fija ninguna rúbrica: quien coordina la configura, el sistema comprueba que cuadre y todo lo demás sale de ahí (cálculo, nota mínima, redondeo y PDF). Hay dos versiones distintas de la rúbrica de Proyecto Integrador:
+
+| | Word «RUBRICA DEFENSA TRABAJO IC 5 PUNTOS» | Plan de titulación PAT-04-F-001, revisión 1, apartado 6.2 |
+| --- | --- | --- |
+| **Escrita** (documento, compartida) | A Resumen 1,00 + B Marco teórico 1,00 + C Diagnóstico 3,00 = **5** (50 %) | A Resumen 2,50 + B Marco teórico 2,50 + C Diagnóstico 5,00 = **10** (50 %) |
+| **Oral** (sustentación, por estudiante) | D Empoderamiento 2,50 + E Conclusiones 2,50 = **5** (50 %) | A Empoderamiento 2,50 + B Conclusiones 2,50 + **C Producto 5,00** = **10** (50 %) |
+| **Nota final** | 5 + 5 = **10** | 50 % de 10 + 50 % de 10 = **sobre 10** |
+| **Letras** | Seguidas: A–E | Empiezan de nuevo en cada parte: A–C y A–C |
+
+- **No son equivalentes.** Cambian los pesos (en el Plan, el Resumen vale el 12,5 % de la nota; en el Word, el 10 %), y solo el Plan califica el **Producto**. Hay que preguntar cuál está vigente. El sistema puede tener las dos y activar la que corresponda.
+- **El Plan no da 20.** Dice que cada parte vale 10 puntos «que serán considerados como el 50 % de la nota final», así que la nota final es sobre 10. Por ejemplo, documento 8 y sustentación 9 dan 8,50. Es justo lo que ya calcula hoy el sistema: cada parte sobre 10 y con peso del 50 %. El acta PAT-04-F-017 escribe la suma (16/20), que equivale a lo mismo (8/10). Con la nota mínima en porcentaje (70 %), aprueba o reprueba igual en las dos formas. Falta preguntar cómo quieren que aparezca en el acta.
+- **Errata en el Plan:** la categoría A del documento dice «(2.20 puntos)», pero sus indicadores suman 2,50 (0,83 + 0,83 + 0,84). El sistema lo detectaría al validar.
+
+Las dos versiones caben en el modelo actual: una parte escrita compartida y una oral individual. Qué hay que configurar y dónde:
+
+| Qué | Dónde | Hoy |
+| --- | --- | --- |
+| Una rúbrica para cada modalidad | Rúbricas | Ya existe |
+| Categorías, indicadores, puntos y **letra de cada categoría** | Versión de rúbrica | Categorías, indicadores y puntos configurables. Letra explícita pendiente |
+| Puntos y porcentaje de cada parte | Versión de rúbrica | Configurable para escrita y oral |
+| Escala de la nota final (10, 20 o 100) | Versión de rúbrica | Implementada (`backend/fixtures/s4-escalas-calificacion.sql`) |
+| Nota mínima (70 % de la escala) | Configuración académica | Implementada como porcentaje (mismo script) |
+| Regla de redondeo | Cálculo de la nota final | HALF_UP directo a dos decimales. La decisión de aprobación usa la nota publicada |
+| PDF de la rúbrica | Se dibuja desde la versión | Incluye la escala final de la versión |
+
+**La letra de cada categoría se guarda, no se calcula.**
+- Hoy el PDF pone las letras seguidas en todo el documento, y le funciona al Word (A–E).
+- Con la rúbrica del Plan, la sustentación saldría como **D. Empoderamiento, E. Conclusiones, F. Producto**, cuando el original dice A, B, C.
+- El PDF debe usar la letra guardada en cada categoría.
+
+**Si aparece una modalidad sin parte escrita o con tres partes**, hay que revisar la decisión de [decisiones/2026-11-12-etapas-escrita-oral.md](decisiones/2026-11-12-etapas-escrita-oral.md). Las dos versiones conocidas no lo necesitan.
+
 Orden de trabajo:
 
 1. **La rúbrica admite sus puntos reales y una escala configurable.**
-   - Cada etapa con sus puntos (5 + 5), sin el 10 fijo.
+   - Cada etapa con sus puntos (5 + 5), sin el 10 fijo. **Hecho el 17/11/2026 en «Nueva rúbrica» y «Nueva versión»:**
+     - cada etapa vale lo que suman sus indicadores, con un máximo de 100;
+     - cada etapa se divide entre lo que vale y se pondera; la nota final sale en la escala de la versión;
+     - el PDF imprime «(50%)» cuando no hay porcentajes guardados.
+
+     **Esquema de calificación (17/11/2026), primer paso de «Nueva rúbrica»:**
+     - **«Sumar puntos»:** las partes suman la nota final (5 + 5 = 10, 3 + 7 = 10, 10 + 10 = 20). No se guardan porcentajes y cada parte pesa según lo que vale.
+     - **«Porcentajes»:** cada parte vale lo que quiera y se indica su peso; los pesos suman 100 %.
+     - **Atajos** «Oficial: 5 + 5 = 10» y «10 + 10 al 50 % cada una».
+     - **Valor de cada parte declarado de antemano:** el formulario avisa «faltan X de Y».
+     - **Validaciones iguales en el servidor**, que ahora guarda el porcentaje elegido. «Nueva versión basada en…» hereda el esquema de la versión base.
+
+     **Escala final y nota mínima (17/11/2026):**
+     - escala de 10, 20 o 100 por versión de rúbrica, elegida en el paso «B. Esquema»;
+     - nota mínima en porcentaje (70 %), convertida a cada escala;
+     - la aprobación se compara con la nota final redondeada una sola vez.
+
+     Para una base ya creada hay que ejecutar una vez `backend/fixtures/s4-escalas-calificacion.sql`. En la base local ya está aplicado.
+
+     **Límite actual:** solo dos partes (escrita y oral), por la decisión del 12/11. Las actas PAT muestran las notas de cada parte sobre 10 aunque la escala final sea 100.
    - La escala final y la nota mínima, en la versión de rúbrica y en la configuración académica.
-   - Después se carga la **rúbrica oficial** de Proyecto Integrador con un fixture y se deja activa.
+   - Después se carga la **rúbrica oficial** de Proyecto Integrador con un fixture y se deja activa. **Hecho el 17/11/2026:**
+     - `002` la crea en las bases nuevas como versión V1;
+     - `backend/fixtures/s4-rubrica-vigente-proyecto-integrador.sql` la carga en una base existente o en la integrada, con parámetros: crea la versión, la activa, archiva la anterior y la deja vigente por carrera;
+     - ensayado en la base local dentro de una transacción deshecha, dos veces seguidas sin duplicar nada.
+
+     Por la retención, la rúbrica de la base local conserva su nombre «DEV - …», porque una rúbrica usada no se renombra. `003` y la carga ahora puntúan cada indicador.
 
    Detalle en la sección 4, «Configuración académica de escalas».
 2. **Calificar rápido.**
@@ -44,12 +100,34 @@ Orden de trabajo:
    - Cerrar la escrita antes del día de la defensa.
 
    Detalle en la sección 4, «Al terminar de calificar».
-3. **El PDF de la rúbrica se dibuja desde los datos.**
-   - Usa el formato oficial: encabezado y logo, tablas «Indicadores · Valoración · Calificación», sumatorias, resumen y firma.
-   - Se hace con `pdfkit`, que ya está instalado.
+3. **El PDF de la rúbrica se dibuja desde los datos.** **Hecho el 17/11/2026, junto con las actas PAT-01 y PAT-04: ya no se usan Word ni PowerShell.**
+   - Se dibuja con `pdfkit`, que ya estaba instalado.
+   - Lleva el encabezado, el pie y la marca de la plantilla oficial; las imágenes están en `Plantillas-documentos/imagenes/`.
    - Los textos largos bajan solos y se añaden páginas si hace falta.
-   - El archivo lleva la cédula en el nombre.
-   - La primera versión se compara con el PDF oficial para ajustar márgenes y letra.
+   - Comprobado con datos de ejemplo y con datos de la base local:
+     - la rúbrica sale en 2 páginas, como el original;
+     - cada acta en 1 página;
+     - tardan menos de 0,2 s.
+   - **Falta:**
+     - la cédula en el nombre del archivo;
+     - la letra de cada categoría (ver arriba);
+     - la escala real en el resumen: sigue «10.00» fijo, que se resuelve en el paso 1.
+     - **Rúbrica igual a la plantilla (17/11/2026).** Se midió el PDF oficial (posiciones, tamaños, bordes e imágenes) y se copió. Usa **Carlito**, una letra libre (licencia OFL, en `Plantillas-documentos/fuentes/`) con las mismas medidas que la Calibri del original. Lleva:
+       - el cuadro de título, estudiante y tutor con bordes;
+       - «PARTE I/II» y «(50%) 5 PUNTOS»;
+       - los indicadores con sangría francesa;
+       - casillas vacías mientras la parte no esté cerrada;
+       - «CALIFICACIÓN FINAL»;
+       - la firma «MIEMBRO TRIBUNAL» sin nombre;
+       - el pie recortado como en Word.
+
+       Ya no sale «PRELIMINAR» ni la línea de estado. Con el mismo contenido ocupa 2 páginas, como el original; las líneas caen a menos de 12 pt de su sitio.
+     - **Diferencias que quedan:**
+       - «Página X de Y» usa Carlito en vez de Century Gothic, que es de pago;
+       - falta la línea «Fuente: Comisión Académica…», que debe guardarse en cada versión de rúbrica y necesita un cambio en la base;
+       - algunas rarezas del Word no se copian: espacios dobles, «(1. punto)» y «(3.0 puntos)», y un renglón vacío de más antes de la categoría C;
+       - alguna línea justificada puede cortarse en otra palabra.
+     - La «CALIFICACIÓN FINAL» de la rúbrica de cada miembro muestra el resultado consolidado de los dos miembros. En el papel suele ser la suma de las notas de ese miembro. Hay que confirmarlo junto con las escalas (paso 1).
 4. **Importar una rúbrica desde el Word oficial** (si da tiempo):
    1. se sube el Word;
    2. el sistema lee las categorías, los indicadores y los valores de sus tablas;
@@ -57,7 +135,9 @@ Orden de trabajo:
    4. se guarda como borrador.
 
    Mientras tanto, para un año nuevo se usa **«Nueva versión basada en…»**, que ya existe: se copia la versión anterior y se cambian solo los números.
-5. **Actas PAT-01 y PAT-04, al final.** Hoy ya se generan desde el Word. La idea de usar el PDF con casillas (`pdf-lib`) queda aparcada hasta entonces.
+5. **Actas PAT-01 y PAT-04.** Ya se dibujan con `pdfkit` (ver el paso 3), así que no hace falta `pdf-lib` ni crear casillas en el PDF. El texto de cada acta está copiado literalmente en `documentos/pdf-actas.ts`. Si la institución publica una revisión nueva, hay que copiar ahí el texto nuevo.
+
+   **Falta** rellenar los datos que hoy quedan con «…» o «xx»: fecha, ciudad, títulos y nombres del tribunal (ver «Preguntas para las autoridades»).
 
 **Descartado:** subir el PDF de la rúbrica y dibujar encima los campos a mano. Exigiría construir un editor visual de PDF dentro del sistema, sería engorroso para coordinación y se rompería con cualquier cambio de formato.
 
@@ -84,7 +164,7 @@ Orden de trabajo:
 | **Usuarios reales y permisos** | Hoy se entra con una identidad de prueba que lo ve todo. Falta el inicio de sesión institucional, los roles y que cada persona vea solo su carrera. Mientras no exista, el guardado y el cierre de evaluaciones solo funcionan en el modo de pruebas, y no se comprueba quién firma. | Institución y responsable del repositorio común (la carpeta `auth/` es compartida). |
 | **Llevar S4 al repositorio común** | Hoy esta rama es una aplicación independiente. Hay que pasar solo las carpetas de S4, sin reemplazar archivos compartidos, mediante solicitudes de integración revisadas (Paso 5). | Responsable de integración. |
 | **Actas oficiales** | Las actas en PDF se generan, pero sin los códigos académicos reales. | Institución. |
-| **Nota mínima** | El 7,00 está puesto como provisional. | Institución. |
+| **Nota mínima** | 70 % de la escala. El resultado publicado se compara con el umbral. La migración 005 convierte el valor histórico; la emisión sigue usando el flujo de documentos internos. | Falta ejecutar la migración en la base de uso. |
 | **Trabajos terminados** | Confirmar si S2 cambia el estado de una asignación cuando el trabajo termina, para la consulta del historial. | Equipo de S2. |
 | **Correos automáticos** | No están en los requisitos aprobados. Hay que confirmar si se piden. | Coordinación. |
 | **Acuerdos con otros equipos** (Paso 2, D-05 a D-08) | Cerrar por escrito: <br>· cómo llega la identidad; <br>· quién crea los trabajos y sus estudiantes; <br>· qué parte del historial lee S3; <br>· si S3 consultará los resultados de S4; <br>· qué se hace con la tabla antigua `s3.defensa`. <br>Conviene guardarlos en `docs/contracts/`. | Equipos de S2 y S3, e identidad. |
@@ -119,7 +199,7 @@ Observaciones de revisar las pantallas principales a 1440 px. La accesibilidad b
 8. **Filtros de Trabajos.** Se ven nueve filtros a la vez y el del período se corta («DEV-2026B (ac»). Mejor mostrar los principales y dejar el resto en «Más filtros».
 9. **Detalles menores:**
    - «202 trabajo(s)» podría ser «202 trabajos»;
-   - en Resultados, las etiquetas redondas de estado («Completa») son muy grandes.
+   - en Resultados, las etiquetas redondas de estado («Completa») son muy grandes. **Corregido el 17/11/2026:** la etiqueta de cada etapa ya no se estira hasta el alto de la tarjeta.
 
 ### Antes de cambiar
 
@@ -183,7 +263,27 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
 
 ### Resultados, Documentos y PDF
 
-1. **«Ver rúbrica PDF · miembro 1 y 2» debe abrir el PDF en otra pestaña**, no llevar a Documentos. Lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…»: generar y mostrar el PDF directamente.
+1. **«Ver rúbrica PDF · miembro 1 y 2» debe abrir el PDF en otra pestaña**, no llevar a Documentos. **Hecho el 17/11/2026, para todos los PDF:** se abren en una **pestaña nueva, directamente en el visor de PDF del navegador**, que ya trae descargar, imprimir y zoom. No hay pantalla de Genares alrededor. Afecta a:
+   - «Ver rúbrica PDF · Miembro N» (Resultados);
+   - «Abrir rúbrica PDF de…» (evaluación cerrada);
+   - los botones de Documentos (rúbrica, vista previa del acta, generar acta y abrir acta archivada);
+   - el justificativo de Correcciones;
+   - la nueva «Vista previa PDF» de Rúbricas.
+
+   Cómo funciona:
+   - la pestaña se abre en el mismo clic, así el navegador no la bloquea;
+   - si el PDF falla, se cierra y el error se explica en la pantalla de origen;
+   - código: `presentation/services/pestanaPdf.js` y `components/BotonPdf.jsx`.
+
+   Comprobado en Chrome con la base local: Rúbricas y Resultados abren el visor de PDF y la pantalla de origen no se mueve.
+
+   **Falta:**
+   - **APK Android:** el visor del WebView no muestra PDF. Para descargarlo o abrirlo con la app de PDF del teléfono hace falta un plugin de Capacitor (`@capacitor/filesystem` u otro parecido), y eso cambia `package.json`, que es compartido. Hay que consultarlo.
+   - **Nombre al descargar desde el visor:** por ahora es un código interno; lo resuelve la tarea de la cédula en el nombre.
+   - **Documentos:** un enlace con trabajo, estudiante y miembro ya no abre la rúbrica solo (el navegador lo bloquearía); deja todo seleccionado para pulsar «Visualizar rúbrica».
+   - Lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…».
+
+   **Falta:** lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…», que deben generar y mostrar el PDF directamente.
 2. **La rúbrica en PDF debe poder verse siempre:** vacía si aún no hay notas, y con las notas que existan cuando las haya. Hoy, sin evaluaciones, solo aparece «Sin evaluaciones · SIN_EVALUACION».
 3. **Ver la rúbrica de cada estudiante es lo más importante** y hoy cuesta llegar a ella. Debe estar a un clic desde el expediente y desde Mis evaluaciones.
 4. **Diferencia entre Resultados y Documentos.** Propuesta, por confirmar:
@@ -211,6 +311,8 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
    | | **Calificación final** | **10,00** | |
 
    Se cargará con un fixture SQL cuando se admitan etapas de 5 puntos. Los textos de los indicadores se copian literalmente del documento.
+
+   **Ojo:** hay otra versión oficial, la del Plan de titulación PAT-04-F-001 (10 + 10 al 50 %, con «Producto»). Ver «Principio: todo adaptable» en el plan del núcleo. Antes de cargar una como predeterminada hay que confirmar cuál está vigente (sección 6, pregunta 8). La del Plan se podría cargar ya hoy, porque usa partes de 10 puntos.
 
 ### Configuración académica de escalas (lo más delicado)
 
@@ -241,7 +343,10 @@ Así un cambio de año es solo una versión nueva de la rúbrica. Ver «Si la no
    - los porcentajes de las etapas suman 100 %.
 
    Si no cuadra, no se puede activar.
-3. **Nota mínima según la escala:** 7 sobre 10 equivale a 14 sobre 20. La nota mínima debe guardarse junto con la escala, no como un 7 fijo.
+3. **Nota mínima según la escala.** **Confirmado (17/11/2026): es 7 sobre 10.** Para que se adapte sola:
+   - se guarda como **porcentaje de la escala (70 %)**, no como un 7 fijo;
+   - así sale 7 sobre 10, 14 sobre 20 o 3,5 sobre 5 sin que nadie tenga que calcularlo;
+   - en la configuración se puede cambiar si algún año la institución fija otro valor.
 4. **Las actas deben mostrar la escala de la rúbrica.** Unos 12 archivos de S4, sin contar pruebas, tienen un 10 fijo. Ya se vieron tres casos:
    - el resumen del PDF de la rúbrica pone siempre «10.00»;
    - las actas escriben siempre «/10»;
@@ -293,31 +398,16 @@ Así un cambio de año es solo una versión nueva de la rúbrica. Ver «Si la no
 
 Los PDF están exportados desde Word y no tienen campos de formulario.
 
-**Cómo funciona hoy:**
-- el sistema abre el Word original con **Microsoft Word instalado en Windows**;
-- sustituye los textos de ejemplo («XX/10», «… (NOMBRES)»…);
-- lo exporta a PDF.
+**Cómo funciona desde el 17/11/2026:** el backend **dibuja los tres documentos con `pdfkit`**, sin Word ni PowerShell. Funciona igual en Windows y en Linux. Archivos, en `backend/src/modules/s4-calificaciones/documentos/`:
+- `pdf-dibujo.ts`: página A4, encabezado y pie oficiales, y tablas que continúan en la página siguiente.
+- `pdf-rubrica.ts`: la rúbrica, dibujada desde la versión de rúbrica guardada. Una rúbrica nueva sale en PDF sin tocar plantillas ni código.
+- `pdf-actas.ts`: el texto literal de PAT-01-F-019 y PAT-04-F-017. El sistema sustituye los mismos marcadores que antes («XX/10», «… (NOMBRES)»…) y, si falta alguno, avisa con un error.
 
-En un servidor Linux no funcionaría. Además, si alguien cambia la redacción del Word, el sistema deja de encontrar esos textos.
-
-**Lo decidido (plan del núcleo, arriba):**
-- **Rúbrica:**
-  - el sistema **dibuja el PDF a partir de la versión de rúbrica** guardada, con el formato oficial: encabezado y logo, títulos, tablas «Indicadores · Valoración · Calificación», sumatorias, resumen y firma;
-  - se hace con `pdfkit`, que ya está instalado;
-  - una rúbrica nueva sale en PDF sin tocar plantillas ni código;
-  - los textos largos bajan solos y se añaden páginas si hace falta.
-
-  Contrapartida: tendrá el mismo formato, pero no será idéntica píxel a píxel al original. Hay que comparar la primera versión con el PDF oficial y ajustar márgenes y tipos de letra.
-- **Actas, al final:** hasta entonces siguen saliendo del Word. Cuando se aborden:
-  1. se usa el PDF oficial con **casillas con nombre** (estudiante, notas, nota en letras…);
-  2. el sistema las rellena y las convierte en texto fijo;
-  3. su forma casi nunca cambia, y si sale una revisión nueva del acta, se le ponen las casillas una vez.
-
-  Para eso:
-  - **`pdf-lib` en el backend.** Cambia `backend/package.json`, que es compartido, así que hay que avisar a integración.
-  - **Crear las casillas con un script de una sola vez**, que genera un PDF de muestra con las casillas marcadas para revisar que están en su sitio. También se pueden crear a mano con Acrobat Pro, en «Preparar formulario».
-  - **Textos largos:** dentro de una casilla el texto pasa a la línea siguiente y, si aun así no cabe, se reduce la letra. Lo que hay debajo no baja, porque un PDF no recoloca el contenido. La casilla debe reservar varias líneas, y hay que probarla con el título más largo que exista.
-- **El PDF se genera en el momento**, con la cédula en el nombre del archivo. Las actas definitivas archivadas siguen su propio proceso.
+Detalles:
+- **No es idéntico píxel a píxel al Word:** la letra es Helvetica, no Calibri. Sí tiene la misma estructura, las mismas medidas de página y el mismo número de páginas.
+- **El encabezado** sale de la plantilla de la rúbrica (Facultad de Ciencias de la Vida y Tecnologías). **El Word de las dos actas trae el logo de la «Facultad de Hotelería y Turismo»**, que es un error de la plantilla, así que no se usa. Conviene avisarlo.
+- **El PDF se genera en el momento.** Las actas definitivas archivadas siguen su propio proceso.
+- **Si cambia el texto oficial de un acta**, hay que copiarlo en `pdf-actas.ts`.
 
 **Limpieza pendiente:**
 - **La plantilla de rúbrica lleva datos reales** en el Word y en el PDF: el título de una tesis y los nombres de un estudiante y de un tutor. No salen en los PDF generados, porque se sustituyen, pero sí están en el repositorio. Hay que cambiarlos por textos de ejemplo.
@@ -352,6 +442,16 @@ Ya existe: Auditoría › Solicitudes de corrección.
    - **Esto cambia la regla aprobada.** La regla vigente es la de los AGENTS.md: precisión exacta y un solo redondeo a 2 decimales. Antes de programarlo hace falta **confirmarlo por escrito**:
      - ¿en qué momento se redondea a 4 decimales: al promediar a los evaluadores, al calcular cada etapa o al sumar la nota final?
      - ¿se pasa después por 3 decimales, como en el ejemplo, o directamente de 4 a 2?
+   - **Respuesta (17/11/2026):** se trabaja con **hasta 4 decimales** y solo se redondea **la nota final**, en pasos:
+     1. de 4 a 3 decimales, mirando el 4.º;
+     2. de 3 a 2 decimales, mirando el 3.º.
+
+     Nunca se redondean el 1.º ni el 2.º decimal. Ejemplo: 9,99451 → 9,9945 → 9,995 → **10,00**.
+   - **Queda una duda:** cuando un cálculo intermedio tiene más de 4 decimales, ¿se **redondea** o se **corta** al 4.º? Con 8,12446:
+     - si se redondea: 8,1245 → 8,125 → **8,13**;
+     - si se corta: 8,1244 → 8,124 → **8,12**.
+
+     Hasta que se confirme, el sistema debe permitir elegirlo en la configuración, con «redondear» como valor por defecto.
    - **Propuesta:**
      - guardar la regla en Configuración académica (cuántos decimales en cada paso), para no fijarla en el código;
      - calcular siempre las dos versiones;
@@ -387,6 +487,7 @@ Ya existe: Auditoría › Solicitudes de corrección.
 
 - **Base local:** además de los 2 trabajos DEV, tiene 200 trabajos «CARGA» de prueba. Se ocultan con `backend/fixtures/s4-carga-volumen-dev-ocultar.sql`.
 - **Usuarios de prueba por rol:** están en la rama aparte `demo/accesos-por-rol`, con 9 usuarios de las fases 1 y 2. Sirven para demostrar qué ve cada rol. Las instrucciones están en `docs/s4/demo-usuarios.md` **de esa rama**, y antes hay que ejecutar `backend/fixtures/demo-usuarios-por-rol.sql`. Esa rama no se integra: el trabajo sigue en `feature/mer-unificado-pasos-3-4`.
+- **PDF sin Word:** desde el 17/11/2026 los PDF no necesitan Word ni PowerShell. La línea `GENARES_POWERSHELL_EXE` del `backend/.env` ya no se usa y se puede borrar.
 - **Rendimiento:** con 202 trabajos y 25 usuarios a la vez, el sistema responde rápido (ver [validacion-rnf-03-carga.md](validacion-rnf-03-carga.md)). La pantalla más lenta es Finalización.
 - **Avisos ya conocidos:**
   - si un trabajo tuviera un proceso antiguo sin rúbrica, la evaluación muestra un mensaje genérico;
@@ -401,10 +502,19 @@ Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resue
 1. **Que no se asigne la rúbrica oficial.**
    - La asignación automática solo funciona si hay **exactamente una** versión activa para esa modalidad y período.
    - Si al cargar la oficial sigue activa la rúbrica DEV, habrá dos candidatas y no se asignará ninguna.
-   - Hay que archivar la DEV o activar la oficial en otro período.
-2. **Los trabajos que ya tienen rúbrica asignada.** Los trabajos DEV ya están ligados a la versión antigua. Para pasarlos a la oficial hay que reasignarlos, y eso solo se puede si aún no tienen evaluaciones. Lo hace una persona autorizada.
+   - **Decidido (17/11/2026): la rúbrica DEV era solo un ejemplo y no se conserva.**
+     - Como en S4 no se borra nada, se **archiva y se oculta** (`estado_registro = 0`) con un fixture SQL idempotente, que se ejecuta en pgAdmin.
+     - Deja de verse y de asignarse, pero queda en el historial.
+     - Hay que hacerlo **antes** de activar la oficial, para que haya una sola candidata.
+2. **Los trabajos que ya tienen rúbrica asignada.** Los trabajos DEV, y los 200 «CARGA», ya están ligados a la versión DEV. Al ocultarla hay que decidir qué pasa con ellos:
+   - **sin evaluaciones:** se reasignan a la rúbrica oficial;
+   - **con evaluaciones:** se quedan con la versión DEV, porque una versión ya aplicada no se cambia. Esos trabajos de prueba se ocultan también, o se crean otros nuevos para probar con la rúbrica oficial.
+
+   Hay que comprobar antes que ocultar la versión no rompa la consulta de esos trabajos.
 3. **Pruebas que fallarán a propósito.** Hoy las pruebas comprueban que «cada etapa suma 10». Al cambiar la regla, esas pruebas fallarán. No es un error, es el cambio aprobado. Hay que actualizarlas y dejar constancia de que la regla cambió con permiso, porque las reglas del módulo prohíben cambiar resultados esperados por cuenta propia.
 4. **Documentos oficiales del Paso 1 y del Paso 2.** Si cambian la escala o el redondeo, sus reglas de negocio (RN) dejarán de coincidir con el sistema. Hay que actualizar esos documentos, no solo el código.
+   - **También los AGENTS.md** del módulo, en backend y frontend. Hoy dicen «un solo redondeo a 2 decimales», y la respuesta del 17/11/2026 es otra: 4 decimales y pasos 4 → 3 → 2.
+   - Conviene escribir la nueva regla en `docs/s4/decisiones/`, con ejemplos, antes de programarla.
 
 ### Preguntas para las autoridades (además de las de la sección 4)
 
@@ -414,6 +524,8 @@ Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resue
    - ¿Qué pasa con lo que ya calificó?
 6. **¿Hay un límite de diferencia entre los dos miembros?** Algunas facultades piden un tercer evaluador si las notas se separan mucho, por ejemplo 3 puntos. Si existe esa regla, hay que programarla.
 7. **¿Hay segunda oportunidad si el estudiante reprueba?** ¿Existe una nueva sustentación? ¿Va con una rúbrica nueva o con la misma?
+8. **¿Qué versión de la rúbrica de Proyecto Integrador está vigente?** ¿La del Word (5 + 5, sin Producto) o la del Plan de titulación PAT-04-F-001 (10 + 10 al 50 %, con Producto)? ¿Otras modalidades, como el examen complexivo, tienen su propia rúbrica? Mientras no se confirme, el sistema permite crear y activar cada versión sin tocar código.
+9. **¿Cómo aparece la nota final en el acta?** ¿Como suma (16/20, como en el ejemplo de la PAT-04-F-017) o como promedio (8/10, como dice el Plan)? El resultado es el mismo; solo cambia cómo se escribe.
 
 ### Para la entrega y la demostración
 

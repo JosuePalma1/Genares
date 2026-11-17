@@ -63,9 +63,8 @@ export async function listarTrabajosDocumentosApi(periodo = 'ACTIVO', { signal, 
 
 export const guardarDocumento = (ruta, body) => cliente.postJson(`/documentos${ruta}`, body);
 export const actualizarConfiguracionDocumental = (ruta, body) => cliente.putJson(`/documentos${ruta}`, body);
-export async function obtenerPdfDocumento(ruta, signal) {
-  if (!DOCUMENTOS_API_HABILITADA) throw new Error('La consulta de evaluaciones no está disponible actualmente.');
-  const respuesta = await fetch(`${API_BASE_URL}/documentos${ruta}`, {
+async function pedirPdf(url, signal) {
+  const respuesta = await fetch(url, {
     signal,
     credentials: 'omit',
     cache: 'no-store',
@@ -74,4 +73,17 @@ export async function obtenerPdfDocumento(ruta, signal) {
   if (!respuesta.ok) throw new ErrorApiHttp(respuesta.status);
   if (!respuesta.headers.get('content-type')?.includes('application/pdf')) throw new Error('El servidor no devolvió un documento PDF.');
   return respuesta.blob();
+}
+
+/** Dirección directa de un PDF de documentos, para abrirlo en el visor del navegador. */
+export const urlPdfDocumento = (ruta) => `${API_BASE_URL}/documentos${ruta}`;
+
+export async function obtenerPdfDocumento(ruta, signal) {
+  if (!DOCUMENTOS_API_HABILITADA) throw new Error('La consulta de evaluaciones no está disponible actualmente.');
+  return pedirPdf(urlPdfDocumento(ruta), signal);
+}
+
+/** Vista previa en blanco de una versión de rúbrica (sin estudiante ni notas). */
+export function obtenerPdfVersionRubrica(versionId, signal) {
+  return pedirPdf(`${API_BASE_URL}/versiones-rubrica/${encodeURIComponent(versionId)}/pdf`, signal);
 }

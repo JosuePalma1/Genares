@@ -9,8 +9,15 @@ export interface CategoriaRubricaNormalizada {
 
 export interface EtapaRubricaNormalizada {
   dto: EtapaRubricaCompletaDto;
+  /** Lo que vale la etapa: la suma de sus categorías (por ejemplo, 5.00 en la rúbrica oficial 5 + 5). */
+  calificacionMaxima: string;
+  /** Peso en la nota final (esquema «porcentajes»); null en el esquema «sumar puntos». */
+  porcentaje: string | null;
   categorias: CategoriaRubricaNormalizada[];
 }
+
+/** Tope de puntos por etapa, independiente de la escala final. */
+export const MAXIMO_CENTAVOS_ETAPA = 10000;
 
 /** Asigna la siguiente etiqueta Vn de una familia, sin depender del cliente. */
 export const siguienteEtiquetaVersionRubrica = (versiones: string[]): string => {
@@ -56,6 +63,7 @@ const validarCodigos = (valores: string[], grupo: string): void => {
 
 export const normalizarEstructuraRubricaCompleta = (
   etapas: EtapaRubricaCompletaDto[],
+  escalaFinal = 10,
 ): EtapaRubricaNormalizada[] => {
   if (!Array.isArray(etapas) || etapas.length === 0) {
     throw new BadRequestException('La r\u00fabrica debe contener al menos una etapa.');
@@ -65,7 +73,6 @@ export const normalizarEstructuraRubricaCompleta = (
   // Igual que la activación (validarEstructuraBorradorRubrica): el error aparece al crear, no al activar.
   validarCodigos(etapas.flatMap(({ categorias }) => (categorias ?? []).map(({ codigo }) => codigo)), 'categoría de la versión');
 
-  let totalEtapas = 0;
   const normalizadas = etapas.map((etapa): EtapaRubricaNormalizada => {
     if (![AlcanceEtapaRubrica.TRABAJO_COMPARTIDO, AlcanceEtapaRubrica.ESTUDIANTE_INDIVIDUAL].includes(etapa.alcance)) {
       throw new BadRequestException('Cada etapa debe usar un alcance v\u00e1lido.');
@@ -85,15 +92,39 @@ export const normalizarEstructuraRubricaCompleta = (
       return { dto: categoria, calificacionMaxima: decimalDesdeCentavos(totalIndicadores) };
     });
 
-    if (totalCategorias !== 1000) {
-      throw new BadRequestException(`La etapa ${etapa.codigo} debe sumar exactamente 10.00 puntos.`);
+    // Cada etapa vale lo que suman sus indicadores (5 + 5, 10 + 10…). La consolidación divide cada etapa
+    // entre su máximo y aplica su peso y la escala final.
+    if (totalCategorias <= 0 || totalCategorias > MAXIMO_CENTAVOS_ETAPA) {
+      throw new BadRequestException(`La etapa ${etapa.codigo} debe valer más de 0 y como máximo 100.00 puntos.`);
     }
-    totalEtapas += totalCategorias;
-    return { dto: etapa, categorias };
+    const porcentaje = (etapa as EtapaCopiada).porcentaje;
+    return {
+      dto: etapa,
+      calificacionMaxima: decimalDesdeCentavos(BigInt(totalCategorias)),
+      porcentaje: porcentaje == null || porcentaje === '' ? null : decimalDesdeCentavos(centavosDe(String(porcentaje), 'El porcentaje de la etapa')),
+      categorias,
+    };
   });
 
-  if (totalEtapas !== etapas.length * 1000) {
-    throw new BadRequestException('Cada etapa debe sumar exactamente 10.00 puntos.');
+  // Esquema de calificación: «porcentajes» (todas las etapas con peso y suman 100) o «sumar puntos»
+  // (ninguna con peso; las etapas suman la nota final, como la rúbrica oficial 5 + 5 = 10).
+  const conPorcentaje = normalizadas.filter(({ porcentaje }) => porcentaje !== null);
+  if (conPorcentaje.length > 0 && conPorcentaje.length < normalizadas.length) {
+    throw new BadRequestException('Indique el porcentaje de todas las etapas o de ninguna.');
+  }
+  if (conPorcentaje.length > 0) {
+    const sumaPorcentajes = conPorcentaje.reduce((suma, { porcentaje }) => suma + centavosDe(porcentaje!, 'El porcentaje de la etapa'), 0n);
+    if (sumaPorcentajes !== 10000n) {
+      throw new BadRequestException(`Los porcentajes de las etapas deben sumar 100 (suman ${decimalDesdeCentavos(sumaPorcentajes)}).`);
+    }
+  } else {
+    const sumaPuntos = normalizadas.reduce((suma, { calificacionMaxima }) => suma + centavosDe(calificacionMaxima, 'El valor de la etapa'), 0n);
+    if (sumaPuntos !== BigInt(escalaFinal * 100)) {
+      throw new BadRequestException(
+        `Sin porcentajes, las etapas se suman y deben dar la nota final ${escalaFinal.toFixed(2)} (suman ${decimalDesdeCentavos(sumaPuntos)}). `
+        + 'Ajuste los puntos o use porcentajes.',
+      );
+    }
   }
   return normalizadas;
 };

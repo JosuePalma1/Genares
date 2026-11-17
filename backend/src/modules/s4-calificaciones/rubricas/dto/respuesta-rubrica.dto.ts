@@ -26,6 +26,7 @@ export interface PeriodoRubricaDto {
 }
 
 export interface VersionRubricaResumenDto {
+  escalaFinal: number;
   id: string;
   version: string;
   revision: number;

@@ -222,7 +222,7 @@ Funciones y subfunciones:
 * Calcular aportes por evaluador y componente comparable, diferenciando unidad trabajo y estudiante.
 * Promediar evaluadores requeridos sin convertir pendientes en cero.
 * Consolidar aportes según ponderaciones por versión; la rúbrica documentada aporta escrita 5 + oral 5 = 10.
-* Conservar precisión decimal exacta en operaciones intermedias.
+* Conservar precisión decimal exacta en operaciones intermedias. Aplicar la escala de la versión de rúbrica antes de redondear y comparar la nota publicada con el umbral porcentual.
 * Presentar las calificaciones con dos decimales aplicando ROUND\_HALF\_UP (redondeo comercial: la centésima sube una unidad cuando el tercer decimal es mayor o igual a 5). El redondeo se aplica solo al presentar; los cálculos intermedios conservan la precisión decimal exacta. Diferenciar parcial, pendiente y definitivo.
 
 **Entradas y dependencias.** Evaluaciones confirmadas MF-03; alcance y máximos MF-02; ámbitos CT-01.
@@ -242,7 +242,7 @@ RF principales: RF-43 a RF-45
 Funciones y subfunciones:
 
 * Generar PDF de rúbrica según versión vigente de la evaluación, con indicadores, máximos y subtotales.
-* Generar acta interna de calificación con datos, fecha/hora, componentes, resultado /10 y espacios de firmas.
+* Generar acta interna de calificación con datos, fecha/hora, componentes, resultado en la escala de la versión de rúbrica y espacios de firmas.
 * Normalizar componentes para exhibición /10 sin sumar indebidamente 20 puntos.
 * Registrar referencia al PDF, versión, estudiante, trabajo y fecha; controlar acceso por rol y carrera.
 
