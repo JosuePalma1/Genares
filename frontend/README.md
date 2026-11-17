@@ -2,6 +2,10 @@
 
 Interfaz React y Vite del subsistema S4. Las rutas, páginas, servicios y componentes activos están en `src/modules/s4-calificaciones`; el contexto y los estilos compartidos están en `src/shared`.
 
+**React:** librería para crear pantallas con componentes.**Vite:** herramienta que traduce y sirve ese código al navegador.
+
+
+
 ## Comandos
 
 Desde la raíz del repositorio:

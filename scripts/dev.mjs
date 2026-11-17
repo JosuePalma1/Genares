@@ -1,3 +1,4 @@
+//Lanzador del entorno de desarrollo. Inicia Vite y NestJS, y espera a que ambos estén disponibles antes de mostrar las URLs de acceso.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createServer } from 'node:net';

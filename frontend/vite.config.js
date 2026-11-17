@@ -1,3 +1,4 @@
+//Vite para el frontend de Genares. Configura un proxy de desarrollo a NestJS y bloquea conexiones externas al servidor local.
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
