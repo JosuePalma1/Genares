@@ -1,3 +1,4 @@
+import { conAlcance, filtroAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 import {
   ConflictException,
   ForbiddenException,
@@ -66,6 +67,8 @@ WHERE a.estado = 'VIGENTE'
   AND ($2::uuid IS NULL OR t.periodo_academico_id = $2::uuid)
   AND ($3::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $3::text) > 0
     OR strpos(lower(COALESCE(c.codigo, '')), $3::text) > 0)
+  -- RF-03 a RF-05: carreras del usuario o, si es tribunal, solo sus sesiones («Mis sustentaciones»).
+  ${filtroAlcance()}
 `;
 
 /**
@@ -142,9 +145,9 @@ export class ProgramacionesSustentacionService {
       : { limite: null, pagina: 1, desplazamiento: 0 };
     const estado = filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado ?? null;
     const [[{ total, filas }], catalogos] = await Promise.all([
-      this.dataSource.query(CONSULTA_PROGRAMACIONES, [
+      this.dataSource.query(...conAlcance(CONSULTA_PROGRAMACIONES, [
         filtros.carreraId ?? null, periodoId, normalizarBusqueda(filtros.buscar), estado, limite, desplazamiento,
-      ]) as Promise<Array<{ total: number; filas: Array<{ id: string; idTrabajo: string }> }>>,
+      ])) as Promise<Array<{ total: number; filas: Array<{ id: string; idTrabajo: string }> }>>,
       this.listarCatalogos(),
     ]);
     const idsTrabajo = [...new Set(filas.map(({ idTrabajo }) => idTrabajo))];
@@ -176,6 +179,13 @@ export class ProgramacionesSustentacionService {
 
   private periodoExplicito(solicitado?: string): string | null {
     return solicitado && solicitado !== TODOS_LOS_PERIODOS_PROGRAMACION ? solicitado : null;
+  }
+
+  /** Usuarios con ámbito (demostración): solo programan trabajos de sus carreras. */
+  private async exigirTrabajoEnAlcance(idTrabajo: string): Promise<void> {
+    if (!hayRestriccionDeAlcance()) return;
+    const [trabajo] = await this.trabajos.consultar(idTrabajo);
+    if (!trabajo) throw new NotFoundException('No existe el trabajo solicitado.');
   }
 
   async obtener(id: string): Promise<Record<string, unknown>> {
@@ -210,9 +220,9 @@ export class ProgramacionesSustentacionService {
     // PostgreSQL descarta los trabajos con todos sus estudiantes programados (incluso en programaciones
     // ocultas) o sin tribunal completo; la regla de elegibilidad se vuelve a comprobar sobre el detalle.
     const [candidatos, catalogos] = await Promise.all([
-      this.dataSource.query(CONSULTA_TRABAJOS_DISPONIBLES, [
+      this.dataSource.query(...conAlcance(CONSULTA_TRABAJOS_DISPONIBLES, [
         filtros.carreraId ?? null, this.periodoExplicito(filtros.periodoId), normalizarBusqueda(filtros.buscar),
-      ]) as Promise<Array<{ id: string; pendientes?: string[] }>>,
+      ])) as Promise<Array<{ id: string; pendientes?: string[] }>>,
       this.listarCatalogos(),
     ]);
     const pendientes = new Map(candidatos.map(({ id, pendientes: ids }) => [id, ids ?? []]));
@@ -233,6 +243,7 @@ export class ProgramacionesSustentacionService {
   }
 
   async crear(dto: CrearProgramacionDto, actorId: string, accesoLocal = false): Promise<Record<string, unknown>> {
+    await this.exigirTrabajoEnAlcance(dto.idTrabajo);
     const fecha = validarFechaProgramada(dto.fechaProgramada);
     const hora = validarHoraProgramada(dto.horaProgramada);
     const sala = validarSalaProgramada(dto.sala);
@@ -298,6 +309,7 @@ export class ProgramacionesSustentacionService {
   }
 
   async actualizar(id: string, dto: ActualizarProgramacionDto, actorId: string): Promise<Record<string, unknown>> {
+    if (hayRestriccionDeAlcance()) await this.obtener(id); // 404 si la sesión no es de su ámbito
     const fecha = validarFechaProgramada(dto.fechaProgramada);
     const hora = validarHoraProgramada(dto.horaProgramada);
     const sala = validarSalaProgramada(dto.sala);
@@ -367,6 +379,7 @@ export class ProgramacionesSustentacionService {
     actorId: string,
     accesoLocal = false,
   ): Promise<Record<string, unknown>> {
+    if (hayRestriccionDeAlcance()) await this.obtener(id); // 404 si la sesión no es de su ámbito
     await this.dataSource.transaction(async (manager) => {
       await establecerActorAuditoria(manager, actorId);
       const cuentas = accesoLocal ? [] : await manager.query(`

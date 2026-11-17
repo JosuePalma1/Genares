@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, Award, BookOpenCheck, CalendarDays, ClipboardCheck, FileClock, FilePen, FileSearch,
-  FileText, History, LayoutDashboard, ListChecks, Lock, PanelLeft, ShieldCheck, University,
+  FileText, History, LayoutDashboard, ListChecks, Lock, LogOut, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { iniciales } from '../../domain/flujoTrabajo';
 import { registrarRutaInterna } from '../../domain/navegacionRetorno';
 import { EXIGENCIA, filtrarNavegacion, rutaActiva } from '../../domain/navegacion';
+import { filtrarNavegacionPorRol } from '../../domain/navegacionDemo';
 import { usarPermisosNavegacion } from '../hooks/usarPermisosNavegacion';
 import { avisoColaBorradores, usarSincronizacionBorradores } from '../hooks/usarSincronizacionBorradores';
+import { usarSesionDemo } from '../hooks/usarSesionDemo';
+import { salirDemo } from '../services/sesionDemo';
 import './estructuraAplicacion.css';
 
 // Las nueve opciones de la matriz de navegación (Paso 2, Anexo A.1).
@@ -99,8 +102,9 @@ function Opcion({ elemento, rutaActual, alNavegar, subopcion = false }) {
   );
 }
 
-export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false }) {
-  const grupos = filtrarNavegacion(NAVEGACION, permisos);
+export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false, rol = null }) {
+  // Usuario de demostración: además de los permisos, solo las opciones de su rol (Paso 2, A.4).
+  const grupos = filtrarNavegacionPorRol(filtrarNavegacion(NAVEGACION, permisos), rol);
   return (
     <nav className={movil ? 'mobile-links' : 'side-nav'} aria-label={movil ? 'Navegación móvil' : 'Navegación principal'}>
       {grupos.map((grupo) => (
@@ -154,6 +158,7 @@ export function EstructuraAplicacion({ children }) {
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
   const permisos = usarPermisosNavegacion();
   const avisoBorradores = avisoColaBorradores(usarSincronizacionBorradores());
+  const sesionDemo = usarSesionDemo();
   const esVistaEvaluacionesApi = ubicacion.pathname === '/mis-evaluaciones'
     || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/');
 
@@ -168,6 +173,11 @@ export function EstructuraAplicacion({ children }) {
     );
   }, [ubicacion.hash, ubicacion.pathname, ubicacion.search]);
 
+  // Demostración por roles: sin sesión se va a la entrada; mientras se comprueba no se muestran datos.
+  if (sesionDemo.fase === 'sin-sesion') return <Navigate replace to="/entrar" />;
+  const usuarioDemo = sesionDemo.fase === 'con-sesion' ? sesionDemo.usuario : null;
+  const identidadLocal = IDENTIDAD_LOCAL && !usuarioDemo;
+
   return (
     <div className={`app-shell react-app-shell ${barraLateralContraida ? 'sidebar-collapsed' : ''} ${esVistaEvaluacionesApi ? 'evaluaciones-api-shell' : ''}`}>
       <a className="skip-link" href="#main-content">Saltar al contenido principal</a>
@@ -180,7 +190,7 @@ export function EstructuraAplicacion({ children }) {
             <small>Facultad de Ciencias de la Vida y Tecnologías</small>
           </div>
         </NavLink>
-        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={IDENTIDAD_LOCAL} />
+        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={identidadLocal} rol={usuarioDemo?.rol ?? null} />
       </aside>
 
       <header className="topbar app-topbar">
@@ -203,29 +213,38 @@ export function EstructuraAplicacion({ children }) {
         <div className="topbar-actions">
           <IndicadorBorradores aviso={avisoBorradores} />
           {/* Fuera de .user-box: los estilos compartidos ocultan esa caja en pantallas de 360 px. */}
-          {IDENTIDAD_LOCAL && (
-            <span className="demo-mode-chip" title="Identidad local de desarrollo: los permisos no corresponden a un usuario institucional">
-              Accesos simulados
+          {(identidadLocal || usuarioDemo) && (
+            <span className="demo-mode-chip" title={usuarioDemo ? 'Usuario de demostración: no es una cuenta institucional' : 'Identidad local de desarrollo: los permisos no corresponden a un usuario institucional'}>
+              {usuarioDemo ? 'Demostración' : 'Accesos simulados'}
             </span>
           )}
           <div className="user-box" role="group" aria-label="Sesión activa">
             <div className="user-meta">
-              <strong>{IDENTIDAD_LOCAL ? 'Identidad local' : 'Sesión activa'}</strong>
+              <strong>{usuarioDemo ? usuarioDemo.nombre : identidadLocal ? 'Identidad local' : 'Sesión activa'}</strong>
+              {usuarioDemo && <small>{usuarioDemo.nombreRol}</small>}
             </div>
-            <span className="avatar" aria-hidden="true">{iniciales('Sistema local')}</span>
+            <span className="avatar" aria-hidden="true">{iniciales(usuarioDemo?.nombre ?? 'Sistema local')}</span>
           </div>
+          {usuarioDemo && (
+            <button type="button" className="icon-button" title="Salir" aria-label="Salir de la demostración"
+              onClick={async () => { await salirDemo(); window.location.assign('/entrar'); }}>
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </header>
 
       <details className="movil-nav app-movil-nav" ref={referenciaNavegacionMovil}>
         <summary>Menú del sistema</summary>
-        <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} alNavegar={() => {
+        <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} rol={usuarioDemo?.rol ?? null} alNavegar={() => {
           if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
         }} />
       </details>
 
       <main className="main-content" id="main-content" tabIndex="-1">
-        {children ?? <Outlet />}
+        {sesionDemo.fase === 'comprobando'
+          ? <p className="card" role="status">Comprobando la sesión…</p>
+          : children ?? <Outlet />}
       </main>
     </div>
   );

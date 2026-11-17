@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 import { DataSource } from 'typeorm';
 import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
 import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from './paginacion-trabajos';
+import { conAlcance, filtroAlcance, identidadActual } from '../../../common/api/contexto-alcance';
 
 /** Los ocho estados del Paso 1 §3.1, en orden de avance (posición 1 a 8). */
 export const ESTADOS_PROCESO_ORDENADOS = [
@@ -212,7 +213,9 @@ WHERE ((($1::uuid IS NULL AND a.estado = 'VIGENTE') OR a.id = $1::uuid)
   AND ($2::uuid[] IS NULL OR a.id = ANY($2::uuid[]))
   AND (p.id IS NULL OR p.estado_registro = 1)
   AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
-  AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL))
+  AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL)
+  -- RF-03 a RF-05: carreras del usuario o, si es tribunal, solo sus trabajos (sin efecto en el acceso local).
+  ${filtroAlcance()})
 ORDER BY t.titulo, a.id
 `;
 
@@ -232,6 +235,7 @@ WHERE a.estado = 'VIGENTE'
   AND (p.id_version_rubrica IS NULL OR vr.id IS NOT NULL)
   AND (vr.id_rubrica IS NULL OR r.id IS NOT NULL)
   AND ($1::text IS NULL OR pa.codigo = $1::text)
+  ${filtroAlcance()}
 `;
 
 /** Minúsculas y sin tildes, igual que normalizarBusqueda en el servidor y en el frontend. */
@@ -394,14 +398,14 @@ export class TrabajosService {
     const periodos = await this.dataSource.query<PaginaTrabajosMer['filtros']['periodos']>(CONSULTA_PERIODOS);
     const periodo = periodoAplicado(filtros.periodo, periodos);
     const [[{ total, ids }], estados, [catalogos]] = await Promise.all([
-      this.dataSource.query<Array<{ total: number; ids: string[] }>>(CONSULTA_PAGINA_TRABAJOS_MER, [
+      this.dataSource.query<Array<{ total: number; ids: string[] }>>(...conAlcance(CONSULTA_PAGINA_TRABAJOS_MER, [
         periodo, filtros.estado ?? null, filtros.tribunal ?? null,
         normalizarBusqueda(filtros.buscar), limite, desplazamiento, filtros.carrera ?? null,
         filtros.modalidad ?? null, normalizarBusqueda(filtros.estudiante),
         normalizarBusqueda(filtros.tema), normalizarBusqueda(filtros.tutor),
-      ]),
-      this.dataSource.query<Array<{ estado: string }>>(CONSULTA_ESTADOS_TRABAJOS_MER, [periodo]),
-      this.dataSource.query<Array<CatalogosTrabajos>>(CONSULTA_CATALOGOS_TRABAJOS_MER, [periodo]),
+      ])),
+      this.dataSource.query<Array<{ estado: string }>>(...conAlcance(CONSULTA_ESTADOS_TRABAJOS_MER, [periodo])),
+      this.dataSource.query<Array<CatalogosTrabajos>>(...conAlcance(CONSULTA_CATALOGOS_TRABAJOS_MER, [periodo])),
     ]);
     const porId = new Map((ids.length ? await this.consultar(null, ids) : []).map((trabajo) => [trabajo.id, trabajo]));
     return {
@@ -422,13 +426,14 @@ export class TrabajosService {
   }
 
   private exigirActorLocal(actorId: string): void {
-    if (actorId !== 'GENARES:LOCAL_DEVELOPMENT') {
+    // Usuarios de demostración: entran con su ámbito ya aplicado en las consultas (conAlcance).
+    if (actorId !== 'GENARES:LOCAL_DEVELOPMENT' && identidadActual()?.tipo !== 'DEMOSTRACION') {
       throw new ForbiddenException('La consulta general de trabajos solo está disponible en el entorno local de desarrollo.');
     }
   }
 
   async consultar(trabajoId: string | null, ids: string[] | null = null): Promise<TrabajoMer[]> {
-    const trabajos = await this.dataSource.query<TrabajoMer[]>(CONSULTA_TRABAJOS_MER, [trabajoId, ids]);
+    const trabajos = await this.dataSource.query<TrabajoMer[]>(...conAlcance(CONSULTA_TRABAJOS_MER, [trabajoId, ids]));
     return trabajos.map((trabajo) => {
       const ultimaSesion = trabajo.sesiones.at(-1);
       return {

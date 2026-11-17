@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { conAlcance, filtroAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 import { DataSource, EntityManager } from 'typeorm';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 import { PuntajeBorrador } from '../evaluaciones/mer/borrador-oral.reglas';
@@ -53,7 +54,9 @@ const SELECT_SOLICITUD = `
   LEFT JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
   LEFT JOIN gen.docente d ON d.id = dcp.docente_id
   LEFT JOIN gen.persona pd ON pd.id = d.persona_id
-  WHERE s.estado_registro = 1`;
+  LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+  WHERE s.estado_registro = 1
+  ${filtroAlcance('a', 'c.codigo')}`;
 
 @Injectable()
 export class CorreccionesService {
@@ -74,6 +77,13 @@ export class CorreccionesService {
       JOIN s4.etapas_rubrica er ON er.id = e.id_etapa_rubrica
       WHERE e.id = $1`, [idEvaluacion]);
     if (!evaluacion) throw new NotFoundException('No existe la evaluación solicitada.');
+    if (hayRestriccionDeAlcance()) {
+      const [enAlcance] = await db.query(...conAlcance(`
+        SELECT 1 FROM s2.asignacion_tema a JOIN gen.tema tema ON tema.id = a.tema_id
+        LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+        WHERE a.id = $1 ${filtroAlcance('a', 'c.codigo')}`, [evaluacion.idTrabajo]));
+      if (!enAlcance) throw new NotFoundException('No existe la evaluación solicitada.');
+    }
 
     const puntajes: Array<PuntajeActual & { indicador: string; descripcion: string | null; categoria: string }> = await db.query(`
       SELECT ce.id_indicador AS "idIndicador", ce.score::text AS score, ce.observation,
@@ -106,12 +116,12 @@ export class CorreccionesService {
     if (estado && !Object.values(ESTADO_SOLICITUD).includes(estado as never)) {
       throw new BadRequestException('Estado de solicitud no válido.');
     }
-    return this.db.query(`${SELECT_SOLICITUD} AND ($1::text IS NULL OR s.estado = $1)
-      ORDER BY s.solicitado_en DESC, s.id LIMIT 200`, [estado ?? null]);
+    return this.db.query(...conAlcance(`${SELECT_SOLICITUD} AND ($1::text IS NULL OR s.estado = $1)
+      ORDER BY s.solicitado_en DESC, s.id LIMIT 200`, [estado ?? null]));
   }
 
   async detalle(id: string, db: Consulta = this.db) {
-    const [solicitud] = await db.query(`${SELECT_SOLICITUD} AND s.id = $1`, [id]);
+    const [solicitud] = await db.query(...conAlcance(`${SELECT_SOLICITUD} AND s.id = $1`, [id]));
     if (!solicitud) throw new NotFoundException('No existe la solicitud de corrección.');
     return solicitud;
   }

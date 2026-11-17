@@ -234,10 +234,17 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
       actions={<button className="button button-outline" type="button" onClick={() => {
         if (confirmarCambio()) setRecarga((actual) => actual + 1);
       }}><RefreshCw size={16}/> Recargar</button>} />
-    <AlertaInstitucional titulo="Prueba local con PostgreSQL">
-      Los borradores se respaldan en este dispositivo. El cierre requiere confirmación de PostgreSQL.
-      El docente seleccionado identifica al evaluador en esta simulación local.
-    </AlertaInstitucional>
+    {datos?.modo === 'DEMOSTRACION'
+      ? <AlertaInstitucional titulo="Demostración por roles">
+          Los borradores se respaldan en este dispositivo y el cierre requiere confirmación del servidor.
+          {datos.evaluadores.length === 1 && datos.evaluadoresTribunal?.length > 1
+            ? ` Califica como ${datos.evaluadores[0].nombre}: solo puede firmar sus propias evaluaciones.`
+            : ' Su rol puede consultar esta evaluación, pero no calificarla.'}
+        </AlertaInstitucional>
+      : <AlertaInstitucional titulo="Prueba local con PostgreSQL">
+          Los borradores se respaldan en este dispositivo. El cierre requiere confirmación de PostgreSQL.
+          El docente seleccionado identifica al evaluador en esta simulación local.
+        </AlertaInstitucional>}
     {estado.desdeCopia && <p role="status">Expediente recuperado de este dispositivo. El cierre estará disponible al volver a consultar el servidor.</p>}
     {estado.status === 'cargando' && <div className="card" role="status">Consultando rúbrica y evaluaciones…</div>}
     {estado.status === 'error' && <AlertaInstitucional tono="danger" titulo="No se pudo cargar la rúbrica">{estado.error?.message ?? 'Error de consulta.'}</AlertaInstitucional>}
@@ -264,7 +271,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
         <p className="em-ayuda">Se consultan desde S4; aquí no pueden editarse ni reabrirse.</p>
         {escritas.length === 0 ? <EstadoVacio title="Sin evaluaciones escritas" description="No existen notas escritas para esta asignación." /> :
           <div className="em-lista">{escritas.map((e) => <div key={e.id} className="em-fila">
-            <span>{datos.evaluadores.find((v) => v.id === e.idAsignacionTribunal)?.nombre ?? 'Evaluador'}</span>
+            <span>{(datos.evaluadoresTribunal ?? datos.evaluadores).find((v) => v.id === e.idAsignacionTribunal)?.nombre ?? 'Evaluador'}</span>
             <strong>{e.total == null ? 'Pendiente' : `${e.total} puntos`}</strong><span>{e.estado}</span>
           </div>)}</div>}
       </section>

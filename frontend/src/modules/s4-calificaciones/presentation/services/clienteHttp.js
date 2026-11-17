@@ -2,6 +2,7 @@ import {
   API_BASE_URL,
   FUENTE_RUBRICAS,
 } from '../../infrastructure/config/rubricas';
+import { cabeceraSesionDemo } from './sesionDemo';
 
 export class ErrorApiDeshabilitada extends Error {
   constructor() {
@@ -67,7 +68,8 @@ export function crearClienteHttp({
     const esEscritura = !['GET', 'HEAD'].includes(method);
     if (esEscritura && !escriturasHabilitadas) throw new ErrorEscrituraApiDeshabilitada();
 
-    const headers = { Accept: 'application/json' };
+    // Usuario de demostración (rama demo/accesos-por-rol): sin sesión no se añade nada.
+    const headers = { Accept: 'application/json', ...cabeceraSesionDemo() };
     if (esEscritura) {
       headers['Content-Type'] = 'application/json';
       // Indicio anti-CSRF, no autentica ni concede capacidades. El servidor valida

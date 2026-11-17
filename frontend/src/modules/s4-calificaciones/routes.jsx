@@ -21,6 +21,7 @@ import PaginaAuditoria from './presentation/pages/PaginaAuditoria';
 import PaginaFinalizacionTrabajos from './presentation/pages/PaginaFinalizacionTrabajos';
 import PaginaCorrecciones from './presentation/pages/PaginaCorrecciones';
 import PaginaSolicitarCorreccion from './presentation/pages/PaginaSolicitarCorreccion';
+import PaginaEntrar from './presentation/pages/PaginaEntrar';
 import { PaginaDetalleTrabajoApi, PaginaTrabajosApi, PaginaTribunalTrabajoApi } from './presentation/pages/PaginaTrabajosApi';
 
 function RedirigirProgramacionLegacy() {
@@ -31,6 +32,8 @@ export default function Aplicacion() {
   return (
     <Routes>
       <Route path="/" element={<Navigate replace to="/dashboard" />} />
+      {/* Demostración por roles (rama demo/accesos-por-rol): fuera de la estructura con menú. */}
+      <Route path="/entrar" element={<PaginaEntrar />} />
       <Route element={<EstructuraAplicacion />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/trabajos" element={<PaginaTrabajosApi />} />

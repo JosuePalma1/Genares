@@ -10,6 +10,7 @@ import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental'
 import { PLANTILLAS } from './plantillas-institucionales';
 import { centesimasActa, decimalActaDesdeCentesimas, notaAprobada } from './reglas-acta';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
+import { accesoPorAlcance, conAlcance } from '../../../common/api/contexto-alcance';
 
 const acceso = `EXISTS (
   SELECT 1 FROM s3.asignacion_tribunal a
@@ -18,6 +19,9 @@ const acceso = `EXISTS (
   JOIN gen.docente d ON d.id = dc.docente_id AND d.activo
   JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
   WHERE a.asignacion_tema_id = t.id AND u.sujeto_autenticacion = $1)`;
+
+// Fuera del acceso local: el tribunal del trabajo o, para roles por carrera, las carreras del usuario.
+const accesoAmbito = `(${acceso} OR ${accesoPorAlcance('t', 'c.codigo')})`;
 
 @Injectable()
 export class DocumentosService {
@@ -36,7 +40,7 @@ export class DocumentosService {
   }
 
   trabajos(actor: string, puedeConsultarDemostracion = false, periodo: string | null = null) {
-    return this.db.query(`SELECT t.id, t.id::text AS codigo, tema.titulo, c.nombre AS carrera, p.codigo AS periodo
+    return this.db.query(...conAlcance(`SELECT t.id, t.id::text AS codigo, tema.titulo, c.nombre AS carrera, p.codigo AS periodo
       FROM s2.asignacion_tema t JOIN gen.tema tema ON tema.id = t.tema_id
       JOIN s4.procesos_evaluacion proceso ON proceso.asignacion_tema_id = t.id
       JOIN s4.versiones_rubrica version ON version.id = proceso.id_version_rubrica AND version.estado_registro = 1
@@ -44,8 +48,8 @@ export class DocumentosService {
       JOIN gen.carrera c ON c.id = tema.carrera_id
       JOIN gen.periodo_academico p ON p.id = tema.periodo_academico_id
       WHERE t.estado = 'VIGENTE' AND proceso.estado_registro = 1 AND proceso.id_version_rubrica IS NOT NULL
-        AND ($2::boolean OR ${acceso}) AND ($3::text IS NULL OR p.codigo = $3::text)
-      ORDER BY tema.titulo, t.id`, [actor, puedeConsultarDemostracion, periodo]);
+        AND ($2::boolean OR ${accesoAmbito}) AND ($3::text IS NULL OR p.codigo = $3::text)
+      ORDER BY tema.titulo, t.id`, [actor, puedeConsultarDemostracion, periodo]));
   }
 
   async contexto(trabajoId: string, actor: string, puedeEmitirDocumentos = false, puedeConsultarDemostracion = false) {
@@ -157,28 +161,29 @@ export class DocumentosService {
 
   private consultarActas(actor: string, filtro: BuscarActasDto, puedeConsultarDemostracion: boolean,
     limite: number | null, desplazamiento: number, conTotal = false) {
-    return this.db.query(`SELECT ar.id,${conTotal ? 'count(*) OVER()::integer AS total,' : ''}ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
+    return this.db.query(...conAlcance(`SELECT ar.id,${conTotal ? 'count(*) OVER()::integer AS total,' : ''}ar.estado_registro AS "estadoRegistro",ar.numero,ar.formato,ar.revision,ar.generado_en AS "generadoEn",
       ar.nota_final::text AS "notaFinal",ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado,
       p.nombres || ' ' || p.apellidos AS estudiante,c.nombre AS carrera,ar.periodo
       FROM s4.actas_archivadas ar
       JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id
       JOIN gen.estudiante e ON e.id=ar.id_estudiante JOIN gen.persona p ON p.id=e.persona_id
-      JOIN gen.carrera c ON c.id=ar.id_carrera WHERE ar.estado_registro = 1 AND ($5::boolean OR ${acceso})
+      JOIN gen.carrera c ON c.id=ar.id_carrera WHERE ar.estado_registro = 1 AND ($5::boolean OR ${accesoAmbito})
       AND ($2::text IS NULL OR strpos(lower(p.nombres || ' ' || p.apellidos),lower($2))>0)
       AND ($3::text IS NULL OR c.codigo=$3) AND ($4::text IS NULL OR ar.periodo=$4)
       ORDER BY ar.generado_en DESC, ar.id LIMIT $6 OFFSET $7`,
-    [actor, filtro.estudiante ?? null, filtro.carrera ?? null, filtro.periodo ?? null, puedeConsultarDemostracion, limite, desplazamiento]);
+    [actor, filtro.estudiante ?? null, filtro.carrera ?? null, filtro.periodo ?? null, puedeConsultarDemostracion, limite, desplazamiento]));
   }
 
   async archivada(id: string, actor: string, conPdf = false, puedeConsultarDemostracion = false) {
-    const [acta] = await this.db.query(`SELECT ar.id,ar.numero,ar.formato,ar.revision,
+    const [acta] = await this.db.query(...conAlcance(`SELECT ar.id,ar.numero,ar.formato,ar.revision,
       ar.generado_en AS "generadoEn",ar.sha256,ar.nota_final::text AS "notaFinal",
       ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.aprobado${conPdf ? ',ar.pdf' : ''}
       FROM s4.actas_archivadas ar
       JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id
-      WHERE ar.estado_registro = 1 AND ($3::boolean OR ${acceso}) AND ar.id=$2`, [actor, id, puedeConsultarDemostracion]);
+      LEFT JOIN gen.carrera c ON c.id = ar.id_carrera
+      WHERE ar.estado_registro = 1 AND ($3::boolean OR ${accesoAmbito}) AND ar.id=$2`, [actor, id, puedeConsultarDemostracion]));
     if (!acta) throw new NotFoundException('No existe el acta solicitada.');
     return acta;
   }

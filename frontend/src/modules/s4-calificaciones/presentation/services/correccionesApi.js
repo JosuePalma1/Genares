@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '../../infrastructure/config/rubricas';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { ErrorApiHttp, ErrorConexionApi, ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
+import { cabeceraSesionDemo } from './sesionDemo';
 
 // RF-36 · Corrección extraordinaria de evaluaciones cerradas (AU-02 / AU-03).
 // El servidor decide permisos, bloqueos y conflictos; aquí solo se valida la forma.
@@ -66,7 +67,7 @@ export function crearServicioCorreccionesApi({ clienteJson = cliente, fetcher = 
         respuesta = await fetcher(`${API_BASE_URL}${RUTA}`, {
           method: 'POST',
           // Sin Content-Type: el navegador añade el delimitador del formulario.
-          headers: { Accept: 'application/json', 'X-Genares-Write-Intent': 'local-development' },
+          headers: { Accept: 'application/json', 'X-Genares-Write-Intent': 'local-development', ...cabeceraSesionDemo() },
           body: formulario,
           credentials: 'omit',
           cache: 'no-store',
@@ -81,7 +82,7 @@ export function crearServicioCorreccionesApi({ clienteJson = cliente, fetcher = 
     /** Descarga el PDF justificativo; el servidor verifica su hash antes de entregarlo. */
     async justificativo(id, opciones = {}) {
       const respuesta = await fetcher(`${API_BASE_URL}${RUTA}/${encodeURIComponent(id)}/justificativo`, {
-        signal: opciones.signal, credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/pdf' },
+        signal: opciones.signal, credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/pdf', ...cabeceraSesionDemo() },
       });
       if (!respuesta.ok) throw new ErrorApiHttp(respuesta.status, await respuesta.json().catch(() => null));
       return respuesta.blob();

@@ -6,6 +6,7 @@ import { GuardarBorradorOralDto } from './borrador-oral.dto';
 import { detallarConsolidacionMer, validarPuntajesBorrador, validarPuntajesCierre } from './borrador-oral.reglas';
 import { establecerActorAuditoria } from '../../auditoria/contexto-auditoria';
 import { ESTADO_CALCULADO_TRABAJO } from '../../trabajos/trabajos.service';
+import { accesoPorAlcance, alcanceActual, conAlcance, hayRestriccionDeAlcance, identidadActual } from '../../../../common/api/contexto-alcance';
 
 interface IdentidadProceso {
   procesoId: string;
@@ -172,6 +173,15 @@ export class EvaluacionesMerService {
   }
 
   async obtenerExpediente(asignacionId: string, db: Pick<DataSource, 'query'> = this.db) {
+    // Usuarios con ámbito: solo trabajos de sus carreras o de su tribunal (antes de crear nada).
+    if (hayRestriccionDeAlcance()) {
+      const [acceso] = await db.query(...conAlcance(`
+        SELECT 1 FROM s2.asignacion_tema asig
+        JOIN gen.tema tema ON tema.id = asig.tema_id
+        LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+        WHERE asig.id = $1 AND ${accesoPorAlcance('asig', 'c.codigo')}`, [asignacionId]));
+      if (!acceso) throw new NotFoundException('No existe proceso evaluable para esta asignación.');
+    }
     let [proceso] = await db.query(CONSULTA_PROCESO_EXPEDIENTE, [asignacionId]) as IdentidadProceso[];
     if (!proceso && db === this.db && entornoEscrituraLocal()) {
       await this.asignarRubricaVigente(asignacionId);
@@ -193,13 +203,14 @@ export class EvaluacionesMerService {
           ))
         JOIN gen.persona persona ON persona.id = est.persona_id
         WHERE a.id = $1 ORDER BY persona.apellidos, persona.nombres`, [asignacionId]),
-      db.query<ParticipanteMer[]>(`SELECT at.asignacion_tribunal_id AS id,
-          TRIM(CONCAT_WS(' ', per.nombres, per.apellidos)) AS nombre
+      db.query<Array<ParticipanteMer & { sujeto: string | null }>>(`SELECT at.asignacion_tribunal_id AS id,
+          TRIM(CONCAT_WS(' ', per.nombres, per.apellidos)) AS nombre, u.sujeto_autenticacion AS sujeto
         FROM s3.asignacion_tribunal at
         JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
         JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
         JOIN gen.docente doc ON doc.id = dcp.docente_id
         JOIN gen.persona per ON per.id = doc.persona_id
+        LEFT JOIN gen.usuario u ON u.id = doc.usuario_id AND u.activo
         WHERE at.asignacion_tema_id = $1 ORDER BY per.apellidos, per.nombres`, [asignacionId]),
       db.query(`SELECT e.id, e.id_etapa_rubrica AS "idEtapaRubrica",
           e.id_asignacion_tribunal AS "idAsignacionTribunal", e.id_estudiante AS "idEstudiante",
@@ -217,10 +228,21 @@ export class EvaluacionesMerService {
         FROM s4.evaluaciones e WHERE e.id_proceso_evaluacion = $1 AND e.id_version_rubrica = $2
         ORDER BY e.creado_en, e.id`, [proceso.procesoId, proceso.idVersionRubrica]),
     ]);
+    // Usuarios con ámbito: guardan o cierran solo si su rol lo permite (el servidor lo vuelve a exigir).
+    const identidad = identidadActual();
+    const restringido = hayRestriccionDeAlcance();
     const puedeGuardarBorradores = process.env.NODE_ENV === 'development'
       && process.env.LOCAL_DEV_OPEN_ACCESS === 'true'
-      && process.env.DB_NAME === 'genares_integrado_dev';
+      && process.env.DB_NAME === 'genares_integrado_dev'
+      && (!restringido || Boolean(identidad?.capacidades.includes('integracion:guardar-borrador')));
+    const puedeCerrarPorRol = !restringido || Boolean(identidad?.capacidades.includes('integracion:cerrar-evaluacion'));
+    // El cálculo usa todo el tribunal; el selector solo ofrece al propio evaluador si es tribunal (RN-24).
     const idsEvaluadores = evaluadores.map(({ id }) => id);
+    const tribunalDe = alcanceActual().tribunalDe;
+    const evaluadoresTribunal = evaluadores.map(({ id, nombre }) => ({ id, nombre }));
+    const evaluadoresSeleccionables = tribunalDe
+      ? evaluadores.filter(({ sujeto }) => sujeto === tribunalDe).map(({ id, nombre }) => ({ id, nombre }))
+      : evaluadoresTribunal;
     const etapasVisibles = etapas.filter((etapa) => Number(etapa.estadoRegistro ?? 1) === 1).map((etapa) => ({
       ...etapa,
       categorias: etapa.categorias.filter((categoria: Record<string, unknown>) => Number(categoria.estadoRegistro ?? 1) === 1)
@@ -246,7 +268,8 @@ export class EvaluacionesMerService {
       }));
     const idsEvaluacionesVisibles = new Set(evaluacionesVisibles.map((evaluacion: Record<string, unknown>) => String(evaluacion.id)));
     return {
-      ...proceso, estudiantes, evaluadores, etapas: etapasVisibles, evaluaciones: evaluacionesVisibles,
+      ...proceso, estudiantes, evaluadores: evaluadoresSeleccionables, evaluadoresTribunal,
+      etapas: etapasVisibles, evaluaciones: evaluacionesVisibles,
       consolidados: estudiantes.map(({ id }) => {
         const resultado = detallarConsolidacionMer(etapas, idsEvaluadores, evaluaciones, id);
         return { idEstudiante: id, total: resultado.resultadoFinal?.calificacion ?? null, ...resultado,
@@ -258,9 +281,9 @@ export class EvaluacionesMerService {
           })),
         };
       }),
-      modo: 'DESARROLLO_LOCAL',
+      modo: identidad?.tipo === 'DEMOSTRACION' ? 'DEMOSTRACION' : 'DESARROLLO_LOCAL',
       puedeGuardarBorradores,
-      puedeCerrarEvaluaciones: puedeGuardarBorradores && proceso.permisoCierre,
+      puedeCerrarEvaluaciones: puedeGuardarBorradores && puedeCerrarPorRol && proceso.permisoCierre,
     };
   }
 
@@ -302,6 +325,18 @@ export class EvaluacionesMerService {
         WHERE at.asignacion_tribunal_id = $1 AND at.asignacion_tema_id = $2
       `, [dto.idAsignacionTribunal, asignacionId]);
       if (!asignacionTribunal) throw new BadRequestException('Evaluador no asignado por S3 a este tema.');
+      // RN-24: un usuario con ámbito solo firma como su propio evaluador.
+      if (hayRestriccionDeAlcance()) {
+        const [propio] = await manager.query(`
+          SELECT 1 FROM s3.asignacion_tribunal at
+          JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
+          JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
+          JOIN gen.docente d ON d.id = dcp.docente_id AND d.activo
+          JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
+          WHERE at.asignacion_tribunal_id = $1 AND u.sujeto_autenticacion = $2
+        `, [dto.idAsignacionTribunal, identidadActual()?.sujeto ?? null]);
+        if (!propio) throw new ForbiddenException('Solo puede guardar o cerrar sus propias evaluaciones.');
+      }
       if (idEstudiante) {
         const [pertenencia] = await manager.query(`
         SELECT s4.estudiante_pertenece_asignacion($1, $2) AS pertenece
