@@ -37,6 +37,9 @@ export class VersionRubrica {
   @Column({ type: 'varchar', length: 30 })
   version!: string;
 
+  @Column({ name: 'escala_final', type: 'smallint', default: 10 })
+  escalaFinal!: number;
+
   @Column({
     type: 'enum',
     enum: EstadoVersionRubrica,

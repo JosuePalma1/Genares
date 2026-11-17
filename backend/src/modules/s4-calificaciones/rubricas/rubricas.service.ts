@@ -16,6 +16,8 @@ import { EventoAuditoriaRubrica } from './entidades/evento-auditoria-rubrica.ent
 import { IndicadorRubrica } from './entidades/indicador-rubrica.entity';
 import { Rubrica } from './entidades/rubrica.entity';
 import { VersionRubrica } from './entidades/version-rubrica.entity';
+import { camposRubricaEnBlanco } from '../documentos/pdf-documental';
+import { dibujarRubricaPdf } from '../documentos/pdf-rubrica';
 import { ConsultarRubricasDto } from './dto/consultar-rubricas.dto';
 import { CrearRubricaDto } from './dto/crear-rubrica.dto';
 import { CrearVersionRubricaDto } from './dto/crear-version-rubrica.dto';
@@ -147,7 +149,7 @@ export class RubricasService {
     actorId: string,
     correlationId: string | null,
   ): Promise<VersionRubricaCompletaDto> {
-    const etapas = normalizarEstructuraRubricaCompleta(dto.etapas);
+    const etapas = normalizarEstructuraRubricaCompleta(dto.etapas, dto.escalaFinal);
     this.validarCarrerasUnicas(dto.carreras.map(({ carreraId }) => carreraId));
     try {
       return await this.dataSource.transaction(async (manager) => {
@@ -210,6 +212,7 @@ export class RubricasService {
           modalidad,
           periodo,
           version: dto.version,
+          escalaFinal: dto.escalaFinal,
           etapas,
           carreras: dto.carreras,
           actorId,
@@ -289,13 +292,15 @@ export class RubricasService {
           if (!etapaDtos) etapaDtos = await this.copiarEstructuraComoDtos(manager, versionBase.id);
         }
         if (!etapaDtos?.length) throw new BadRequestException('La r\u00fabrica debe contener al menos una etapa.');
-        const etapas = normalizarEstructuraRubricaCompleta(etapaDtos);
+        const escalaFinal = dto.escalaFinal ?? versionBase?.escalaFinal ?? 10;
+        const etapas = normalizarEstructuraRubricaCompleta(etapaDtos, escalaFinal);
 
         const creada = await this.guardarVersionCompleta(manager, {
           rubrica,
           modalidad: rubrica.modalidad,
           periodo,
           version: nombreVersion,
+          escalaFinal,
           etapas,
           carreras: dto.carreras,
           actorId,
@@ -367,6 +372,7 @@ export class RubricasService {
           rubrica,
           academicPeriod: periodo,
           version: versionNormalizada,
+          escalaFinal: fuente?.escalaFinal ?? 10,
           estado: EstadoVersionRubrica.BORRADOR,
           revision: 1,
           activadoEn: null,
@@ -846,6 +852,7 @@ export class RubricasService {
       modalidad: Modalidad;
       periodo: PeriodoAcademico;
       version: string;
+      escalaFinal?: number;
       etapas: EtapaRubricaNormalizada[];
       carreras: AsociacionCarreraRubricaDto[];
       actorId: string;
@@ -866,6 +873,7 @@ export class RubricasService {
       rubrica: contexto.rubrica,
       academicPeriod: contexto.periodo,
       version: nombreVersion,
+      escalaFinal: contexto.escalaFinal ?? 10,
       estado: EstadoVersionRubrica.BORRADOR,
       revision: 1,
       activadoEn: null,
@@ -883,9 +891,11 @@ export class RubricasService {
         codigo: etapaDto.codigo.trim(),
         nombre: etapaDto.nombre.trim(),
         descripcion: etapaDto.descripcion?.trim() || null,
-        calificacionMaxima: '10.00',
-        // Solo una copia trae porcentaje (el de la versión base); sin él, la consolidación reparte por igual.
-        porcentaje: (etapaDto as EtapaCopiada).porcentaje ?? null,
+        // La etapa vale lo que suman sus categorías (5.00 en la rúbrica oficial 5 + 5).
+        calificacionMaxima: etapaNormalizada.calificacionMaxima,
+        // Esquema «porcentajes»: el peso elegido (o el de la versión base al copiar). Esquema «sumar puntos»: null,
+        // y la consolidación hace pesar cada etapa según lo que vale.
+        porcentaje: etapaNormalizada.porcentaje,
         orden: etapaDto.orden,
       });
       for (const categoriaNormalizada of etapaNormalizada.categorias) {
@@ -1236,6 +1246,7 @@ export class RubricasService {
     return {
       id: version.id,
       version: version.version,
+      escalaFinal: version.escalaFinal ?? 10,
       revision: version.revision,
       estado: version.estado,
       estadoRegistro: version.estadoRegistro ?? 1,
@@ -1266,6 +1277,17 @@ export class RubricasService {
       correlationId: evento.correlationId,
       ocurridoEn: new Date(),
     });
+  }
+
+  /** PDF de la versión en blanco (sin estudiante ni notas), para revisar cómo se imprimirá. */
+  async pdfVersion(versionId: string): Promise<Buffer> {
+    const version = await this.versiones.findOne({
+      where: { id: versionId, estadoRegistro: 1, rubrica: { estadoRegistro: 1 } },
+      relations: { rubrica: { modalidad: true } },
+    });
+    if (!version) throw new NotFoundException('No existe la versión de rúbrica solicitada.');
+    const etapas = await this.detalleEtapas(this.dataSource.manager, versionId);
+    return dibujarRubricaPdf(camposRubricaEnBlanco({ escalaFinal: version.escalaFinal, modalidad: version.rubrica.modalidad?.nombre ?? '', etapas }));
   }
 
   private async detalleEtapas(

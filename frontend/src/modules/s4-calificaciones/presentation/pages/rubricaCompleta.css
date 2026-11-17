@@ -48,6 +48,8 @@
 .rubrica-completa-metadata .field {
   min-width: 0;
   margin: 0;
+  /* Cada campo mide lo suyo: sin esto, el de al lado (con nota debajo) estira la caja del que no la tiene. */
+  align-content: start;
 }
 
 .rubrica-completa-metadata label,
@@ -460,3 +462,58 @@
     padding: 0;
   }
 }
+
+/* Cómo se calcula la nota final a partir de etapas con máximos propios (5 + 5, 10 + 10…). */
+.rubrica-completa-nota-final {
+  margin: .75rem 0 0;
+  color: var(--text-muted, #617067);
+  font-size: .9rem;
+}
+
+/* B. Esquema de calificación: atajos, forma de combinar las partes y valor/peso de cada parte. */
+.rubrica-esquema-atajos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.rubrica-esquema-atajos > span { color: var(--text-muted, #617067); font-size: .9rem; }
+.rubrica-esquema-modo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: .75rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  border: 0;
+}
+.rubrica-esquema-modo legend { margin-bottom: .5rem; font-weight: 600; }
+.rubrica-esquema-modo label {
+  display: flex;
+  align-items: flex-start;
+  gap: .6rem;
+  padding: .75rem .9rem;
+  border: 1px solid var(--border, #dfe5e1);
+  border-radius: .6rem;
+  cursor: pointer;
+}
+.rubrica-esquema-modo label:has(input:checked) { border-color: var(--primary, #123c64); background: #f3f7fb; }
+.rubrica-esquema-modo label span { display: grid; gap: .2rem; }
+.rubrica-esquema-modo small { color: var(--text-muted, #617067); }
+.rubrica-esquema-partes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: .75rem;
+}
+.rubrica-esquema-parte {
+  display: grid;
+  gap: .5rem;
+  padding: .75rem .9rem;
+  border: 1px solid var(--border, #dfe5e1);
+  border-radius: .6rem;
+}
+.rubrica-esquema-parte .field { margin: 0; }
+.rubrica-esquema-resumen { margin: .75rem 0 0; font-weight: 600; }
+.rubrica-esquema-resumen.is-completa { color: #1f6b3a; }
+.rubrica-esquema-resumen.is-faltante, .rubrica-esquema-resumen.is-excedida { color: #9a3412; }
+.rubrica-esquema-resumen.is-incompleta { color: var(--text-muted, #617067); font-weight: 400; }

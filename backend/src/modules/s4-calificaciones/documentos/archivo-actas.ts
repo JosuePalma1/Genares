@@ -1,21 +1,21 @@
 import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { createHash } from 'node:crypto';
+import { notaAprobada } from './reglas-acta';
 import { PLANTILLAS } from './plantillas-institucionales';
 
 /** Archiva una copia interna y su resultado; notas y umbral proceden siempre del servidor. */
 export async function archivarActaEn(manager: EntityManager, datos: {
   trabajoId: string; estudianteId: string; carreraId: string; periodoId: string;
   periodo: string; carreraCodigo: string; formato: keyof typeof PLANTILLAS; actor: string;
-  notaFinal: string; notaMinimaAplicada: string; aprobado: boolean;
+  notaFinal: string; notaMinimaAplicada: string; escala?: number; aprobado: boolean;
 }, render: (numero: string) => Promise<Buffer>) {
   if (!/^\d{4}-[12]$/.test(datos.periodo) || !['TI', 'SOFT'].includes(datos.carreraCodigo)) {
     throw new Error('Carrera o período sin correspondencia institucional validada.');
   }
-  if (!/^(?:0|[1-9]\d?)\.\d{2}$/.test(datos.notaFinal) || !/^(?:0|[1-9]\d?)\.\d{2}$/.test(datos.notaMinimaAplicada)
-    || BigInt(datos.notaFinal.replace('.', '')) > 1000n || BigInt(datos.notaMinimaAplicada.replace('.', '')) > 1000n
-    || datos.aprobado !== (BigInt(datos.notaFinal.replace('.', '')) >= BigInt(datos.notaMinimaAplicada.replace('.', '')))) {
-    throw new Error('El resultado del documento no coincide con la regla académica sobre 10.00.');
+  const escala = datos.escala ?? 10;
+  if (![10, 20, 100].includes(escala) || datos.aprobado !== notaAprobada(datos.notaFinal, datos.notaMinimaAplicada, escala)) {
+    throw new Error('El resultado del documento no coincide con la regla académica.');
   }
   // Bloquea la asociación del estudiante. También serializa dos intentos concurrentes
   // del mismo documento para que ambos devuelvan el mismo número y los mismos bytes.
@@ -31,7 +31,7 @@ export async function archivarActaEn(manager: EntityManager, datos: {
   if (!origen) throw new Error('La identidad documental no coincide con el trabajo y su estudiante.');
 
   const [existente] = await manager.query(`SELECT id,numero,formato,consecutivo,generado_en AS "generadoEn",sha256,
-    nota_final::text AS "notaFinal",nota_minima_aplicada::text AS "notaMinimaAplicada",aprobado
+    nota_final::text AS "notaFinal",nota_minima_aplicada::text AS "notaMinimaAplicada",escala_final AS escala,aprobado
     FROM s4.actas_archivadas WHERE id_proceso_evaluacion=$1 AND id_estudiante=$2 AND formato=$3 AND estado_registro=1`,
   [origen.id, datos.estudianteId, datos.formato]);
   if (existente) return { ...existente, reimpresa: true };
@@ -51,12 +51,12 @@ export async function archivarActaEn(manager: EntityManager, datos: {
   const [acta] = await manager.query(`INSERT INTO s4.actas_archivadas
     (numero,id_carrera,id_periodo,periodo,consecutivo,id_proceso_evaluacion,id_estudiante,formato,revision,generado_por,pdf,sha256,
      generado_en,
-     nota_final,nota_minima_aplicada,aprobado)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now(),$13,$14,$15)
+     nota_final,nota_minima_aplicada,aprobado,escala_final)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now(),$13,$14,$15,$16)
     RETURNING id,numero,formato,consecutivo,generado_en AS "generadoEn",sha256,
-      nota_final::text AS "notaFinal",nota_minima_aplicada::text AS "notaMinimaAplicada",aprobado`,
+      nota_final::text AS "notaFinal",nota_minima_aplicada::text AS "notaMinimaAplicada",escala_final AS escala,aprobado`,
   [numero, datos.carreraId, datos.periodoId, datos.periodo, contador.ultimo, origen.id,
     datos.estudianteId, datos.formato, PLANTILLAS[datos.formato].revision, datos.actor, pdf, sha256,
-    datos.notaFinal, datos.notaMinimaAplicada, datos.aprobado]);
+    datos.notaFinal, datos.notaMinimaAplicada, datos.aprobado, escala]);
   return { ...acta, reimpresa: false };
 }

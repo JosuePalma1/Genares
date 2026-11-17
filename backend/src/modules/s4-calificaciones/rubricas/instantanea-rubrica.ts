@@ -33,6 +33,7 @@ export interface InstantaneaEtapaRubrica {
 export interface InstantaneaRubrica {
   rubricId: string;
   rubricVersionId: string;
+  escalaFinal?: number;
   rubricName: string;
   version: string;
   academicPeriodCode: string;

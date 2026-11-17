@@ -20,8 +20,9 @@ export class ActaArchivada {
   @Column({ name: 'generado_por', type: 'varchar', length: 255 }) generadoPor!: string;
   @Column({ type: 'bytea', select: false }) pdf!: Buffer;
   @Column({ type: 'varchar', length: 64 }) sha256!: string;
-  @Column({ name: 'nota_final', type: 'numeric', precision: 4, scale: 2, nullable: true }) notaFinal!: string | null;
-  @Column({ name: 'nota_minima_aplicada', type: 'numeric', precision: 4, scale: 2, nullable: true }) notaMinimaAplicada!: string | null;
+  @Column({ name: 'escala_final', type: 'smallint', default: 10 }) escalaFinal!: number;
+  @Column({ name: 'nota_final', type: 'numeric', precision: 5, scale: 2, nullable: true }) notaFinal!: string | null;
+  @Column({ name: 'nota_minima_aplicada', type: 'numeric', precision: 5, scale: 2, nullable: true }) notaMinimaAplicada!: string | null;
   @Column({ type: 'boolean', nullable: true }) aprobado!: boolean | null;
 
   @Column({ name: 'estado_registro', type: 'smallint', default: 1 })

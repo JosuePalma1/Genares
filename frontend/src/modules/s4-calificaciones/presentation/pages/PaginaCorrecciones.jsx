@@ -7,6 +7,7 @@ import {
   ESTADOS_SOLICITUD, aprobarCorreccionApi, cargarCapacidadesCorreccionesApi, descargarJustificativoApi,
   listarCorreccionesApi, rechazarCorreccionApi,
 } from '../services/correccionesApi';
+import { abrirPdfEnPestanaNueva } from '../services/pestanaPdf';
 import './seguimientoApi.css';
 import './correcciones.css';
 
@@ -128,9 +129,8 @@ export default function PaginaCorrecciones() {
 
   const verJustificativo = async (solicitud) => {
     try {
-      const url = URL.createObjectURL(await descargarJustificativoApi(solicitud.id));
-      window.open(url, '_blank', 'noopener');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      // La pestaña se abre en el mismo clic para que el navegador no la bloquee.
+      await abrirPdfEnPestanaNueva(() => descargarJustificativoApi(solicitud.id));
     } catch (error) {
       await Swal.fire({ icon: 'error', title: 'No se pudo abrir el PDF', text: error.message });
     }

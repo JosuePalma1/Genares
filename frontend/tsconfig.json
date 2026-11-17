@@ -1,3 +1,4 @@
+//TypeScript para el frontend de Genares. Configura la compilación de TypeScript y las referencias a otros proyectos.
 {
   "files": [],
   "references": [

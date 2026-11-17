@@ -10,7 +10,11 @@ import {
   eliminarEtapaRubrica,
   eliminarIndicadorRubrica,
   formatearCentesimas,
+  aplicarAtajoEsquemaRubrica,
+  cambiarModoEsquemaRubrica,
   moverElementoRubrica,
+  pesosEtapasPorValor,
+  resumenEsquemaRubrica,
   resumenPonderacionEtapa,
   subtotalCategoriaCompleta,
   subtotalEtapaCompleta,
@@ -80,7 +84,7 @@ describe('editor integral de rúbrica', () => {
     expect(resumenPonderacionEtapa({ ...etapa, categorias: [] }).estado).toBe('incompleta');
   });
 
-  it('valida ámbito editable y exige exactamente 10.00 por etapa', () => {
+  it('valida ámbito editable y acepta que cada etapa valga lo que suman sus indicadores', () => {
     const completa = etapaCompleta();
     const formulario = {
       nombre: 'Rúbrica de prueba', version: '1.0', modalidadId: 'modalidad', periodoId: 'periodo',
@@ -92,8 +96,14 @@ describe('editor integral de rúbrica', () => {
       ...categoria,
       indicadores: categoria.indicadores.map((indicador, indice) => ({ ...indicador, calificacionMaxima: indice ? '3.75' : total })),
     })) });
-    expect(validarRubricaCompleta({ ...formulario, etapas: [peso('6.24')] }).some(({ campo }) => campo.endsWith('.total'))).toBe(true);
-    expect(validarRubricaCompleta({ ...formulario, etapas: [peso('6.26')] }).some(({ campo }) => campo.endsWith('.total'))).toBe(true);
+    // Escalas configurables (16/11/2026): con porcentajes, 9.99 o 10.01 son válidos; solo se rechaza pasar de 100.00.
+    const conPesos = (etapa) => ({ ...formulario, esquema: { modo: 'PORCENTAJES' }, etapas: [{ ...etapa, porcentaje: '100' }] });
+    expect(validarRubricaCompleta(conPesos(peso('6.24')))).toEqual([]);
+    expect(validarRubricaCompleta(conPesos(peso('6.26')))).toEqual([]);
+    // «Sumar puntos»: la única parte debe dar la nota final 10.00.
+    expect(validarRubricaCompleta({ ...formulario, etapas: [peso('6.24')] }).map(({ campo }) => campo)).toEqual(['esquema']);
+    expect(resumenPonderacionEtapa(peso('1.25'))).toMatchObject({ estado: 'completa', mensaje: 'La etapa vale 5.00 puntos.' });
+    expect(validarRubricaCompleta({ ...formulario, etapas: [peso('99.00')] }).some(({ campo }) => campo.endsWith('.total'))).toBe(true);
     expect(validarRubricaCompleta({ ...formulario, etapas: [{ ...completa, alcance: 'OTRO' }] }).some(({ campo }) => campo.endsWith('.alcance'))).toBe(true);
   });
 });
@@ -105,5 +115,56 @@ describe('códigos de categoría en toda la versión (decisión 2026-11-12)', ()
     estructura = agregarCategoriaRubrica(estructura, escrita.claveLocal);
     estructura = agregarCategoriaRubrica(estructura, oral.claveLocal);
     expect(estructura.map((etapa) => etapa.categorias.map(({ codigo }) => codigo))).toEqual([['C1', 'C2'], ['C3']]);
+  });
+});
+
+describe('peso de cada etapa en la nota final (igual que el servidor)', () => {
+  it('reparte según lo que vale cada etapa', () => {
+    expect(pesosEtapasPorValor([500n, 500n])).toEqual([50, 50]);
+    expect(pesosEtapasPorValor([300n, 700n])).toEqual([30, 70]);
+    expect(pesosEtapasPorValor([250n, 250n, 500n])).toEqual([25, 25, 50]);
+  });
+
+  it('no calcula nada mientras falte un total válido', () => {
+    expect(pesosEtapasPorValor([500n, null])).toBeNull();
+    expect(pesosEtapasPorValor([])).toBeNull();
+  });
+});
+
+describe('esquema de calificación (primer paso de «Nueva rúbrica»)', () => {
+  const parte = (valor, maximos) => ({
+    claveLocal: valor, codigo: `E${valor}`, nombre: 'Parte', alcance: 'TRABAJO_COMPARTIDO', valor, porcentaje: '',
+    categorias: [{ claveLocal: 'c', codigo: 'C1', nombre: 'Categoría', indicadores: maximos.map((maximo, i) => ({ claveLocal: `i${i}`, label: `I${i}`, descripcion: 'x', calificacionMaxima: maximo })) }],
+  });
+
+  it('la oficial 5 + 5 suma la nota final y cada parte llega a su valor', () => {
+    const datos = aplicarAtajoEsquemaRubrica({ etapas: [parte('', ['1.00', '1.00', '3.00']), parte('', ['2.50', '2.50'])] }, 'OFICIAL_5_5');
+    expect(datos.esquema).toEqual({ modo: 'SUMA' });
+    expect(datos.etapas.map(({ valor }) => valor)).toEqual(['5.00', '5.00']);
+    expect(resumenEsquemaRubrica(datos)).toMatchObject({ estado: 'completa' });
+    expect(resumenPonderacionEtapa(datos.etapas[0])).toMatchObject({ estado: 'completa', mensaje: 'Completa: 5.00 de 5.00 puntos.' });
+  });
+
+  it('avisa cuánto falta o sobra respecto al valor declarado de la parte', () => {
+    expect(resumenPonderacionEtapa(parte('5.00', ['1.00', '1.00']))).toMatchObject({ estado: 'faltante', mensaje: 'Faltan 3.00 de 5.00 puntos.' });
+    expect(resumenPonderacionEtapa(parte('5.00', ['3.00', '3.00']))).toMatchObject({ estado: 'excedida' });
+  });
+
+  it('«sumar puntos» exige que las partes sumen 10.00', () => {
+    expect(resumenEsquemaRubrica({ esquema: { modo: 'SUMA' }, etapas: [parte('4.00', ['4.00']), parte('4.00', ['4.00'])] }))
+      .toMatchObject({ estado: 'faltante', mensaje: 'Las partes deben sumar 10.00 (suman 8.00). Ajuste los puntos o use porcentajes.' });
+  });
+
+  it('«porcentajes»: 10 + 10 al 50 %, y los pesos deben sumar 100', () => {
+    const datos = aplicarAtajoEsquemaRubrica({ etapas: [parte('', ['10.00']), parte('', ['10.00'])] }, 'DIEZ_DIEZ_50');
+    expect(datos.esquema).toEqual({ modo: 'PORCENTAJES' });
+    expect(resumenEsquemaRubrica(datos)).toMatchObject({ estado: 'completa', mensaje: 'Los pesos suman 100 %.' });
+    const mal = { ...datos, etapas: datos.etapas.map((etapa, i) => ({ ...etapa, porcentaje: i ? '40' : '50' })) };
+    expect(resumenEsquemaRubrica(mal)).toMatchObject({ estado: 'faltante', mensaje: 'Los pesos deben sumar 100 % (suman 90.00 %).' });
+  });
+
+  it('al volver a «sumar puntos» se vacían los pesos para no guardarlos', () => {
+    const datos = aplicarAtajoEsquemaRubrica({ etapas: [parte('', ['10.00']), parte('', ['10.00'])] }, 'DIEZ_DIEZ_50');
+    expect(cambiarModoEsquemaRubrica(datos, 'SUMA').etapas.map(({ porcentaje }) => porcentaje)).toEqual(['', '']);
   });
 });

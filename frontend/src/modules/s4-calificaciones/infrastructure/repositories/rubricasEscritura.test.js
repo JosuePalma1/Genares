@@ -72,8 +72,9 @@ describe('mapeadores puros de escritura de rúbricas', () => {
   });
 
   it('mapea una rúbrica completa con etapas dinámicas, ámbitos mixtos y vigencias independientes', () => {
-    const etapa = (codigo, alcance, nombre = codigo) => ({
-      codigo, nombre, alcance,
+    // Tres partes de 10 puntos: con el esquema «porcentajes» cada una lleva su peso y suman 100.
+    const etapa = (codigo, alcance, nombre = codigo, porcentaje = '') => ({
+      codigo, nombre, alcance, porcentaje,
       categorias: [{ codigo: 'C1', nombre: 'Contenido', indicadores: [
         { label: 'I1', descripcion: 'Indicador uno', calificacionMaxima: '6.25' },
         { label: 'I2', descripcion: 'Indicador dos', calificacionMaxima: '3.75' },
@@ -84,10 +85,11 @@ describe('mapeadores puros de escritura de rúbricas', () => {
       periodoId: ids.periodo,
       nombre: '  Rúbrica integral  ',
       version: ' 1.0 ',
+      esquema: { modo: 'PORCENTAJES' },
       etapas: [
-        etapa('ETAPA_1', 'TRABAJO_COMPARTIDO', 'Escrita'),
-        etapa('ETAPA_2', 'ESTUDIANTE_INDIVIDUAL', 'Oral'),
-        etapa('ETAPA_3', 'TRABAJO_COMPARTIDO', 'Análisis'),
+        etapa('ETAPA_1', 'TRABAJO_COMPARTIDO', 'Escrita', '40'),
+        etapa('ETAPA_2', 'ESTUDIANTE_INDIVIDUAL', 'Oral', '30'),
+        etapa('ETAPA_3', 'TRABAJO_COMPARTIDO', 'Análisis', '30.00'),
       ],
       carreras: [
         { carreraId: ids.carrera, revision: 3, vigente: true, vigenciaEsperada: { versionId: ids.version } },
@@ -100,15 +102,15 @@ describe('mapeadores puros de escritura de rúbricas', () => {
       nombre: 'Rúbrica integral',
       version: '1.0',
       etapas: [
-        { codigo: 'ETAPA_1', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', orden: 1, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
+        { codigo: 'ETAPA_1', nombre: 'Escrita', alcance: 'TRABAJO_COMPARTIDO', porcentaje: '40', orden: 1, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
           { label: 'I1', descripcion: 'Indicador uno', calificacionMaxima: '6.25', orden: 1 },
           { label: 'I2', descripcion: 'Indicador dos', calificacionMaxima: '3.75', orden: 2 },
         ] }] },
-        { codigo: 'ETAPA_2', nombre: 'Oral', alcance: 'ESTUDIANTE_INDIVIDUAL', orden: 2, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
+        { codigo: 'ETAPA_2', nombre: 'Oral', alcance: 'ESTUDIANTE_INDIVIDUAL', porcentaje: '30', orden: 2, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
           { label: 'I1', descripcion: 'Indicador uno', calificacionMaxima: '6.25', orden: 1 },
           { label: 'I2', descripcion: 'Indicador dos', calificacionMaxima: '3.75', orden: 2 },
         ] }] },
-        { codigo: 'ETAPA_3', nombre: 'Análisis', alcance: 'TRABAJO_COMPARTIDO', orden: 3, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
+        { codigo: 'ETAPA_3', nombre: 'Análisis', alcance: 'TRABAJO_COMPARTIDO', porcentaje: '30.00', orden: 3, categorias: [{ codigo: 'C1', nombre: 'Contenido', orden: 1, indicadores: [
           { label: 'I1', descripcion: 'Indicador uno', calificacionMaxima: '6.25', orden: 1 },
           { label: 'I2', descripcion: 'Indicador dos', calificacionMaxima: '3.75', orden: 2 },
         ] }] },
@@ -177,17 +179,27 @@ describe('mapeadores puros de escritura de rúbricas', () => {
     expect(resultado.dto).not.toHaveProperty('version');
   });
 
-  it('rechaza un ámbito inválido y cualquier etapa que no sume 10.00', () => {
+  it('rechaza un ámbito inválido y acepta etapas con su propio máximo, hasta 100.00', () => {
     const rubrica = {
       modalidadId: ids.modalidad, periodoId: ids.periodo, nombre: 'Rúbrica', version: '1',
-      etapas: [{ codigo: 'E1', nombre: 'Etapa', alcance: 'ESTUDIANTE_INDIVIDUAL', categorias: [{
+      esquema: { modo: 'PORCENTAJES' },
+      etapas: [{ codigo: 'E1', nombre: 'Etapa', alcance: 'ESTUDIANTE_INDIVIDUAL', porcentaje: '100', categorias: [{
         codigo: 'C1', nombre: 'Contenido', indicadores: [{ label: 'I1', descripcion: 'Criterio', calificacionMaxima: '9.99' }],
       }] }],
       carreras: [{ carreraId: ids.carrera, revision: 1, vigente: false, vigenciaEsperada: { versionId: null } }],
     };
     expect(() => mapearCrearRubricaCompletaDto({ ...rubrica, etapas: [{ ...rubrica.etapas[0], alcance: 'TRABAJO' }] }))
       .toThrow(/etapa 1 requiere/i);
-    expect(() => mapearCrearRubricaCompletaDto(rubrica)).toThrow(/exactamente 10\.00/i);
+    // Escalas configurables (16/11/2026): con porcentajes, una etapa de 9.99 es válida.
+    expect(mapearCrearRubricaCompletaDto(rubrica).etapas[0].categorias[0].indicadores[0].calificacionMaxima).toBe('9.99');
+    // «Sumar puntos»: sin porcentajes la parte debe dar 10.00; 9.99 no basta.
+    expect(() => mapearCrearRubricaCompletaDto({ ...rubrica, esquema: { modo: 'SUMA' } })).toThrow(/deben dar la nota final 10\.00/i);
+    expect(() => mapearCrearRubricaCompletaDto({ ...rubrica, etapas: [{ ...rubrica.etapas[0], porcentaje: '90' }] }))
+      .toThrow(/deben sumar 100/i);
+    const enorme = { ...rubrica, etapas: [{ ...rubrica.etapas[0], categorias: [{ ...rubrica.etapas[0].categorias[0], indicadores: [
+      { label: 'I1', descripcion: 'Criterio', calificacionMaxima: '100.00' }, { label: 'I2', descripcion: 'Otro', calificacionMaxima: '0.01' },
+    ] }] }] };
+    expect(() => mapearCrearRubricaCompletaDto(enorme)).toThrow(/como máximo 100\.00/i);
   });
 
   it('serializa el reemplazo completo y conserva revisión, UUID y precisión textual', () => {

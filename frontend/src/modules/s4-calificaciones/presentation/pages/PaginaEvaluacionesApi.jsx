@@ -11,6 +11,9 @@ import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { usarCapacidadesCorrecciones } from '../hooks/usarCapacidadesCorrecciones';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
+import { mensajeErrorDocumento, rutaPdfRubrica } from '../../domain/documentosRubrica';
+import { obtenerPdfDocumento } from '../services/documentosApi';
+import { BotonPdf } from '../components/BotonPdf';
 import './evaluacionesApi.css';
 
 export const EVALUACIONES_POR_PAGINA = 20;
@@ -272,7 +275,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
     .sort((a, b) => a.posicion - b.posicion);
   return (
     <>
-      <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación es informativa y se expresa sobre 10.00. El umbral de aprobación de 7.00 y los rótulos APROBADO/REPROBADO son provisionales; no constituyen una decisión institucional oficial ni crea una nota oficial.</p></AlertaInstitucional>
+      <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación usa la escala de la versión de rúbrica. Esta consulta no modifica el expediente ni crea una nota oficial.</p></AlertaInstitucional>
       <section className="evaluaciones-api-card" aria-labelledby="resultado-estudiante-title">
         <div className="evaluaciones-api-result-header">
           <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{[resultado.estudiante.nombres, resultado.estudiante.apellidos].filter(Boolean).join(' ') || resultado.estudiante.id}</h2><p>{resultado.estudiante.id}</p></div>
@@ -294,16 +297,19 @@ export function PanelResultadoIndividualApi({ resultado }) {
           ))}
         </div>
         <div className="evaluaciones-api-final">
-          <span>Resultado consultivo individual · sobre 10</span>
+          <span>Resultado consultivo individual · sobre {Number(resultado.resultadoFinal?.calificacionMaxima ?? resultado.versionRubrica.escalaFinal ?? 10)}</span>
           {resultado.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion}</strong> : <strong className="evaluaciones-api-no-final">No disponible · {estadoLegible(resultado.estado)}</strong>}
         </div>
-        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final. El resultado final se expresa sobre 10.00.</p>
+        <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final.</p>
         {miembros.length > 0 && <div className="form-actions resultado-miembro-actions" role="group" aria-label="Rúbricas PDF por miembro del tribunal">
-          {miembros.map((miembro) => <Link
-            className="button button-outline"
-            key={miembro.idMiembroTribunal}
-            to={`/rubrica/${resultado.trabajoId}/${resultado.estudiante.id}/${miembro.idMiembroTribunal}`}
-          ><FileText size={16} /> Ver rúbrica PDF · Miembro {miembro.posicion}</Link>)}
+          {miembros.map((miembro) => {
+            const ruta = rutaPdfRubrica(resultado.trabajoId, resultado.estudiante.id, miembro.idMiembroTribunal);
+            return <BotonPdf
+              key={miembro.idMiembroTribunal}
+              obtenerPdf={() => obtenerPdfDocumento(ruta)}
+              mensajeError={(error) => mensajeErrorDocumento(error, ruta)}
+            ><FileText size={16} /> Ver rúbrica PDF · Miembro {miembro.posicion}</BotonPdf>;
+          })}
         </div>}
       </section>
     </>

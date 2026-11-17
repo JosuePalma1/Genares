@@ -57,6 +57,8 @@
 .evaluaciones-api-result-header p { margin: 0; color: var(--text-muted, #617067); overflow-wrap: anywhere; }
 .evaluaciones-api-stage-results { display: grid; gap: .65rem; margin-top: 1rem; }
 .evaluaciones-api-stage-result-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem; padding: .85rem; border: 1px solid var(--border, #dfe5e1); border-radius: .7rem; }
+/* La etiqueta de estado mide lo que su texto: sin esto la cuadrícula la estira hasta el alto de la fila y queda un óvalo enorme. */
+.evaluaciones-api-stage-result-card > .estado-badge { align-self: start; }
 .evaluaciones-api-stage-grade { grid-column: 1 / -1; display: flex; align-items: baseline; justify-content: space-between; gap: .8rem; padding-top: .6rem; border-top: 1px solid #edf0ee; }
 .evaluaciones-api-stage-grade span, .evaluaciones-api-final span { color: var(--text-muted, #617067); }
 .evaluaciones-api-stage-grade strong { font-size: 1.15rem; }

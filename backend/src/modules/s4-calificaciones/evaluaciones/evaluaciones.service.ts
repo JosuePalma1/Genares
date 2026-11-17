@@ -144,7 +144,7 @@ export class EvaluacionesService {
   async consolidarTrabajo(trabajoId: string, actorId: string, puedeConsultarDemostracion = false): Promise<Record<string, unknown>> {
     const datos = await this.datosDocumentales(trabajoId, actorId, puedeConsultarDemostracion);
     const trabajo = { id: trabajoId, codigo: datos.trabajo.codigo, titulo: datos.trabajo.titulo };
-    const versionRubrica = { id: datos.rubrica.rubricVersionId, version: datos.rubrica.version };
+    const versionRubrica = { id: datos.rubrica.rubricVersionId, version: datos.rubrica.version, escalaFinal: datos.rubrica.escalaFinal ?? 10 };
     const evaluadoresEsperados = datos.evaluadores.map(({ id, posicion }) => ({ idMiembroTribunal: id, posicion }));
     return {
       tipo: 'CONSOLIDACION_INDIVIDUAL_DINAMICA', trabajoId, trabajo, versionRubrica,
@@ -161,7 +161,7 @@ export class EvaluacionesService {
 
   private async crearInstantanea(manager: EntityManager, versionId: string): Promise<InstantaneaRubrica> {
     const versiones = await manager.query(`
-      SELECT version."id", version."version", version."periodo_academico_id" AS "periodId",
+      SELECT version."id", version."version", version.escala_final AS "escalaFinal", version."periodo_academico_id" AS "periodId",
              periodo."codigo" AS "periodCode", rubrica."id" AS "rubricId", rubrica."nombre" AS "rubricName",
              modalidad."codigo" AS "modalityCode"
       FROM s4.versiones_rubrica version
@@ -170,7 +170,7 @@ export class EvaluacionesService {
       JOIN gen.periodo_academico periodo ON periodo."id" = version."periodo_academico_id"
       WHERE version."id" = $1 AND version.estado_registro = 1 AND rubrica.estado_registro = 1
     `, [versionId]) as Array<{
-      id: string; version: string; periodId: string; periodCode: string; rubricId: string;
+      id: string; version: string; escalaFinal: number; periodId: string; periodCode: string; rubricId: string;
       rubricName: string; modalityCode: string;
     }>;
     const version = versiones[0];
@@ -224,6 +224,7 @@ export class EvaluacionesService {
     return {
       rubricId: version.rubricId,
       rubricVersionId: version.id,
+      escalaFinal: version.escalaFinal ?? 10,
       rubricName: version.rubricName,
       version: version.version,
       academicPeriodCode: version.periodCode,

@@ -100,35 +100,65 @@ INSERT INTO s3.asignacion_tribunal
  (s4.uuid_fixture('at-soft2'),s4.uuid_fixture('mt-soft2'),s4.uuid_fixture('asig-soft'))
 ON CONFLICT(asignacion_tribunal_id) DO NOTHING;
 
--- Rúbrica de prueba; NO ES una rúbrica oficial.
+-- Rúbrica VIGENTE de Proyecto Integrador (Comisión Académica carreras TIC's, FCVT), tomada de
+-- «RUBRICA DEFENSA TRABAJO IC 5 PUNTOS» (docs/s4/Plantillas-documentos):
+--   Parte I  · Revisión proyecto escrito (50 %, 5 puntos): A 1.00 + B 1.00 + C 3.00
+--   Parte II · Sustentación del proyecto (50 %, 5 puntos): D 2.50 + E 2.50
+-- La misma estructura está en backend/fixtures/s4-rubrica-vigente-proyecto-integrador.sql (para bases ya
+-- creadas o la base integrada): mantenga ambas iguales. Se conservan las claves 'version-proyecto',
+-- 'stage-written' y 'stage-oral' porque las usan 003, s4-carga-volumen-dev.sql y etapa-5-rubrica-mer.sql.
 INSERT INTO s4.rubricas(id,id_modalidad,nombre,descripcion) VALUES
  (s4.uuid_fixture('rubric-proyecto'),s4.uuid_fixture('mod-proyecto'),
-  'DEV - Rúbrica ficticia de integración','No usar en producción')
+  'Rúbrica de evaluación de trabajo de integración curricular',
+  'Fuente: Comisión Académica carreras Tic´s Facultad de Ciencias de la Vida y Tecnologías')
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO s4.versiones_rubrica
  (id,id_rubrica,periodo_academico_id,version,estado,revision,activada_en) VALUES
  (s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('rubric-proyecto'),
-  s4.uuid_fixture('periodo-2026b'),'DEV-1','ACTIVA',1,now())
+  s4.uuid_fixture('periodo-2026b'),'V1','ACTIVA',1,now())
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO s4.etapas_rubrica
  (id,id_version_rubrica,kind,scope,codigo,nombre,calificacion_maxima,porcentaje,orden)
 VALUES
  (s4.uuid_fixture('stage-written'),s4.uuid_fixture('version-proyecto'),'ESCRITA',
-  'TRABAJO_COMPARTIDO','DEV-E','Escrita compartida',10.00,50.00,1),
+  'TRABAJO_COMPARTIDO','ESCRITA','Revisión proyecto escrito',5.00,50.00,1),
  (s4.uuid_fixture('stage-oral'),s4.uuid_fixture('version-proyecto'),'ORAL',
-  'ESTUDIANTE_INDIVIDUAL','DEV-O','Oral individual',10.00,50.00,2)
+  'ESTUDIANTE_INDIVIDUAL','ORAL','Sustentación del proyecto',5.00,50.00,2)
 ON CONFLICT(id) DO NOTHING;
+-- El orden de las categorías es único en toda la versión (lo exige la activación).
 INSERT INTO s4.categorias_rubrica
- (id,id_version_rubrica,id_etapa_rubrica,codigo,nombre,calificacion_maxima,orden) VALUES
- (s4.uuid_fixture('cat-written'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-written'),
-  'DEV-A','Categoría escrita ficticia',10.00,1),
- (s4.uuid_fixture('cat-oral'),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture('stage-oral'),
-  'DEV-B','Categoría oral ficticia',10.00,1)
+ (id,id_version_rubrica,id_etapa_rubrica,codigo,nombre,calificacion_maxima,orden)
+SELECT s4.uuid_fixture('cat-' || lower(c.codigo)),s4.uuid_fixture('version-proyecto'),s4.uuid_fixture(c.etapa),
+  c.codigo,c.nombre,c.maximo,c.orden
+FROM (VALUES
+ ('stage-written','A','Resumen e introducción',1.00,1),
+ ('stage-written','B','Marco teórico de la investigación',1.00,2),
+ ('stage-written','C','Diagnóstico o estudio de campo',3.00,3),
+ ('stage-oral','D','Empoderamiento y defensa del trabajo realizado',2.50,4),
+ ('stage-oral','E','Conclusiones y Propuesta',2.50,5)
+) AS c(etapa,codigo,nombre,maximo,orden)
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO s4.indicadores_rubrica
- (id,id_categoria,label,descripcion,calificacion_maxima,orden) VALUES
- (s4.uuid_fixture('ind-written'),s4.uuid_fixture('cat-written'),'DEV-1','Indicador escrito',10.00,1),
- (s4.uuid_fixture('ind-oral'),s4.uuid_fixture('cat-oral'),'DEV-1','Indicador oral',10.00,1)
+ (id,id_categoria,label,descripcion,calificacion_maxima,orden)
+SELECT s4.uuid_fixture('ind-' || lower(i.categoria) || i.orden),s4.uuid_fixture('cat-' || lower(i.categoria)),
+  i.categoria || i.orden,i.descripcion,i.maximo,i.orden
+FROM (VALUES
+ ('A',1,'El resumen o síntesis hace referencia al objetivo planteado',0.33),
+ ('A',2,'Aborda el problema, métodos y técnicas de manera lógica y coherente',0.33),
+ ('A',3,'La introducción resume de manera descriptiva el contexto, justificación, interrogantes de estudio en relación con el tema investigado.',0.34),
+ ('B',1,'En el marco teórico se evidencia el análisis de los principales conceptos y posiciones que se manejan en la teoría sobre el tema que se investiga.',0.33),
+ ('B',2,'Se define de manera asertiva citas y ejemplos de otras investigaciones realizadas sobre la temática que direcciona a la investigación.',0.33),
+ ('B',3,'Evidencia la adopción de una postura teórica y el análisis crítico en relación con qué criterios comparten y cuáles no comparten.',0.34),
+ ('C',1,'Se aplica una metodología que cubra las etapas del desarrollo del proyecto integrador.',1.00),
+ ('C',2,'Se evidencia en la propuesta y su relación con la temática planteada: análisis, diseño e implementación de Tecnologías de Información.',1.00),
+ ('C',3,'El informe presenta coherencia, cohesión léxica, cohesión gramatical.',1.00),
+ ('D',1,'Evidencia empoderamiento de la temática de manera lógica y coherente.',0.83),
+ ('D',2,'Justifica el problema, desde las interrogantes de estudio en relación con el tema investigado, los objetivos planteados en el problema, métodos y técnicas aplicadas.',0.83),
+ ('D',3,'Demuestra conocimientos sobre los principales conceptos del tema, evidenciando una postura desde el análisis crítico, hacia los criterios que comparte.',0.84),
+ ('E',1,'Dominio sobre los resultados obtenidos, que permitan ver de manera clara los diferentes métodos y técnicas de investigación aplicadas.',0.83),
+ ('E',2,'Demuestra que las conclusiones son pertinentes y coherentes con los resultados de la investigación.',0.83),
+ ('E',3,'La propuesta es pertinente y se apoya en teorías que fortalecen la temática investigada',0.84)
+) AS i(categoria,orden,descripcion,maximo)
 ON CONFLICT(id) DO NOTHING;
 INSERT INTO s4.versiones_rubrica_carreras
  (id_version_rubrica,id_carrera,id_rubrica,id_modalidad,periodo_academico_id,asociado_en)

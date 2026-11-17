@@ -85,7 +85,9 @@ describe('registro API de evaluaciones', () => {
     const html = markup({ evaluaciones: [evaluacion('CERRADA')] });
     expect(html).toContain('Cerrada');
     expect(html).toContain('no admite cambios');
-    expect(html).toContain(`/rubrica/${ids.trabajo}/${ids.estudiante}/${ids.miembro}`);
+    // Botón que abre la rúbrica en el visor de PDF del navegador, sin pasar por otra pantalla.
+    expect(html).toMatch(/<button type="button" class="button button-outline">[^]*Abrir rúbrica PDF de/);
+    expect(html).not.toContain('/rubrica/');
     expect(html).not.toContain('puntaje-');
     expect(html).not.toContain('Cerrar evaluación</button>');
   });

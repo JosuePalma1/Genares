@@ -108,10 +108,14 @@ describe('Documentos de rúbricas y actas internas', () => {
   it('prepara la rúbrica y ambas plantillas de acta sobre 10', () => {
     const datos = fixture();
     const rubrica = camposRubrica(rubricaDocumental(datos, 'a', 'm1'));
-    expect(rubrica.partes.map(({ categorias }) => categorias[0].filas[1][0])).toEqual([
-      '1. Indicador ñ y tildes — Texto original', '1. Indicador ñ y tildes — Texto original',
+    // Como la plantilla: solo el texto del indicador (sin su código) y la nota de la evaluación cerrada.
+    expect(rubrica.partes.map(({ categorias }) => categorias[0].filas[0])).toEqual([
+      { texto: 'Texto original', valor: '10.00', nota: '9.20' }, { texto: 'Texto original', valor: '10.00', nota: '8.50' },
     ]);
-    expect(rubrica.resumen.at(-1)).toEqual(['CALIFICACIÓN FINAL CONSOLIDADA', '10.00', '9.00']);
+    expect(rubrica.partes.map(({ numero, titulo }) => `${numero} ${titulo}`)).toEqual(['I ETAPA COMPARTIDA (50%) 10 PUNTOS', 'II ETAPA PROPIA (50%) 10 PUNTOS']);
+    expect(rubrica.resumen.final).toEqual({ valor: '10.00', nota: '9.00' });
+    datos.evaluaciones[0].estado = 'BORRADOR';
+    expect(camposRubrica(rubricaDocumental(datos, 'a', 'm1')).partes[0].categorias[0].filas[0].nota).toBe('');
     expect(camposPat04(datos, 'a', 'No. 002-2026-2-TI', '9.00', true)).toContainEqual({
       original: '16/20', valor: '9.00/10', letras: 'nueve coma cero cero',
     });

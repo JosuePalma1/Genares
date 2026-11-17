@@ -95,6 +95,8 @@ El resultado se calcula primero por evaluador y por componente comparable; luego
 
 Para el instrumento documentado: Revisión escrita máximo 5 puntos + sustentación oral máximo 5 puntos = resultado final máximo 10. Si el acta presenta cada componente sobre 10, se expresa «nota del componente sobre 5 × 2» y la calificación final conserva la suma original de sus aportes sobre 5. Ejemplo: escrita 4,20/5 → 8,40/10 en acta; oral 4,50/5 → 9,00/10; final 8,70/10.
 
+La versión de rúbrica aplicable define la escala final (10, 20 o 100). Escrita y oral mantienen sus máximos propios y se combinan con los pesos configurados. El umbral de aprobación se expresa como porcentaje y se compara con la nota publicada en la escala de la versión. Con 70 % como mínimo, 6,996 sobre 10 se publica como 7,00 y aprueba.
+
 Regla de presentación de dos decimales (HALF\_UP): se inspecciona el tercer decimal de la magnitud exacta; si es mayor o igual que 5 se suma una centésima, en otro caso se conservan las centésimas. Casos obligatorios: 9,445 → 9,45; 9,446 → 9,45; 9,444 → 9,44.
 
 # 4. Requisitos funcionales — 48 RF
@@ -177,8 +179,8 @@ Cada requisito incluye un comportamiento obligatorio y una verificación mínima
 
 | **CÓDIGO / NOMBRE** | **REQUISITO Y VERIFICACIÓN** |
 | --- | --- |
-| **RF-43**  **PDF de rúbrica institucional** | Generar la «Rúbrica de evaluación de trabajo de integración curricular» con la estructura de la versión aplicable: categorías, indicadores, máximos, obtenidos, subtotales y final /10.  **Verificación:** El PDF conserva valores/estructura de la plantilla aplicable y no altera notas. |
-| **RF-44**  **PDF de acta interna** | Generar el «Acta de calificación de titulación» con los componentes de evaluación aplicables a la modalidad y versión de rúbrica correspondiente, los datos del estudiante, tema, modalidad, fecha y hora, calificación final sobre 10, declaración prevista y espacios de firmas, respetando la estructura institucional autorizada.  **Verificación:** Si el origen es 5+5, normaliza los componentes para exhibición sin sumar 20. |
+| **RF-43**  **PDF de rúbrica institucional** | Generar la «Rúbrica de evaluación de trabajo de integración curricular» con la estructura de la versión aplicable: categorías, indicadores, máximos, obtenidos, subtotales y resultado en la escala final de la versión.  **Verificación:** El PDF conserva valores/estructura de la plantilla aplicable y no altera notas. |
+| **RF-44**  **PDF de acta interna** | Generar el «Acta de calificación de titulación» con los componentes de evaluación aplicables a la modalidad y versión de rúbrica correspondiente, los datos del estudiante, tema, modalidad, fecha y hora, calificación final en la escala de la versión, declaración prevista y espacios de firmas, respetando la estructura institucional autorizada.  **Verificación:** Si el origen es 5+5, normaliza los componentes para exhibición sin sumar 20. |
 | **RF-45**  **Acceso y archivo documental** | Autorizar la generación/consulta de cada PDF por rol y carrera; archivar tipo, versión, trabajo, estudiante, fecha y referencia al archivo generado.  **Verificación:** Secretaría y autoridades solo acceden a documentos permitidos. |
 
 ## 4.8. Sustentaciones y concurrencia
@@ -298,8 +300,8 @@ S4 no registrará automáticamente las calificaciones en el Sistema de Gestión 
 
 | **DOCUMENTO** | **CONTENIDO MÍNIMO** | **CONDICIONES** |
 | --- | --- | --- |
-| **PDF 1 — Rúbrica de evaluación del trabajo de integración curricular** | Plantilla aplicable; categorías A–E cuando correspondan; indicadores, máximos, notas, subtotales, resultado /10. | Basado en versión real; sin inventar categorías o etapas que la rúbrica no tenga. |
-| **PDF 2 — Acta de calificación de titulación (uso interno)** | Institución, fecha/hora, estudiante e identificación, tema, modalidad, título académico, trabajo /10, oral /10, final /10, declaración y espacios para Decano, tribunal, graduado y Secretaría. | Componentes normalizados para visualizar /10; final /10; firmas solo como espacios físicos/documentales. |
+| **PDF 1 — Rúbrica de evaluación del trabajo de integración curricular** | Plantilla aplicable; categorías A–E cuando correspondan; indicadores, máximos, notas, subtotales, resultado en la escala de la versión. | Basado en versión real; sin inventar categorías o etapas que la rúbrica no tenga. |
+| **PDF 2 — Acta de calificación de titulación (uso interno)** | Institución, fecha/hora, estudiante e identificación, tema, modalidad, título académico, trabajo /10, oral /10, resultado en la escala de la versión, declaración y espacios para Decano, tribunal, graduado y Secretaría. | Componentes normalizados para visualizar /10; resultado en la escala de la versión; firmas solo como espacios físicos/documentales. |
 
 Ambos PDFs son de salida controlada, se generan desde evaluaciones confirmadas, se archivan con identificación de versión y no cambian sus calificaciones de origen. No se implementa firma electrónica ni envío automático al SGA.
 

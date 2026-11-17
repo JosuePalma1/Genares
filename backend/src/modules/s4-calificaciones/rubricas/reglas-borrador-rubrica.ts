@@ -121,7 +121,7 @@ export const validarEstructuraBorradorRubrica = (estructura: ActualizarVersionRu
   }
 };
 
-/** Reglas de activación ya presentes en PostgreSQL; no aplica sumas de porcentajes ni otros criterios. */
+/** Valida las etapas exigidas y su esquema de calificación antes de activar. */
 export const validarEstructuraActivableRubrica = (estructura: ActualizarVersionRubricaDto): void => {
   const tipos = new Set(estructura.etapas.map(({ tipo }) => tipo));
   if (
@@ -139,4 +139,14 @@ export const validarEstructuraActivableRubrica = (estructura: ActualizarVersionR
     throw new BadRequestException('Cada categoría debe tener al menos un indicador.');
   }
   validarEstructuraBorradorRubrica(estructura);
+  const conPeso = estructura.etapas.filter((etapa) => etapa.porcentaje != null);
+  if (conPeso.length > 0) {
+    if (conPeso.length !== estructura.etapas.length) {
+      throw new BadRequestException('Indique el porcentaje de todas las etapas o de ninguna.');
+    }
+    compararSumatoria(
+      conPeso.map((etapa) => maximoCentavos(etapa.porcentaje!, 3, 'El porcentaje de etapa')),
+      10000n, 'los porcentajes de las etapas',
+    );
+  }
 };

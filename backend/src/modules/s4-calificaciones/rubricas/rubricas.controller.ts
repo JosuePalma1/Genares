@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpStatus,
@@ -12,6 +13,7 @@ import {
   Put,
   Query,
   Req,
+  StreamableFile,
 } from '@nestjs/common';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
@@ -102,6 +104,15 @@ export class RubricasController {
 @Controller({ path: 'versiones-rubrica', version: '1' })
 export class VersionesRubricaController {
   constructor(private readonly rubricas: RubricasService) {}
+
+  /** Vista previa en PDF de la versión, sin datos de evaluación; el navegador la abre en su visor. */
+  @Get(':id/pdf')
+  @RequiereCapacidades('rubricas:leer')
+  @Header('Access-Control-Expose-Headers', 'Content-Disposition')
+  async pdf(@Param('id', new ParseUUIDPipe()) id: string) {
+    const pdf = await this.rubricas.pdfVersion(id);
+    return new StreamableFile(pdf, { type: 'application/pdf', disposition: 'inline; filename="rubrica-vista-previa.pdf"' });
+  }
 
   @Put(':id')
   @RequiereCapacidades('rubricas:administrar')

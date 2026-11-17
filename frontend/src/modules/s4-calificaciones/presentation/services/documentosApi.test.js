@@ -19,7 +19,10 @@ describe('servicio de actas archivadas', () => {
         status: 200, headers: { 'content-type': 'application/json' },
       }))
       .mockResolvedValueOnce(new Response(pdf, {
-        status: 200, headers: { 'content-type': 'application/pdf' },
+        status: 200, headers: {
+          'content-type': 'application/pdf',
+          'content-disposition': `inline; filename="Estudiante de prueba - acta.pdf"; filename*=UTF-8''Estudiante%20de%20prueba%20-%20acta.pdf`,
+        },
       }));
     vi.stubGlobal('fetch', fetcher);
 
@@ -28,6 +31,7 @@ describe('servicio de actas archivadas', () => {
     await expect(consultarDocumentos('/actas?carrera=SOFT&periodo=2026-2')).resolves.toEqual(actas);
     const documento = await obtenerPdfDocumento(`/actas/${actas[0].id}/pdf`);
     await expect(documento.text()).resolves.toContain('acta archivada');
+    expect(documento.name).toBe('Estudiante de prueba - acta.pdf');
 
     expect(fetcher.mock.calls[0][0]).toBe('/api/v1/documentos/actas?carrera=SOFT&periodo=2026-2');
     expect(fetcher.mock.calls[0][1]).toMatchObject({ method: 'GET', credentials: 'omit' });

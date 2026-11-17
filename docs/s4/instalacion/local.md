@@ -16,6 +16,8 @@ Edita `backend/.env` y reemplaza `DB_PASSWORD=REEMPLAZAR_LOCALMENTE` por la cont
 
 Los valores `LOCAL_DEV_OPEN_ACCESS=true` y `ENABLE_INTEGRACION_DEV=true` habilitan el flujo de pruebas local. Solo deben usarse en el equipo de desarrollo. El backend y Vite escuchan en loopback, y Vite limita también su proxy a un backend local.
 
+Ejecuta primero `backend/fixtures/s4-escalas-calificacion.sql` en pgAdmin como propietario del esquema S4. Convierte el umbral anterior a porcentaje y conserva las rúbricas y actas existentes sobre 10.
+
 Si el rol `genares` aún no tiene los permisos del MER, ejecuta manualmente `backend/fixtures/permisos-consulta-mer.sql` y `backend/fixtures/permisos-operacion-s4.sql` desde pgAdmin como `postgres`, conectado a `genares_integrado_dev`. Estos scripts aplican permisos e inicializan el valor local de nota mínima; no alteran las tablas académicas de S1, S2 o S3.
 
 ## Iniciar ambos servicios

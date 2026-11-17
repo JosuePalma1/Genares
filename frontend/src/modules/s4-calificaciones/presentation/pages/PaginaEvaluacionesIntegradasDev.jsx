@@ -96,7 +96,10 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
     const valor = notas[id]?.score;
     return valor != null && String(valor).trim() !== '';
   });
-  const consolidado = datos?.consolidados?.find(({ idEstudiante }) => idEstudiante === estudiante?.id)?.total;
+  const resultadoEstudiante = datos?.consolidados?.find(({ idEstudiante }) => idEstudiante === estudiante?.id);
+  const consolidado = resultadoEstudiante?.total;
+  // La nota se expresa en la escala de la versión de rúbrica (10, 20 o 100), no en un 10 fijo.
+  const escalaConsolidado = resultadoEstudiante?.resultadoFinal?.calificacionMaxima ?? Number(datos?.escalaFinal ?? 10).toFixed(2);
 
   useEffect(() => {
     if (!claveRespaldo) return;
@@ -347,7 +350,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
         <h2>Resultado consolidado de {estudiante.nombre}</h2>
         {consolidado == null
           ? <p>El resultado aparece cuando el tribunal completa y cierra todas las evaluaciones requeridas.</p>
-          : <p><strong>{consolidado} / 10.00</strong></p>}
+          : <p><strong>{consolidado} / {escalaConsolidado}</strong></p>}
       </section>}
       <div className="em-volver"><Link className="button button-outline" to={`/trabajos/${asignacionId}`}>Volver al expediente</Link></div>
     </>}

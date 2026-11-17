@@ -14,6 +14,7 @@ interface IdentidadProceso {
   tema: string;
   idVersionRubrica: string;
   versionRubrica: string;
+  escalaFinal: number;
   estadoProceso: string;
   estadoRegistro: 0 | 1;
   permisoCierre: boolean;
@@ -39,7 +40,7 @@ export interface ParticipanteMer {
 /** Proceso evaluable del trabajo con su versión de rúbrica visible ($1 = asignación). */
 export const CONSULTA_PROCESO_EXPEDIENTE = `
   SELECT p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
-         p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica",
+         p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica", vr.escala_final AS "escalaFinal",
          -- Paso 1 §3.1: el estado del trabajo se calcula desde los datos, como en Trabajos e Inicio.
          estado_calculado.estado AS "estadoProceso",
          p.estado_registro AS "estadoRegistro",
@@ -271,7 +272,7 @@ export class EvaluacionesMerService {
       ...proceso, estudiantes, evaluadores: evaluadoresSeleccionables, evaluadoresTribunal,
       etapas: etapasVisibles, evaluaciones: evaluacionesVisibles,
       consolidados: estudiantes.map(({ id }) => {
-        const resultado = detallarConsolidacionMer(etapas, idsEvaluadores, evaluaciones, id);
+        const resultado = detallarConsolidacionMer(etapas, idsEvaluadores, evaluaciones, id, proceso.escalaFinal);
         return { idEstudiante: id, total: resultado.resultadoFinal?.calificacion ?? null, ...resultado,
           // El cálculo usa los totales guardados; aquí solo se oculta la estructura retirada.
           etapas: resultado.etapas.filter((etapa) => Number(etapa.estadoRegistro ?? 1) === 1).map((etapa) => ({

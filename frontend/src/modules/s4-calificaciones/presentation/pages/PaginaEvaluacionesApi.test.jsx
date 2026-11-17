@@ -156,8 +156,9 @@ describe('presentación de consulta API de evaluaciones', () => {
     const consolidacion = workConsolidation();
     const resultado = consolidacion.estudiantes[0];
     const markup = html(createElement(PanelResultadoIndividualApi, { resultado }));
-    expect(markup).toContain(`/rubrica/${ids.job}/${ids.studentA}/${ids.member}`);
-    expect(markup).toContain('Ver rúbrica PDF');
+    // Es un botón que abre el PDF en el visor del navegador, no un enlace a otra pantalla de Genares.
+    expect(markup).toMatch(/<button type="button" class="button button-outline">[^]*Ver rúbrica PDF · Miembro 1/);
+    expect(markup).not.toContain('/rubrica/');
   });
 
   it('muestra el resultado si una etapa llega sin evaluadores esperados', () => {
