@@ -108,8 +108,13 @@ Orden de trabajo:
      - la rúbrica sale en 2 páginas, como el original;
      - cada acta en 1 página;
      - tardan menos de 0,2 s.
+   - **Hecho (17/11/2026):**
+     - el PDF lleva el **nombre completo del estudiante** en su nombre de archivo («María Estudiante TI B - rúbrica miembro 2.pdf») y en su título;
+     - la línea «Fuente: Comisión Académica…» bajo la última tabla de cada parte, fija para la Facultad de Ciencias de la Vida y Tecnologías;
+     - en las actas, la vista previa dice «No. (sin número)»;
+     - la rúbrica se ve aunque no haya evaluaciones, con las casillas de calificación vacías.
+   - **Aviso:** el visor del navegador abre el PDF desde una dirección temporal y puede proponer otro nombre al guardar. Para que siempre use el del servidor habría que abrir la dirección real, lo que depende de cómo sea la autenticación institucional.
    - **Falta:**
-     - la cédula en el nombre del archivo;
      - la letra de cada categoría (ver arriba);
      - la escala real en el resumen: sigue «10.00» fijo, que se resuelve en el paso 1.
      - **Rúbrica igual a la plantilla (17/11/2026).** Se midió el PDF oficial (posiciones, tamaños, bordes e imágenes) y se copió. Usa **Carlito**, una letra libre (licencia OFL, en `Plantillas-documentos/fuentes/`) con las mismas medidas que la Calibri del original. Lleva:
@@ -137,7 +142,25 @@ Orden de trabajo:
    Mientras tanto, para un año nuevo se usa **«Nueva versión basada en…»**, que ya existe: se copia la versión anterior y se cambian solo los números.
 5. **Actas PAT-01 y PAT-04.** Ya se dibujan con `pdfkit` (ver el paso 3), así que no hace falta `pdf-lib` ni crear casillas en el PDF. El texto de cada acta está copiado literalmente en `documentos/pdf-actas.ts`. Si la institución publica una revisión nueva, hay que copiar ahí el texto nuevo.
 
-   **Falta** rellenar los datos que hoy quedan con «…» o «xx»: fecha, ciudad, títulos y nombres del tribunal (ver «Preguntas para las autoridades»).
+   **Datos que Genares ya rellena (17/11/2026):**
+   - estudiante, cédula, título del trabajo, modalidad, carrera, notas y resultado;
+   - la fecha y la hora de la última sesión programada del estudiante, en letras y en número. Sin sesión programada se conservan los «xx» del formato.
+
+   Comprobado con un acta real de la base local.
+
+   **Firmas: no las rellena el sistema (decisión de Josué, 17/11/2026).**
+   - Los títulos y nombres de presidente, miembros, graduado, tutor y autoridades los completa la facultad a mano; es información interna suya.
+   - El acta imprime esa parte tal cual el formato.
+   - Por eso no hace falta pedir a S3 quién preside cada tribunal.
+
+   **El resto de huecos se queda como en el formato (decisión de Josué, 17/11/2026):** ciudad, literal (a o b) y título que se obtiene. Para las actas PAT no hace falta tanta precisión, así que **no** se construye el modal de «Datos pendientes del acta» ni la configuración por carrera.
+
+   Si en el futuro llega otro documento que sí los necesite, la idea sigue siendo:
+   1. configurar una vez los datos fijos;
+   2. un modal solo para lo que cambie en cada documento;
+   3. archivar esos valores junto al PDF.
+
+   **Descartado (17/11/2026):** subir el PDF oficial y marcar los espacios a mano. Exigiría un editor visual de PDF y es frágil con textos largos. Para la rúbrica no sirve, porque sus tablas crecen con cada versión.
 
 **Descartado:** subir el PDF de la rúbrica y dibujar encima los campos a mano. Exigiría construir un editor visual de PDF dentro del sistema, sería engorroso para coordinación y se rompería con cualquier cambio de formato.
 
@@ -279,7 +302,7 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
 
    **Falta:**
    - **APK Android:** el visor del WebView no muestra PDF. Para descargarlo o abrirlo con la app de PDF del teléfono hace falta un plugin de Capacitor (`@capacitor/filesystem` u otro parecido), y eso cambia `package.json`, que es compartido. Hay que consultarlo.
-   - **Nombre al descargar desde el visor:** por ahora es un código interno; lo resuelve la tarea de la cédula en el nombre.
+   - **Nombre al descargar desde el visor:** el servidor ya envía el nombre del estudiante, pero el visor puede proponer otro (ver «Aviso» en el plan del núcleo).
    - **Documentos:** un enlace con trabajo, estudiante y miembro ya no abre la rúbrica solo (el navegador lo bloquearía); deja todo seleccionado para pulsar «Visualizar rúbrica».
    - Lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…».
 

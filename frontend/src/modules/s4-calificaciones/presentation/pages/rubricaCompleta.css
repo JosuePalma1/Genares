@@ -48,6 +48,8 @@
 .rubrica-completa-metadata .field {
   min-width: 0;
   margin: 0;
+  /* Cada campo mide lo suyo: sin esto, el de al lado (con nota debajo) estira la caja del que no la tiene. */
+  align-content: start;
 }
 
 .rubrica-completa-metadata label,

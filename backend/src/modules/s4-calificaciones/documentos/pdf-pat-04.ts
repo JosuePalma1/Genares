@@ -1,6 +1,21 @@
 import { DatosDocumentales, notaEtapaSobreDiez } from './modelo-documental';
-import { notaEnLetras } from './reglas-acta';
+import { fechaSustentacionActa, notaEnLetras } from './reglas-acta';
 import { dibujarActaPdf } from './pdf-actas';
+
+/** Título del PDF: «Nombre completo - acta PAT-xx». */
+function tituloActa(datos: DatosDocumentales, estudianteId: string, formato: string) {
+  const estudiante = datos.estudiantes.find(({ id }) => id === estudianteId);
+  return `${estudiante ? `${estudiante.nombres} ${estudiante.apellidos} - ` : ''}acta ${formato}`;
+}
+
+/** Última sesión programada (no cancelada) del estudiante; de ahí salen la fecha y la hora del acta. */
+function sesionDelEstudiante(datos: DatosDocumentales, estudianteId: string) {
+  const sesiones = (datos.sesiones ?? []).filter((sesion) => sesion.estudianteId === estudianteId);
+  return sesiones.length ? sesiones[sesiones.length - 1] : null;
+}
+
+// Las firmas (títulos y nombres del tribunal, graduado, tutor y autoridades) las completa la facultad a mano:
+// el sistema no las rellena (decisión de Josué, 17/11/2026).
 
 export function camposPat04(datos: DatosDocumentales, estudianteId: string, numero: string, final?: string, aprobado?: boolean) {
   const estudiante = datos.estudiantes.find(({ id }) => id === estudianteId);
@@ -27,11 +42,23 @@ export function camposPat04(datos: DatosDocumentales, estudianteId: string, nume
     { original: 'APROBADO', valor: final ? (aprobado ? 'APROBADO' : 'REPROBADO') : 'RESULTADO PENDIENTE' },
     { original: '… (NOMBRES).', valor: ` ${nombre}.` },
     { original: '………………….', valor: datos.trabajo.carrera || 'Por confirmar' },
+    ...camposFecha(datos, estudianteId),
+  ];
+}
+
+/** Fecha y hora de la sustentación; sin sesión programada, el acta conserva los huecos «xx» del formato. */
+function camposFecha(datos: DatosDocumentales, estudianteId: string) {
+  const sesion = sesionDelEstudiante(datos, estudianteId);
+  if (!sesion) return [];
+  const fecha = fechaSustentacionActa(sesion.fecha, sesion.hora);
+  return [
+    { original: 'a los xx días del mes xxxx del dos mil xxxx (fecha en letras), siendo las 00h00', valor: fecha.enLetras },
+    { original: 'xx de xxxx del 20xx', valor: fecha.numerica },
   ];
 }
 
 export function pdfPat04(datos: DatosDocumentales, estudianteId: string, numero: string, final?: string, aprobado?: boolean) {
-  return dibujarActaPdf('PAT-04-F-017', camposPat04(datos, estudianteId, numero, final, aprobado));
+  return dibujarActaPdf('PAT-04-F-017', camposPat04(datos, estudianteId, numero, final, aprobado), tituloActa(datos, estudianteId, 'PAT-04-F-017'));
 }
 
 export function camposPat01(datos: DatosDocumentales, estudianteId: string, numero: string, final?: string, aprobado?: boolean) {
@@ -45,5 +72,5 @@ export function camposPat01(datos: DatosDocumentales, estudianteId: string, nume
 }
 
 export function pdfPat01(datos: DatosDocumentales, estudianteId: string, numero: string, final?: string, aprobado?: boolean) {
-  return dibujarActaPdf('PAT-01-F-019', camposPat01(datos, estudianteId, numero, final, aprobado));
+  return dibujarActaPdf('PAT-01-F-019', camposPat01(datos, estudianteId, numero, final, aprobado), tituloActa(datos, estudianteId, 'PAT-01-F-019'));
 }

@@ -168,6 +168,14 @@ function tablaResumen(doc: Documento, resumen: RubricaPdf['resumen'], arriba: nu
   });
 }
 
+/** Línea «Fuente: …» en cursiva bajo la última tabla de cada parte, como en la plantilla (8 pt). */
+const FUENTE_RUBRICA = "Comisión Académica carreras Tic´s Facultad de Ciencias de la Vida y Tecnologías";
+function fuente(doc: Documento, debajoDe: number, x: number) {
+  const y = debajoDe + 8.3 - ASCENDENTE * 8;
+  doc.font(LETRA.negritaCursiva).fontSize(8).fillColor('black').text('Fuente: ', x, y, { continued: true, lineBreak: false, lineGap: 0 });
+  doc.font(LETRA.cursiva).text(FUENTE_RUBRICA, { lineBreak: false, lineGap: 0 });
+}
+
 /** Firma del miembro del tribunal. La primera parte usa una raya y las siguientes guiones, como el original. */
 function firma(doc: Documento, debajoDe: number, primera: boolean) {
   const separacion = primera ? 61 : 52.4;
@@ -210,8 +218,8 @@ function decorar(doc: Documento) {
   }
 }
 
-export function dibujarRubricaPdf(datos: RubricaPdf): Promise<Buffer> {
-  const doc = crearDocumento('Rúbrica de evaluación', { top: 106.35, bottom: 841.89 - LIMITE_INFERIOR, left: MARGEN_IZQUIERDO, right: 85.05 });
+export function dibujarRubricaPdf(datos: RubricaPdf, tituloPdf = 'Rúbrica de evaluación'): Promise<Buffer> {
+  const doc = crearDocumento(tituloPdf, { top: 106.35, bottom: 841.89 - LIMITE_INFERIOR, left: MARGEN_IZQUIERDO, right: 85.05 });
   registrarLetras(doc);
   const ancho = MARGEN_DERECHO - MARGEN_IZQUIERDO;
   // Centrado entre márgenes; `desplazamiento` reproduce las sangrías de la plantilla en algunos renglones.
@@ -241,6 +249,7 @@ export function dibujarRubricaPdf(datos: RubricaPdf): Promise<Buffer> {
       escribir(doc, 'RESUMEN DE LA EVALUACIÓN', 87.2, abajo + 12.3, { letra: LETRA.negrita, tamano: 11 });
       abajo = tablaResumen(doc, datos.resumen, abajo + 21.4);
     }
+    fuente(doc, abajo, primera ? 88 : 85.6);
     firma(doc, abajo, primera);
   });
 

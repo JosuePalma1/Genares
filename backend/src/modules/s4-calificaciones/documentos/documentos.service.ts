@@ -6,6 +6,7 @@ import { CONSULTA_PERIODOS } from '../trabajos/trabajos.service';
 import { leerPaginacion, periodoAplicado, TODOS_LOS_PERIODOS } from '../trabajos/paginacion-trabajos';
 import { pendientesActa, resultadoFinalActa, rubricaDocumental } from './modelo-documental';
 import { archivarActaEn } from './archivo-actas';
+import { nombreArchivoPdf } from './nombre-archivo-pdf';
 import { pdfActaInterna, pdfActaPreliminar, pdfRubrica } from './pdf-documental';
 import { PLANTILLAS } from './plantillas-institucionales';
 import { centesimasActa, decimalActaDesdeCentesimas, notaAprobada, notaMinimaEnEscala } from './reglas-acta';
@@ -101,15 +102,25 @@ export class DocumentosService {
     return rubricaDocumental(await this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion), estudianteId, miembroId);
   }
 
+  /** El PDF y su nombre de archivo: «Nombre completo del estudiante - rúbrica miembro N.pdf». */
   async rubricaPdf(trabajoId: string, estudianteId: string, miembroId: string, actor: string, puedeConsultarDemostracion = false) {
-    return pdfRubrica(await this.rubrica(trabajoId, estudianteId, miembroId, actor, puedeConsultarDemostracion));
+    const modelo = await this.rubrica(trabajoId, estudianteId, miembroId, actor, puedeConsultarDemostracion);
+    const posicion = (modelo.evaluador as { posicion?: number }).posicion;
+    return {
+      pdf: await pdfRubrica(modelo),
+      nombre: nombreArchivoPdf(`${modelo.estudiante.nombres} ${modelo.estudiante.apellidos}`, posicion ? `rúbrica miembro ${posicion}` : 'rúbrica'),
+    };
   }
 
   async preliminar(trabajoId: string, estudianteId: string, formato: FormatoActaDto['formato'], actor: string, puedeConsultarDemostracion = false) {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion);
     const pendientes = pendientesActa(datos, estudianteId);
     const configuracion = await this.valorNotaMinima();
-    return pdfActaPreliminar(datos, estudianteId, formato, pendientes, notaMinimaEnEscala(configuracion.valor, datos.rubrica.escalaFinal ?? 10));
+    const estudiante = datos.estudiantes.find(({ id }) => id === estudianteId);
+    return {
+      pdf: await pdfActaPreliminar(datos, estudianteId, formato, pendientes, notaMinimaEnEscala(configuracion.valor, datos.rubrica.escalaFinal ?? 10)),
+      nombre: nombreArchivoPdf(estudiante && `${estudiante.nombres} ${estudiante.apellidos}`, `acta preliminar ${formato}`),
+    };
   }
 
   async emitir(trabajoId: string, estudianteId: string, dto: FormatoActaDto, actor: string, puedeConsultarDemostracion = false) {
@@ -178,7 +189,9 @@ export class DocumentosService {
   async archivada(id: string, actor: string, conPdf = false, puedeConsultarDemostracion = false) {
     const [acta] = await this.db.query(`SELECT ar.id,ar.numero,ar.formato,ar.revision,
       ar.generado_en AS "generadoEn",ar.sha256,ar.nota_final::text AS "notaFinal",
-      ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.escala_final AS escala,ar.aprobado${conPdf ? ',ar.pdf' : ''}
+      ar.nota_minima_aplicada::text AS "notaMinimaAplicada",ar.escala_final AS escala,ar.aprobado,
+      (SELECT pe.nombres || ' ' || pe.apellidos FROM gen.estudiante es JOIN gen.persona pe ON pe.id = es.persona_id
+        WHERE es.id = ar.id_estudiante) AS estudiante${conPdf ? ',ar.pdf' : ''}
       FROM s4.actas_archivadas ar
       JOIN s4.procesos_evaluacion proceso ON proceso.id = ar.id_proceso_evaluacion AND proceso.estado_registro = 1
       JOIN s2.asignacion_tema t ON t.id = proceso.asignacion_tema_id

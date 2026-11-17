@@ -122,7 +122,8 @@ export function camposRubrica(modelo: ReturnType<typeof rubricaDocumental>): Rub
 }
 
 export function pdfRubrica(modelo: ReturnType<typeof rubricaDocumental>): Promise<Buffer> {
-  return dibujarRubricaPdf(camposRubrica(modelo));
+  // El título del PDF (pestaña del visor) lleva el nombre del estudiante.
+  return dibujarRubricaPdf(camposRubrica(modelo), `${modelo.estudiante.nombres} ${modelo.estudiante.apellidos} - rúbrica`);
 }
 
 export function pdfActaPreliminar(
@@ -138,7 +139,7 @@ export function pdfActaPreliminar(
   const escala = Number(consolidacion?.resultadoFinal?.calificacionMaxima ?? datos.rubrica.escalaFinal ?? 10);
   const aprobado = calificacion !== undefined && notaAprobada(calificacion, notaMinima ?? notaMinimaEnEscala('70', escala), escala);
   const exportar = formato === 'PAT-04-F-017' ? pdfPat04 : pdfPat01;
-  return exportar(datos, estudianteId, 'Vista previa sin número', calificacion, aprobado);
+  return exportar(datos, estudianteId, 'No. (sin número)', calificacion, aprobado);
 }
 
 export function pdfActaInterna(

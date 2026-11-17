@@ -1,6 +1,7 @@
 import { DatosDocumentales } from './modelo-documental';
 import { camposPat01, camposPat04, pdfPat01, pdfPat04 } from './pdf-pat-04';
 import { dibujarActaPdf, rellenarActa } from './pdf-actas';
+import { fechaSustentacionActa, numeroEnLetras } from './reglas-acta';
 import { dibujarRubricaPdf } from './pdf-rubrica';
 import { camposRubricaEnBlanco } from './pdf-documental';
 
@@ -56,7 +57,7 @@ describe('PDF generados con pdfkit, sin Word', () => {
   });
 
   it('marca la nota como pendiente si aún no hay resultado final', () => {
-    const bloques = rellenarActa('PAT-04-F-017', camposPat04(datos(), 'a', 'Vista previa sin número'));
+    const bloques = rellenarActa('PAT-04-F-017', camposPat04(datos(), 'a', 'No. (sin número)'));
     expect(JSON.stringify(bloques)).toContain('RESULTADO PENDIENTE');
     expect((bloques.find((b) => b.tipo === 'tabla') as { filas: string[][] }).filas[3]).toEqual(['Calificación final de titulación', 'Pendiente', 'Pendiente']);
   });
@@ -114,5 +115,53 @@ describe('PDF generados con pdfkit, sin Word', () => {
     expect(corta.subarray(0, 5).toString()).toBe('%PDF-');
     expect(paginas(corta)).toBe(2);
     expect(paginas(await dibujarRubricaPdf(campos(8)))).toBeGreaterThan(2);
+  });
+});
+
+describe('actas: fecha de la sustentación; las firmas quedan para la facultad', () => {
+  const conSesion = () => ({
+    ...datos(),
+    sesiones: [{ estudianteId: 'a', fecha: '2026-12-01', hora: '08:00' }, { estudianteId: 'a', fecha: '2026-12-15', hora: '09:30' }],
+    evaluadores: [{ id: 'm1', nombres: 'Uno', apellidos: 'Docente', posicion: 1 }, { id: 'm2', nombres: 'Dos', apellidos: 'Docente', posicion: 2 }],
+    tutor: { nombres: 'Tutora', apellidos: 'Ficticia' },
+  } as unknown as DatosDocumentales);
+
+  it('escribe la fecha y la hora en letras como en las actas', () => {
+    expect(fechaSustentacionActa('2026-12-15', '09:30')).toEqual({
+      enLetras: 'a los quince días del mes de diciembre del dos mil veintiséis, siendo las 09h30',
+      numerica: '15 de diciembre del 2026',
+    });
+    expect(fechaSustentacionActa('2027-01-01', '08:00').enLetras).toBe('al primer día del mes de enero del dos mil veintisiete, siendo las 08h00');
+    expect(numeroEnLetras(31)).toBe('treinta y uno');
+    expect(() => fechaSustentacionActa('15/12/2026', '09:30')).toThrow();
+  });
+
+  it('usa la última sesión programada del estudiante en las dos actas', () => {
+    const pat04 = JSON.stringify(rellenarActa('PAT-04-F-017', camposPat04(conSesion(), 'a', 'No. 1', '9.00', true)));
+    expect(pat04).toContain('a los quince días del mes de diciembre del dos mil veintiséis, siendo las 09h30');
+    expect(pat04).toContain('Lugar, 15 de diciembre del 2026.');
+    const pat01 = JSON.stringify(rellenarActa('PAT-01-F-019', camposPat01(conSesion(), 'a', 'No. 1', '9.00', true)));
+    expect(pat01).toContain('En la ciudad de Manta, a los quince días del mes de diciembre');
+    expect(pat01).toContain('Manta, 15 de diciembre del 2026.');
+  });
+
+  it('sin sesión programada conserva los huecos del formato', () => {
+    const texto = JSON.stringify(rellenarActa('PAT-04-F-017', camposPat04(datos(), 'a', 'No. 1')));
+    expect(texto).toContain('a los xx días del mes xxxx');
+    expect(texto).toContain('Lugar, xx de xxxx del 20xx.');
+  });
+
+  it('no rellena las firmas: títulos y nombres los completa la facultad a mano', () => {
+    const bloques = rellenarActa('PAT-04-F-017', camposPat04(conSesion(), 'a', 'No. 1', '9.00', true));
+    const firmas = JSON.stringify(bloques.filter((bloque) => bloque.tipo === 'firmas'));
+    expect(firmas).toContain('… (Título académico) …(Nombres)');
+    expect(firmas).toContain('Sr/Señora/Señorita …(Nombres)');
+    expect(firmas).not.toContain('Uno Docente');
+  });
+
+  it('las dos actas con fecha y firmantes siguen ocupando una página', async () => {
+    for (const pdf of [await pdfPat04(conSesion(), 'a', 'No. 2', '9.00', true), await pdfPat01(conSesion(), 'a', 'No. 1', '9.00', true)]) {
+      expect(paginas(pdf)).toBe(1);
+    }
   });
 });

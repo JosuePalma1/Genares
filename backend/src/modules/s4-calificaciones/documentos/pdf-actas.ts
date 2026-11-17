@@ -8,6 +8,7 @@ export type FormatoActa = keyof typeof PLANTILLAS;
 /** Un cambio sobre el texto de la plantilla: se busca `original` y se pone `valor` (y la nota en letras al lado). */
 export interface CambioActa { original: string; valor: string; letras?: string; ocurrencia?: number }
 
+/** Espacio de firma: se imprime tal cual el formato; la facultad completa títulos y nombres a mano. */
 interface Firma { nombre: string; cargos: string[] }
 type Bloque =
   | { tipo: 'parrafo'; texto: string; negrita?: boolean; alineacion?: 'left' | 'center' | 'right' | 'justify'; despues?: number }
@@ -130,10 +131,10 @@ export function rellenarActa(formato: FormatoActa, cambios: readonly CambioActa[
   return bloques;
 }
 
-export function dibujarActaPdf(formato: FormatoActa, cambios: readonly CambioActa[]): Promise<Buffer> {
+export function dibujarActaPdf(formato: FormatoActa, cambios: readonly CambioActa[], titulo = `Acta ${formato}`): Promise<Buffer> {
   const { margenes } = ACTAS[formato];
   const bloques = rellenarActa(formato, cambios);
-  const doc = crearDocumento(`Acta ${formato}`, margenes);
+  const doc = crearDocumento(titulo, margenes);
   const ancho = anchoUtil(doc);
   const x0 = margenes.left;
 
