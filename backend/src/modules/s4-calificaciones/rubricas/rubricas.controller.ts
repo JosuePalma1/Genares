@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   HttpCode,
   HttpStatus,
@@ -107,6 +108,7 @@ export class VersionesRubricaController {
   /** Vista previa en PDF de la versión, sin datos de evaluación; el navegador la abre en su visor. */
   @Get(':id/pdf')
   @RequiereCapacidades('rubricas:leer')
+  @Header('Access-Control-Expose-Headers', 'Content-Disposition')
   async pdf(@Param('id', new ParseUUIDPipe()) id: string) {
     const pdf = await this.rubricas.pdfVersion(id);
     return new StreamableFile(pdf, { type: 'application/pdf', disposition: 'inline; filename="rubrica-vista-previa.pdf"' });

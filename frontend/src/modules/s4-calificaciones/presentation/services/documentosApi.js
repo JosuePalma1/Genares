@@ -2,6 +2,7 @@ import { crearClienteHttp, ErrorApiHttp, ErrorRespuestaApi } from './clienteHttp
 import { API_BASE_URL } from '../../infrastructure/config/rubricas';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
+import { nombreDeDisposition } from '../../infrastructure/dispositivo/pdfNativo';
 
 export const DOCUMENTOS_API_HABILITADA = FUENTE_EVALUACIONES === 'api';
 const cliente = crearClienteHttp({
@@ -63,6 +64,12 @@ export async function listarTrabajosDocumentosApi(periodo = 'ACTIVO', { signal, 
 
 export const guardarDocumento = (ruta, body) => cliente.postJson(`/documentos${ruta}`, body);
 export const actualizarConfiguracionDocumental = (ruta, body) => cliente.putJson(`/documentos${ruta}`, body);
+/** El PDF como File con el nombre que propone el servidor; la APK lo guarda con ese nombre. */
+export async function pdfConNombre(respuesta, porDefecto = 'documento.pdf') {
+  const blob = await respuesta.blob();
+  return new File([blob], nombreDeDisposition(respuesta.headers.get('content-disposition'), porDefecto), { type: 'application/pdf' });
+}
+
 async function pedirPdf(url, signal) {
   const respuesta = await fetch(url, {
     signal,
@@ -72,7 +79,7 @@ async function pedirPdf(url, signal) {
   });
   if (!respuesta.ok) throw new ErrorApiHttp(respuesta.status);
   if (!respuesta.headers.get('content-type')?.includes('application/pdf')) throw new Error('El servidor no devolvió un documento PDF.');
-  return respuesta.blob();
+  return pdfConNombre(respuesta);
 }
 
 /** Dirección directa de un PDF de documentos, para abrirlo en el visor del navegador. */

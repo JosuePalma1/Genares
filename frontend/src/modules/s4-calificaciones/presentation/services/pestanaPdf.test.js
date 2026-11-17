@@ -32,4 +32,13 @@ describe('abrir un PDF en una pestaña nueva', () => {
     await expect(abrirPdfEnPestanaNueva(obtenerPdf, { abrir: () => null })).rejects.toThrow('bloqueó la pestaña nueva');
     expect(obtenerPdf).not.toHaveBeenCalled();
   });
+
+  it('en la APK no abre pestañas: guarda el PDF con su nombre y lo abre en el teléfono', async () => {
+    const abrir = vi.fn();
+    const abrirEnDispositivo = vi.fn(async () => {});
+    const pdf = new File(['%PDF-'], 'Rúbrica - Estudiante.pdf', { type: 'application/pdf' });
+    await abrirPdfEnPestanaNueva(async () => pdf, { nativo: true, abrirEnDispositivo, abrir });
+    expect(abrir).not.toHaveBeenCalled();
+    expect(abrirEnDispositivo).toHaveBeenCalledWith(pdf, 'Rúbrica - Estudiante.pdf');
+  });
 });

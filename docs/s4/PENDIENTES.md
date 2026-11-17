@@ -132,7 +132,7 @@ Orden de trabajo:
        - falta la línea «Fuente: Comisión Académica…», que debe guardarse en cada versión de rúbrica y necesita un cambio en la base;
        - algunas rarezas del Word no se copian: espacios dobles, «(1. punto)» y «(3.0 puntos)», y un renglón vacío de más antes de la categoría C;
        - alguna línea justificada puede cortarse en otra palabra.
-     - La «CALIFICACIÓN FINAL» de la rúbrica de cada miembro muestra el resultado consolidado de los dos miembros. En el papel suele ser la suma de las notas de ese miembro. Hay que confirmarlo junto con las escalas (paso 1).
+     - La «CALIFICACIÓN FINAL» de la rúbrica de cada miembro muestra el resultado consolidado del tribunal. **Decidido el 17/11/2026:** se queda así. Las filas de categorías muestran las notas de ese miembro; la casilla final, la nota consolidada, y queda vacía mientras falten evaluaciones.
 4. **Importar una rúbrica desde el Word oficial** (si da tiempo):
    1. se sube el Word;
    2. el sistema lee las categorías, los indicadores y los valores de sus tablas;
@@ -301,7 +301,17 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
    Comprobado en Chrome con la base local: Rúbricas y Resultados abren el visor de PDF y la pantalla de origen no se mueve.
 
    **Falta:**
-   - **APK Android:** el visor del WebView no muestra PDF. Para descargarlo o abrirlo con la app de PDF del teléfono hace falta un plugin de Capacitor (`@capacitor/filesystem` u otro parecido), y eso cambia `package.json`, que es compartido. Hay que consultarlo.
+   - **APK Android, hecho el 17/11/2026 sin probar en un teléfono:**
+     - el WebView no tiene visor de PDF ni pestañas: en la APK, todos los botones PDF guardan el archivo en la caché de la app con el nombre del estudiante y lo abren con la aplicación de PDF del teléfono, que permite guardarlo, compartirlo o imprimirlo;
+     - se añadieron `@capacitor/filesystem` 8.1.5 y `@capacitor/file-viewer` 2.0.4 a `frontend/package.json`, autorizados por Josué. Al integrar con el repositorio común hay que avisar al responsable;
+     - el servidor envía `Access-Control-Expose-Headers: Content-Disposition` en los PDF de Documentos y en la vista previa de Rúbricas, para que la APK lea el nombre del archivo;
+     - código: `infrastructure/dispositivo/pdfNativo.js` y `presentation/services/pestanaPdf.js`;
+     - la APK de depuración compila (`gradlew assembleDebug` con el JDK 21 de Android Studio; el JBR 25 no sirve para esta versión de Gradle).
+
+     **Falta:**
+     - probarlo en un teléfono o un emulador: aquí no había ninguno conectado;
+     - si el teléfono no tiene lector de PDF, se avisa con un mensaje;
+     - los enlaces antiguos `/rubrica/…` (`PaginaImpresionRubrica.jsx`) siguen yendo a la URL del PDF y en la APK no funcionan. Ningún botón actual lleva ahí.
    - **Nombre al descargar desde el visor:** el servidor ya envía el nombre del estudiante, pero el visor puede proponer otro (ver «Aviso» en el plan del núcleo).
    - **Documentos:** un enlace con trabajo, estudiante y miembro ya no abre la rúbrica solo (el navegador lo bloquearía); deja todo seleccionado para pulsar «Visualizar rúbrica».
    - Lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…».
@@ -547,7 +557,7 @@ Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resue
    - ¿Qué pasa con lo que ya calificó?
 6. **¿Hay un límite de diferencia entre los dos miembros?** Algunas facultades piden un tercer evaluador si las notas se separan mucho, por ejemplo 3 puntos. Si existe esa regla, hay que programarla.
 7. **¿Hay segunda oportunidad si el estudiante reprueba?** ¿Existe una nueva sustentación? ¿Va con una rúbrica nueva o con la misma?
-8. **¿Qué versión de la rúbrica de Proyecto Integrador está vigente?** ¿La del Word (5 + 5, sin Producto) o la del Plan de titulación PAT-04-F-001 (10 + 10 al 50 %, con Producto)? ¿Otras modalidades, como el examen complexivo, tienen su propia rúbrica? Mientras no se confirme, el sistema permite crear y activar cada versión sin tocar código.
+8. **¿Qué versión de la rúbrica de Proyecto Integrador está vigente?** ¿La del Word (5 + 5, sin Producto) o la del Plan de titulación PAT-04-F-001 (10 + 10 al 50 %, con Producto)? ¿Otras modalidades, como el examen complexivo, tienen su propia rúbrica? Mientras no se confirme, el sistema permite crear y activar cada versión sin tocar código. **Josué lo consultará (17/11/2026).** Hasta entonces sigue activa la del Word (V1). Si se elige la del Plan, falta guardar la letra de cada categoría: en el Plan, la sustentación empieza otra vez en A, y hoy el PDF sigue con D, E, F.
 9. **¿Cómo aparece la nota final en el acta?** ¿Como suma (16/20, como en el ejemplo de la PAT-04-F-017) o como promedio (8/10, como dice el Plan)? El resultado es el mismo; solo cambia cómo se escribe.
 
 ### Para la entrega y la demostración

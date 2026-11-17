@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../../infrastructure/config/rubricas';
+import { pdfConNombre } from './documentosApi';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { ErrorApiHttp, ErrorConexionApi, ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
 
@@ -84,7 +85,7 @@ export function crearServicioCorreccionesApi({ clienteJson = cliente, fetcher = 
         signal: opciones.signal, credentials: 'omit', cache: 'no-store', headers: { Accept: 'application/pdf' },
       });
       if (!respuesta.ok) throw new ErrorApiHttp(respuesta.status, await respuesta.json().catch(() => null));
-      return respuesta.blob();
+      return pdfConNombre(respuesta, 'justificativo.pdf');
     },
   };
 }

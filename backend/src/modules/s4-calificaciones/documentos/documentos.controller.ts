@@ -9,6 +9,8 @@ import { dispositionPdf, nombreArchivoPdf } from './nombre-archivo-pdf';
 const uuid = new ParseUUIDPipe();
 // El nombre lleva el estudiante: el visor del navegador lo propone al guardar o descargar.
 const archivo = (pdf: Buffer, nombre = 'documento.pdf') => new StreamableFile(pdf, { type: 'application/pdf', disposition: dispositionPdf(nombre) });
+// La APK pide el PDF desde otro origen: sin esta cabecera no podría leer el nombre del archivo.
+const EXPONER_NOMBRE = ['Access-Control-Expose-Headers', 'Content-Disposition'] as const;
 
 @Controller({ path: 'documentos', version: '1' })
 @RequiereCapacidades('evaluaciones:leer')
@@ -35,13 +37,13 @@ export class DocumentosController {
     return this.servicio.rubrica(t, e, m, actorValidadoDe(r), puedeConsultarDemostracion(r));
   }
   @Get('trabajos/:trabajoId/estudiantes/:estudianteId/rubricas/:miembroId/pdf')
-  @Header('Cache-Control', 'no-store')
+  @Header('Cache-Control', 'no-store') @Header(...EXPONER_NOMBRE)
   async rubricaPdf(@Param('trabajoId', uuid) t: string, @Param('estudianteId', uuid) e: string, @Param('miembroId', uuid) m: string, @Req() r: SolicitudConIdentidad) {
     const { pdf, nombre } = await this.servicio.rubricaPdf(t, e, m, actorValidadoDe(r), puedeConsultarDemostracion(r));
     return archivo(pdf, nombre);
   }
   @Get('trabajos/:trabajoId/estudiantes/:estudianteId/acta-preliminar')
-  @Header('Cache-Control', 'no-store')
+  @Header('Cache-Control', 'no-store') @Header(...EXPONER_NOMBRE)
   async preliminar(@Param('trabajoId', uuid) t: string, @Param('estudianteId', uuid) e: string, @Query() dto: FormatoActaDto, @Req() r: SolicitudConIdentidad) {
     const { pdf, nombre } = await this.servicio.preliminar(t, e, dto.formato, actorValidadoDe(r), puedeConsultarDemostracion(r));
     return archivo(pdf, nombre);
@@ -57,7 +59,7 @@ export class DocumentosController {
   @Get('actas/:id') detalle(@Param('id', uuid) id: string, @Req() r: SolicitudConIdentidad) {
     return this.servicio.archivada(id, actorValidadoDe(r), false, puedeConsultarDemostracion(r));
   }
-  @Get('actas/:id/pdf') @Header('Cache-Control', 'no-store')
+  @Get('actas/:id/pdf') @Header('Cache-Control', 'no-store') @Header(...EXPONER_NOMBRE)
   async pdf(@Param('id', uuid) id: string, @Req() r: SolicitudConIdentidad) {
     const acta = await this.servicio.archivada(id, actorValidadoDe(r), true, puedeConsultarDemostracion(r));
     return archivo(acta.pdf, nombreArchivoPdf(acta.estudiante, `acta ${acta.numero}`));
