@@ -51,6 +51,7 @@ export function hayRestriccionDeAlcance(): boolean {
 // cual, idéntica a la de siempre. Con ámbito, conAlcance() las cambia por parámetros.
 const MARCA_CARRERAS = '/*ALCANCE_CARRERAS*/NULL';
 const MARCA_TRIBUNAL = '/*ALCANCE_TRIBUNAL*/NULL';
+const MARCA_SUPERUSUARIO = '/*ACCESO_SUPERUSUARIO*/';
 
 /**
  * Condición SQL de ámbito para un trabajo. `asignacion` es el alias de s2.asignacion_tema y
@@ -74,7 +75,7 @@ export function filtroAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): str
  * Con la identidad local ambas partes son falsas y decide el acceso local de siempre.
  */
 export function accesoPorAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): string {
-  return `((${MARCA_CARRERAS}::text[] IS NOT NULL AND ${codigoCarrera} = ANY(${MARCA_CARRERAS}::text[]))
+  return `(${MARCA_SUPERUSUARIO}(${MARCA_CARRERAS}::text[] IS NOT NULL AND ${codigoCarrera} = ANY(${MARCA_CARRERAS}::text[]))
     OR (${MARCA_TRIBUNAL}::text IS NOT NULL AND EXISTS (
       SELECT 1 FROM s3.asignacion_tribunal at_alc
       JOIN s3.miembros_tribunal m_alc ON m_alc.miembro_tribunal_id = at_alc.miembro_tribunal_id
@@ -89,6 +90,10 @@ export function accesoPorAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): 
  * consulta no tiene marcas, la devuelve igual: se puede usar en cualquier consulta.
  */
 export function conAlcance(sql: string, parametros: unknown[] = [], alcance: AlcanceDatos = alcanceActual()): [string, unknown[]] {
+  const identidad = identidadActual();
+  if (identidad?.tipo === 'DEMOSTRACION' && identidad.rol === 'SUPERUSUARIO') {
+    sql = sql.split(MARCA_SUPERUSUARIO).join('TRUE OR ');
+  }
   if (alcance.carreras === null && alcance.tribunalDe === null) return [sql, parametros];
   if (!sql.includes(MARCA_CARRERAS) && !sql.includes(MARCA_TRIBUNAL)) return [sql, parametros];
   const base = parametros.length;

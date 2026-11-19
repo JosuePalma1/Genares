@@ -22,6 +22,8 @@ export function FormularioRubrica({
   alCambiarCalificacion = () => {},
   alCambiarObservacion = () => {},
   readOnly = false,
+  guardadoEnCurso = false,
+  bloqueoEdicion = false,
   showObservations = true,
   showCompletionState = false,
   highlightIncomplete = false,
@@ -126,7 +128,7 @@ export function FormularioRubrica({
                             step={preservarPrecision ? "any" : "0.01"}
                             inputMode="decimal"
                             value={currentScore}
-                            readOnly={readOnly}
+                            readOnly={readOnly || guardadoEnCurso || bloqueoEdicion}
                             aria-invalid={indicadorIncompleto || undefined}
                             aria-describedby={`${helpId}${indicadorIncompleto ? ` ${errorId}` : ''}`}
                             onChange={(evento) => {
@@ -141,6 +143,7 @@ export function FormularioRubrica({
                           <button
                             type="button"
                             className="button button-outline button-sm calificacion-max-button"
+                            aria-disabled={guardadoEnCurso || bloqueoEdicion || undefined}
                             title={`Asignar valoración máxima (${formatearCalificacion(indicador.maximo)} pts)`}
                             onClick={() => alCambiarCalificacion(indicador.id, indicador.maximo, indicador.maximo)}
                           >
@@ -155,7 +158,7 @@ export function FormularioRubrica({
                             className="textarea"
                             id={observationId}
                             value={observaciones[indicador.id] ?? ''}
-                            readOnly={readOnly}
+                            readOnly={readOnly || guardadoEnCurso || bloqueoEdicion}
                             rows="2"
                             maxLength={2000}
                             placeholder={readOnly ? 'Sin observaciones' : 'Añada una observación si corresponde'}

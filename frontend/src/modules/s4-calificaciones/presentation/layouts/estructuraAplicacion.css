@@ -103,6 +103,33 @@
   color: var(--color-state-danger-text);
 }
 
+.cola-borradores-detalles { position: relative; }
+.cola-borradores-detalles summary { cursor: pointer; }
+.cola-borradores-panel {
+  position: absolute;
+  z-index: 20;
+  inset-inline-end: 0;
+  width: min(18rem, 65vw);
+  max-height: 50vh;
+  overflow: auto;
+  padding: .75rem;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border-default);
+  border-radius: .5rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1080px) {
+  .app-topbar:has(.cola-borradores-detalles[open]) { z-index: 17; }
+  .cola-borradores-detalles { position: static; }
+  .cola-borradores-panel {
+    inset-block-start: 100%;
+    inset-inline: var(--space-2);
+    width: auto;
+    max-height: min(50dvh, calc(100dvh - var(--header-height) - var(--space-2)));
+  }
+}
+
 @media (max-width: 480px) {
   .cola-borradores-chip { padding: 0.08rem 0.3rem; font-size: 0.6rem; }
 }

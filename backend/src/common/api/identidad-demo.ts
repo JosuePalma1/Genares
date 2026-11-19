@@ -10,12 +10,12 @@ import { IdentidadApi, SolicitudConIdentidad } from './identidad-api';
  */
 export const CONTRASENA_DEMO = 'Demo2026!';
 
-export type RolDemo = 'TRIBUNAL' | 'COORDINACION' | 'PRESIDENCIA' | 'COMISION' | 'SECRETARIA' | 'ADMINISTRACION';
+const ROL_SUPERUSUARIO = 'SUPERUSUARIO';
 
 const LECTURA = ['trabajos:leer', 'evaluaciones:leer'];
 
 /** Capacidades por actor, según Paso 1 §2 y Paso 2 Anexo A.4. */
-export const CAPACIDADES_POR_ROL: Readonly<Record<RolDemo, readonly string[]>> = Object.freeze({
+const CAPACIDADES_INSTITUCIONALES = {
   // Califica sus evaluaciones y consulta sus sesiones; sin rúbricas ni programación.
   TRIBUNAL: [...LECTURA, 'programaciones:leer', 'integracion:guardar-borrador', 'integracion:cerrar-evaluacion',
     'evaluaciones:solicitar-correccion'],
@@ -32,9 +32,17 @@ export const CAPACIDADES_POR_ROL: Readonly<Record<RolDemo, readonly string[]>> =
   SECRETARIA: [...LECTURA, 'documentos:emitir'],
   // Solo configuración técnica y auditoría; sin trabajos ni notas.
   ADMINISTRACION: ['configuracion-academica:administrar', 'carreras:leer', 'modalidades:leer'],
+};
+
+export type RolDemo = keyof typeof CAPACIDADES_INSTITUCIONALES | typeof ROL_SUPERUSUARIO;
+
+export const CAPACIDADES_POR_ROL: Readonly<Record<RolDemo, readonly string[]>> = Object.freeze({
+  ...CAPACIDADES_INSTITUCIONALES,
+  SUPERUSUARIO: [...new Set(Object.values(CAPACIDADES_INSTITUCIONALES).flat())],
 });
 
 export const NOMBRES_ROL: Readonly<Record<RolDemo, string>> = Object.freeze({
+  SUPERUSUARIO: 'Superusuario',
   TRIBUNAL: 'Tribunal',
   COORDINACION: 'Coordinación',
   PRESIDENCIA: 'Presidencia / Asistencia',
@@ -57,6 +65,7 @@ const TI = 'DEV-TI';
 const SOFT = 'DEV-SOFT';
 
 export const USUARIOS_DEMO: readonly UsuarioDemo[] = Object.freeze([
+  { usuario: 'super.admin', sujeto: 'demo-super-admin', nombre: 'Superusuario S4', rol: ROL_SUPERUSUARIO, carreras: null },
   { usuario: 'tribunal.ti', sujeto: 'dev-ti-a', nombre: 'María Docente TI A', rol: 'TRIBUNAL', carreras: null },
   { usuario: 'tribunal.soft', sujeto: 'dev-soft-a', nombre: 'Lucía Docente Software A', rol: 'TRIBUNAL', carreras: null },
   { usuario: 'tribunal.carga', sujeto: 'demo-tribunal-carga', nombre: 'Ana Docente Carga TI A', rol: 'TRIBUNAL', carreras: null },
@@ -66,6 +75,15 @@ export const USUARIOS_DEMO: readonly UsuarioDemo[] = Object.freeze([
   { usuario: 'comision.ti', sujeto: 'demo-comision-ti', nombre: 'Comisión Académica TI', rol: 'COMISION', carreras: [TI] },
   { usuario: 'secretaria', sujeto: 'demo-secretaria', nombre: 'Secretaría', rol: 'SECRETARIA', carreras: [TI, SOFT] },
   { usuario: 'admin.tecnico', sujeto: 'demo-admin-tecnico', nombre: 'Administración técnica', rol: 'ADMINISTRACION', carreras: [] },
+  // Tribunales de los trabajos PILOTO (fixtures/demo-piloto-desde-cero.sql): S4 desde cero con la rúbrica vigente.
+  { usuario: 'tribunal.ti1', sujeto: 'demo-piloto-ti-1', nombre: 'Andrea Piloto TI 1', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.ti2', sujeto: 'demo-piloto-ti-2', nombre: 'Bernardo Piloto TI 2', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.ti3', sujeto: 'demo-piloto-ti-3', nombre: 'Camila Piloto TI 3', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.ti4', sujeto: 'demo-piloto-ti-4', nombre: 'Daniel Piloto TI 4', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.soft1', sujeto: 'demo-piloto-soft-1', nombre: 'Elena Piloto Software 1', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.soft2', sujeto: 'demo-piloto-soft-2', nombre: 'Fernando Piloto Software 2', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.soft3', sujeto: 'demo-piloto-soft-3', nombre: 'Gabriela Piloto Software 3', rol: 'TRIBUNAL', carreras: null },
+  { usuario: 'tribunal.soft4', sujeto: 'demo-piloto-soft-4', nombre: 'Héctor Piloto Software 4', rol: 'TRIBUNAL', carreras: null },
 ]);
 
 export function identidadDeUsuarioDemo(usuario: UsuarioDemo): IdentidadApi {

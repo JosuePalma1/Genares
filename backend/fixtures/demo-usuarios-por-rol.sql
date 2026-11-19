@@ -5,7 +5,7 @@
 -- Crea las cuentas (gen.usuario) de los usuarios de demostración que no existían. Su
 -- sujeto_autenticacion debe coincidir con backend/src/common/api/identidad-demo.ts:
 --   · Coordinación TI, Coordinación Software, Presidencia, Comisión TI, Secretaría y
---     Administración técnica: personas ficticias nuevas.
+--     Administración técnica y super.admin: personas ficticias nuevas.
 --   · tribunal.carga: cuenta para «Ana Docente Carga TI A», tribunal de unos 40 trabajos CARGA.
 --   · tribunal.ti (María) y tribunal.soft (Lucía) ya tienen cuenta desde 001_catalogos_y_personas_dev.sql.
 -- También deja sus roles y carreras en gen.rol, gen.usuario_rol y gen.usuario_carrera, como referencia.
@@ -32,14 +32,15 @@ FROM (VALUES
   ('presidencia', 'Presidencia', 'Demo'),
   ('comision-ti', 'Comisión', 'TI (demo)'),
   ('secretaria', 'Secretaría', 'Demo'),
-  ('admin-tecnico', 'Administración', 'Técnica (demo)')
+  ('admin-tecnico', 'Administración', 'Técnica (demo)'),
+  ('super-admin', 'Superusuario', 'S4 (demo)')
 ) AS u(clave, nombres, apellidos)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO gen.usuario (id, email, activo, persona_id, sujeto_autenticacion)
 SELECT s4.uuid_fixture('demo-usuario-' || u.clave), 'demo-' || u.clave || '@genares.invalid', true,
        s4.uuid_fixture('demo-persona-' || u.clave), 'demo-' || u.clave
-FROM unnest(ARRAY['coordinacion-ti', 'coordinacion-soft', 'presidencia', 'comision-ti', 'secretaria', 'admin-tecnico']) AS u(clave)
+FROM unnest(ARRAY['coordinacion-ti', 'coordinacion-soft', 'presidencia', 'comision-ti', 'secretaria', 'admin-tecnico', 'super-admin']) AS u(clave)
 ON CONFLICT (id) DO NOTHING;
 
 -- Cuenta de Ana (tribunal de los trabajos CARGA de TI) y vínculo con su ficha de docente.
@@ -57,13 +58,14 @@ INSERT INTO gen.rol (id, codigo, nombre, descripcion)
 SELECT s4.uuid_fixture('demo-rol-' || r.clave), 'DEMO-' || upper(r.clave), r.nombre, 'Rol de demostración'
 FROM (VALUES ('coordinacion', 'Coordinación (demo)'), ('presidencia', 'Presidencia / Asistencia (demo)'),
              ('comision', 'Comisión Académica (demo)'), ('secretaria', 'Secretaría (demo)'),
-             ('administracion', 'Administración técnica (demo)')) AS r(clave, nombre)
+             ('administracion', 'Administración técnica (demo)'), ('superusuario', 'Superusuario S4 (demo)')) AS r(clave, nombre)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO gen.usuario_rol (id, usuario_id, rol_id)
 SELECT s4.uuid_fixture('demo-ur-' || x.usuario), s4.uuid_fixture('demo-usuario-' || x.usuario), s4.uuid_fixture('demo-rol-' || x.rol)
 FROM (VALUES ('coordinacion-ti', 'coordinacion'), ('coordinacion-soft', 'coordinacion'), ('presidencia', 'presidencia'),
-             ('comision-ti', 'comision'), ('secretaria', 'secretaria'), ('admin-tecnico', 'administracion')) AS x(usuario, rol)
+             ('comision-ti', 'comision'), ('secretaria', 'secretaria'), ('admin-tecnico', 'administracion'),
+             ('super-admin', 'superusuario')) AS x(usuario, rol)
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO gen.usuario_carrera (id, usuario_id, carrera_id)

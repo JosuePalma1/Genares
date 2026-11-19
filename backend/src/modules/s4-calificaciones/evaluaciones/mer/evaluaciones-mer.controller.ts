@@ -56,8 +56,10 @@ export class EvaluacionesMerController {
 
   private verificarEscrituraLocal(req: SolicitudConIdentidad): void {
     this.verificarDemostracion();
-    if (req.identidadApi?.tipo !== 'DESARROLLO_LOCAL') {
-      throw new ForbiddenException('La evaluación de prueba solo acepta la identidad técnica local.');
+    // DEMOSTRACION (rama demo/accesos-por-rol): el tribunal guarda y cierra sus evaluaciones; la guardia
+    // exige la capacidad de su rol y el servicio, que solo firme como su propio evaluador (RN-24).
+    if (!['DESARROLLO_LOCAL', 'DEMOSTRACION'].includes(req.identidadApi?.tipo ?? '')) {
+      throw new ForbiddenException('La evaluación de prueba solo acepta la identidad técnica local o la de demostración.');
     }
   }
 }

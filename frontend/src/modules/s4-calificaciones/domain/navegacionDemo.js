@@ -20,6 +20,7 @@ export const RUTAS_POR_ROL = Object.freeze({
 
 /** Deja en el menú solo las opciones del rol. Sin rol (identidad local) no cambia nada. */
 export function filtrarNavegacionPorRol(grupos, rol) {
+  if (rol === 'SUPERUSUARIO') return grupos;
   const rutas = RUTAS_POR_ROL[rol];
   if (!rutas) return grupos;
   return grupos

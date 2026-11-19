@@ -143,6 +143,8 @@ describe('adaptadores de evaluaciones y consolidaciones', () => {
     };
     expect(adaptarEvaluacionApi(evaluacion).puntajes[0].puntaje).toBe('0.00');
     expect(adaptarEvaluacionApi(evaluacion).estudiantesTraspasados).toHaveLength(1);
+    expect(adaptarEvaluacionApi({ ...evaluacion, estado: 'BORRADOR', calificacionTotal: null }).calificacionTotal).toBeNull();
+    expect(() => adaptarEvaluacionApi({ ...evaluacion, calificacionTotal: null })).toThrow(ErrorRespuestaApi);
   });
 
   it('adapta una evaluaci\u00f3n cerrada del fixture 10.9B y valida su estructura de r\u00fabrica', () => {

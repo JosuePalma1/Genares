@@ -12,7 +12,14 @@ INSERT INTO gen.carrera (id,codigo,nombre,activo,revision) VALUES
 (s4.uuid_fixture('carrera-soft'),'DEV-SOFT','Software (DEV)',true,1)
 ON CONFLICT (id) DO UPDATE SET revision = 1 WHERE gen.carrera.revision IS NULL;
 
+-- Los códigos numéricos conservan el orden del catálogo al listar por código.
 INSERT INTO gen.modalidad (id,codigo,nombre,descripcion,activo,revision) VALUES
+(s4.uuid_fixture('mod-desarrollo-implementacion'),'DEV-01-DESARROLLO',
+ 'Desarrollo o implementación (aplicación profesional)',NULL,true,1),
+(s4.uuid_fixture('mod-sistematizacion'),'DEV-02-SISTEMATIZACION',
+ 'Sistematización de experiencias',NULL,true,1),
+(s4.uuid_fixture('mod-articulo-cientifico'),'DEV-03-ARTICULO',
+ 'Artículo científico',NULL,true,1),
 (s4.uuid_fixture('mod-proyecto'),'DEV-PROYECTO','Proyecto integrador de demostración',
  'Modalidad sintética: reemplazar por catálogo institucional',true,1)
 ON CONFLICT (id) DO UPDATE SET revision = 1 WHERE gen.modalidad.revision IS NULL;

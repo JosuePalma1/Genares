@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { BookOpenCheck, CheckCircle2, CloudUpload, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
 import { FormularioRubrica } from '../components/FormularioRubrica';
@@ -27,17 +27,22 @@ function armarNotas(indicadores, evaluacion) {
 /** RNF-09: en la APK, los borradores duraderos se restauran antes de abrir la evaluación. */
 export default function PaginaEvaluacionesIntegradasDev(props) {
   const respaldoListo = usarRespaldoBorradores();
+  const [seleccion] = useSearchParams();
+  const { asignacionId, idEstudiante } = useParams();
+  const etapaInicial = seleccion.get('etapa') ?? '';
+  const evaluadorInicial = seleccion.get('evaluador') ?? '';
   if (!respaldoListo) return <p className="card" role="status">Recuperando los borradores guardados en este dispositivo…</p>;
-  return <EvaluacionIntegrada {...props} />;
+  return <EvaluacionIntegrada key={JSON.stringify([asignacionId, idEstudiante, props.tipo, etapaInicial, evaluadorInicial])}
+    {...props} etapaInicial={etapaInicial} evaluadorInicial={evaluadorInicial} />;
 }
 
-function EvaluacionIntegrada({ tipo = 'ORAL' }) {
+function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) {
   const { asignacionId, idEstudiante } = useParams();
   const [estado, setEstado] = useState({ status: 'cargando', datos: null, error: null });
   const [recarga, setRecarga] = useState(0);
-  const [etapaId, setEtapaId] = useState('');
+  const [etapaId, setEtapaId] = useState(etapaInicial);
   const [estudianteId, setEstudianteId] = useState('');
-  const [evaluadorId, setEvaluadorId] = useState('');
+  const [evaluadorId, setEvaluadorId] = useState(evaluadorInicial);
   const [notas, setNotas] = useState({});
   const [revision, setRevision] = useState(0);
   const [cambiado, setCambiado] = useState(false);
@@ -91,7 +96,12 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
   // RF-31: esta página sincroniza su propio borrador; la sincronización global lo omite mientras está abierta.
   useEffect(() => marcarEnEdicion(claveRespaldo), [claveRespaldo]);
   const cerrado = evaluacion && evaluacion.estado !== 'BORRADOR';
-  const editable = !!datos?.puedeGuardarBorradores && !cerrado && !!claveRespaldo;
+  const seleccionNoDisponible = Boolean(datos && (
+    (evaluadorId && evaluador?.id !== evaluadorId)
+    || (etapaId && etapa?.id !== etapaId)
+    || (idEstudiante && !datos.estudiantes.some(({ id }) => id === idEstudiante))
+  ));
+  const editable = !!datos?.puedeGuardarBorradores && !cerrado && !!claveRespaldo && !seleccionNoDisponible;
   const completo = indicadores.length > 0 && indicadores.every(({ id }) => {
     const valor = notas[id]?.score;
     return valor != null && String(valor).trim() !== '';
@@ -214,7 +224,12 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
         }
       }
       registrarResultado(null);
-      if (leerBorrador(claveRespaldo)?.actualizadoEn === registro?.actualizadoEn) descartarCambios();
+      if (leerBorrador(claveRespaldo)?.actualizadoEn === registro?.actualizadoEn) {
+        eliminarBorrador(claveRespaldo);
+        setEstadoLocal(null);
+        setCambiado(false);
+        setAvisoRespaldo('');
+      }
       setAviso({ tipo: 'exito', texto: cerrar
         ? 'Evaluación cerrada en PostgreSQL.' : 'Borrador guardado en PostgreSQL.' });
       setRecarga((actual) => actual + 1);
@@ -309,7 +324,9 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
               observaciones={observaciones}
               alCambiarCalificacion={(id, valor) => cambiarNota(id, 'score', valor)}
               alCambiarObservacion={(id, valor) => cambiarNota(id, 'observation', valor)}
-              readOnly={!editable || guardando || contextoCargado !== claveRespaldo || estadoLocal === ESTADO_LOCAL.CONFLICTO}
+              readOnly={!editable || contextoCargado !== claveRespaldo}
+              guardadoEnCurso={guardando}
+              bloqueoEdicion={estadoLocal === ESTADO_LOCAL.CONFLICTO}
               showObservations
               showCompletionState
               preservarPrecision
@@ -336,6 +353,11 @@ function EvaluacionIntegrada({ tipo = 'ORAL' }) {
             </p>}
             {!datos.puedeGuardarBorradores && <p className="em-ayuda"><ShieldAlert size={16}/> Para guardar, activa la identidad técnica local únicamente en tu base de desarrollo.</p>}
             <p className="em-pendiente" role="status">{guardando ? 'Sincronizando con el servidor…' : sincronizacion.texto}</p>
+            {seleccionNoDisponible && <p role="alert">El borrador seleccionado requiere una etapa, estudiante o evaluador que no está disponible con esta cuenta.</p>}
+            {estadoLocal === ESTADO_LOCAL.CONFLICTO && <p role="alert">
+              {cerrado ? 'Esta evaluación ya está cerrada en el servidor.'
+                : `El servidor tiene una versión distinta. Revisión local de origen: ${revisionBaseLocal.current}. Revisión del servidor: ${revision}.`}
+            </p>}
             {estadoLocal === ESTADO_LOCAL.CONFLICTO && <button className="button button-outline" type="button"
               disabled={sinConexion} onClick={() => {
                 if (!window.confirm('¿Eliminar el borrador de este dispositivo y cargar la versión del servidor?')) return;

@@ -284,6 +284,21 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
    No existe todavía.
 4. **Calificar debe ser rápido y sencillo**, en la escrita y en la oral: menos desplazamiento, el formulario primero y el total siempre a la vista.
 
+   **Prioridad alta (17/11/2026).** Josué lo probó con la demo por roles y calificar la escrita le resultó muy engorroso. Lo que lo complica hoy:
+   - **Encontrar dónde empezar:**
+     - el recorrido es Mis evaluaciones → «Registrar evaluación escrita»;
+     - ese botón solo aparece si el trabajo tiene exactamente dos miembros de tribunal (`PaginaMisEvaluaciones.jsx`);
+     - si no los tiene, no hay ningún aviso de por qué falta.
+   - **Pantalla mezclada:** la de la escrita (`PaginaEvaluacionesIntegradasDev.jsx`) junta la estructura de la rúbrica, las evaluaciones de los demás y el formulario de calificación. Quien califica tiene que buscar dónde poner la nota.
+   - **Dos pasos poco claros:** «Guardar borrador escrita» y «Cerrar evaluación escrita». Cerrar exige todos los indicadores, pero no se ve cuántos faltan.
+
+   Propuesta:
+   - pantalla con solo el formulario de la rúbrica, con los indicadores en orden y la nota de cada uno al lado;
+   - el total y «faltan N indicadores» siempre a la vista;
+   - guardado automático del borrador;
+   - un solo botón «Cerrar», que diga qué falta;
+   - lo demás (rúbrica completa, notas de los otros miembros) en una pestaña o un panel aparte.
+
 ### Resultados, Documentos y PDF
 
 1. **«Ver rúbrica PDF · miembro 1 y 2» debe abrir el PDF en otra pestaña**, no llevar a Documentos. **Hecho el 17/11/2026, para todos los PDF:** se abren en una **pestaña nueva, directamente en el visor de PDF del navegador**, que ya trae descargar, imprimir y zoom. No hay pantalla de Genares alrededor. Afecta a:

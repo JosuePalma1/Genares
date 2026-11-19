@@ -17,6 +17,8 @@ Contraseña común para todos: **`Demo2026!`**
 | `comision.ti` | Comisión Académica TI | Comisión Académica | Solo TI, en consulta |
 | `secretaria` | Secretaría | Secretaría | TI y Software, resultados y documentos |
 | `admin.tecnico` | Administración técnica | Administración técnica | Ningún trabajo: solo catálogos y auditoría |
+| `tribunal.ti1` … `tribunal.ti4` | Andrea, Bernardo, Camila y Daniel, Piloto TI | Tribunal | Sus 2 trabajos PILOTO de TI |
+| `tribunal.soft1` … `tribunal.soft4` | Elena, Fernando, Gabriela y Héctor, Piloto Software | Tribunal | Sus 2 trabajos PILOTO de Software |
 
 ## Qué puede hacer cada rol
 
@@ -39,6 +41,20 @@ El menú solo muestra las opciones de cada rol (Paso 2, Anexo A.4). Además, **e
 4. Abre **http://127.0.0.1:5173**: te llevará a la pantalla de entrada. Haz clic en un usuario de la lista, escribe la contraseña y entra. Para cambiar de usuario, usa el botón de salir, arriba a la derecha.
 
 Sin el paso 2 la demostración funciona igual, salvo `tribunal.carga` y la creación de sesiones desde Coordinación y Presidencia.
+
+## Recorrido desde cero (trabajos PILOTO)
+
+Para ver S4 desde el principio, con la rúbrica vigente (V1) y los hitos iniciales en la trazabilidad:
+
+1. En pgAdmin, como `postgres`, ejecuta `backend/fixtures/demo-piloto-desde-cero.sql`. Requiere la rúbrica V1 vigente en ambas carreras. El script `002` de la instalación local ya la carga.
+2. Se crean 8 trabajos, 4 de TI y 4 de Software; el tercero de cada carrera es una bina. Todos llegan solo hasta «Trabajo registrado» y «Tribunal confirmado», sin sesiones ni evaluaciones.
+3. Tribunales: trabajo 1 → miembros 1 y 2; trabajo 2 → 3 y 4; trabajo 3 → 1 y 3; trabajo 4 → 2 y 4. Por ejemplo, `tribunal.ti1` califica los trabajos TI 1 y TI 3.
+4. Recorrido: `coordinacion.ti` programa la sustentación en Cronograma → cada `tribunal.tiN` califica la escrita y luego la oral → `coordinacion.ti` o `secretaria` genera el acta.
+5. Coordinación también ve los trabajos DEV y CARGA de su carrera. Para ocultar los CARGA: `s4-carga-volumen-dev-ocultar.sql`.
+
+Qué queda registrado:
+- **Trazabilidad del trabajo:** «Trabajo registrado», «Tribunal asignado» y «Tribunal confirmado» desde la carga. Después se registran la programación y reprogramación de sesiones, los participantes, las correcciones de nota y la finalización.
+- **Historial de cambios (Auditoría):** cada borrador, cierre y nota de las evaluaciones.
 
 ## Cómo funciona por dentro
 

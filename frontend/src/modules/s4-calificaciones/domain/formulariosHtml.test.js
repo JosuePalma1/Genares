@@ -7,6 +7,12 @@ const formularios = [
 ];
 
 describe('formularios HTML activos', () => {
+  it('mantiene la rúbrica en modo de edición visual durante el guardado', () => {
+    const contenido = readFileSync(new URL(formularios[0], import.meta.url), 'utf8');
+    expect(contenido).not.toMatch(/readOnly=\{[^\n]*guardando/);
+    expect(contenido).toContain('guardadoEnCurso={guardando}');
+  });
+
   it.each(formularios)('%s utiliza la etiqueta nativa form', (ruta) => {
     const contenido = readFileSync(new URL(ruta, import.meta.url), 'utf8');
 

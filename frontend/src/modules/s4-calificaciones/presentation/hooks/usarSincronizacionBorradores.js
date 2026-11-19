@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { suscribirCambiosBorradores } from '../../domain/borradoresLocales';
+import { contextoDeClave, ESTADO_LOCAL, leerExpediente, listarPendientes, suscribirCambiosBorradores } from '../../domain/borradoresLocales';
 import { contarCola, sincronizarColaBorradores } from '../services/sincronizacionBorradores';
 import { esErrorDeConexion } from './usarConexion';
 import { usarRespaldoBorradores } from './usarRespaldoBorradores';
@@ -56,8 +56,22 @@ export function usarSincronizacionBorradores() {
 /** Texto del indicador de la barra superior; null cuando no hay nada que avisar. */
 export function avisoColaBorradores({ pendientes, conflictos, sincronizando }) {
   if (conflictos > 0) {
+    const borradores = listarPendientes(undefined, [ESTADO_LOCAL.CONFLICTO]).flatMap(({ clave, revisionBase }) => {
+      const contexto = contextoDeClave(clave);
+      if (!contexto) return [];
+      const { asignacionId, tipo, idTitular, idEtapa, idEvaluador } = contexto;
+      const datos = leerExpediente(asignacionId)?.datos;
+      const estudiante = datos?.estudiantes?.find(({ id }) => id === idTitular);
+      const evaluador = datos?.evaluadoresTribunal?.find(({ id }) => id === idEvaluador);
+      const etapa = datos?.etapas?.find(({ id }) => id === idEtapa);
+      const ruta = tipo === 'ORAL' ? `oral/${encodeURIComponent(idTitular)}` : 'escrita';
+      const seleccion = new URLSearchParams({ etapa: idEtapa, evaluador: idEvaluador });
+      return [{ clave, revisionBase, titulo: datos?.tema || `Expediente ${asignacionId}`,
+        detalle: [etapa?.nombre ?? (tipo === 'ORAL' ? 'Evaluación oral' : 'Evaluación escrita'), estudiante?.nombre, evaluador?.nombre].filter(Boolean).join(' · '),
+        ruta: `/evaluaciones/${encodeURIComponent(asignacionId)}/${ruta}?${seleccion}` }];
+    });
     return { tono: 'conflicto', corto: `${conflictos} en conflicto`,
-      texto: `${conflictos} borrador(es) de este dispositivo tienen conflicto con el servidor. Ábrelos para decidir qué versión conservar.` };
+      texto: 'Las notas locales se conservan. Abre la evaluación para revisar el conflicto.', borradores };
   }
   if (pendientes > 0) {
     return sincronizando

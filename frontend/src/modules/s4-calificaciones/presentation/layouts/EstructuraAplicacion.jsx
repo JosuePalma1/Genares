@@ -3,7 +3,7 @@ import {
   Activity, Award, BookOpenCheck, CalendarDays, ClipboardCheck, FileClock, FilePen, FileSearch,
   FileText, History, LayoutDashboard, ListChecks, Lock, LogOut, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
-import { Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { iniciales } from '../../domain/flujoTrabajo';
 import { registrarRutaInterna } from '../../domain/navegacionRetorno';
 import { EXIGENCIA, filtrarNavegacion, rutaActiva } from '../../domain/navegacion';
@@ -140,6 +140,18 @@ export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = ''
 
 /** RF-31/RF-32 · Borradores del dispositivo que aún no confirma el servidor. */
 export function IndicadorBorradores({ aviso }) {
+  if (aviso?.tono === 'conflicto') {
+    return <details className="cola-borradores-detalles">
+      <summary className="cola-borradores-chip cola-borradores-conflicto">{aviso.corto}</summary>
+      <div className="cola-borradores-panel">
+        <p>{aviso.texto}</p>
+        <ul>{aviso.borradores?.map(({ clave, titulo, detalle, revisionBase, ruta }) => <li key={clave}>
+          <Link to={ruta} onClick={(evento) => { evento.currentTarget.closest('details').open = false; }}>{titulo}</Link>
+          <div>{detalle} · Revisión local {revisionBase}</div>
+        </li>)}</ul>
+      </div>
+    </details>;
+  }
   return (
     <span className="cola-borradores-estado" role="status" aria-live="polite">
       {aviso && (

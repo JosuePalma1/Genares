@@ -31,11 +31,9 @@ export function usarEvaluacionesTrabajoApi(trabajoId, { incluirEvaluaciones = tr
       return lista;
     } catch (error) {
       if (!controlador.signal.aborted && error?.name !== 'AbortError') {
-        if (conservarConsulta) {
-          establecerConsulta((actual) => ({ ...actual, errorRecarga: error }));
-        } else {
-          establecerConsulta({ trabajoId, estado: 'error', evaluaciones: [], consolidacion: null, contexto: null, error });
-        }
+        establecerConsulta((actual) => conservarConsulta && actual.trabajoId === trabajoId && actual.estado === 'listo'
+          ? { ...actual, errorRecarga: error }
+          : { trabajoId, estado: 'error', evaluaciones: [], consolidacion: null, contexto: null, error });
       }
       throw error;
     }

@@ -658,7 +658,8 @@ export function PaginaDetalleTrabajoApi() {
       )}
       {puedeConsultarEvaluaciones && consultaEvaluaciones.estado === 'error' && (
         <AlertaInstitucional tono="warning" titulo="No se pudieron consultar las evaluaciones">
-          No fue posible consultar las evaluaciones disponibles. <button className="button button-sm button-outline" type="button" onClick={() => consultaEvaluaciones.recargar()}>Reintentar</button>
+          {consultaEvaluaciones.error?.message || 'No fue posible consultar las evaluaciones disponibles.'}{' '}
+          <button className="button button-sm button-outline" type="button" onClick={() => { void consultaEvaluaciones.recargar().catch(() => {}); }}>Reintentar</button>
         </AlertaInstitucional>
       )}
       {!puedeConsultarEvaluaciones && <AlertaInstitucional tono="info" titulo="Evaluaciones no disponibles para este expediente">La consulta requiere una versión de rúbrica fijada y un tribunal confirmado. Los datos faltantes no se completan automáticamente.</AlertaInstitucional>}

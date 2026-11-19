@@ -12,6 +12,19 @@ const usuario = (nombre: string) => USUARIOS_DEMO.find((u) => u.usuario === nomb
 const LOCAL: IdentidadApi = { sujeto: 'GENARES:LOCAL_DEVELOPMENT', tipo: 'DESARROLLO_LOCAL', capacidades: [] };
 
 describe('ámbito de la petición (contexto-alcance)', () => {
+  it('el superusuario de demo puede calificar y cerrar sin límites de carrera ni tribunal', () => {
+    const cuenta = usuario('super.admin');
+    expect(cuenta).toBeDefined();
+    const identidad = identidadDeUsuarioDemo(cuenta);
+    expect(identidad.capacidades).toEqual(expect.arrayContaining([
+      'integracion:guardar-borrador', 'integracion:cerrar-evaluacion',
+    ]));
+    ejecutarConIdentidad(identidad, () => {
+      expect(alcanceActual()).toEqual(SIN_RESTRICCION);
+      expect(conAlcance(accesoPorAlcance())[0]).toContain('TRUE OR');
+    });
+  });
+
   it('sin identidad o con la identidad local no restringe ni cambia la consulta', () => {
     const sql = `SELECT 1 FROM s2.asignacion_tema a LEFT JOIN gen.carrera c ON true WHERE true ${filtroAlcance()}`;
     expect(alcanceActual()).toEqual(SIN_RESTRICCION);
