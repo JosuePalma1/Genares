@@ -77,7 +77,8 @@ export function adaptarEvaluacionApi(respuesta) {
     && (evaluacion.idEtapaRubrica === null || esUuidPostgres(evaluacion.idEtapaRubrica))
     && (evaluacion.idEstudiante === null || esUuidPostgres(evaluacion.idEstudiante))
     && ESTADOS_EVALUACION.has(evaluacion.estado)
-    && esDecimal(evaluacion.calificacionTotal)
+    && (esDecimal(evaluacion.calificacionTotal)
+      || (evaluacion.estado === 'BORRADOR' && evaluacion.calificacionTotal === null))
     && esDecimal(evaluacion.calificacionMaxima)
     && typeof evaluacion.alcance === 'string'
     && ALCANCES.has(evaluacion.alcance)
