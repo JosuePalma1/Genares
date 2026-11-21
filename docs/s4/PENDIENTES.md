@@ -189,12 +189,14 @@ Orden de trabajo:
 | **Usuarios reales y permisos** | Hoy se entra con una identidad de prueba que lo ve todo. Falta el inicio de sesión institucional, los roles y que cada persona vea solo su carrera. Mientras no exista, el guardado y el cierre de evaluaciones solo funcionan en el modo de pruebas, y no se comprueba quién firma. | Institución y responsable del repositorio común (la carpeta `auth/` es compartida). |
 | **Llevar S4 al repositorio común** | Hoy esta rama es una aplicación independiente. Hay que pasar solo las carpetas de S4, sin reemplazar archivos compartidos, mediante solicitudes de integración revisadas (Paso 5). | Responsable de integración. |
 | **Actas oficiales** | Las actas en PDF se generan, pero sin los códigos académicos reales. | Institución. |
-| **Nota mínima** | 70 % de la escala. El resultado publicado se compara con el umbral. La migración 005 convierte el valor histórico; la emisión sigue usando el flujo de documentos internos. | Falta ejecutar la migración en la base de uso. |
+| **Nota mínima** | 70 % de la escala. El resultado publicado se compara con el umbral. La migración 005 convierte el valor histórico; la emisión sigue usando el flujo de documentos internos. | Verificado en la base local de desarrollo. Para otras bases existentes, consultar la guía de instalación. |
 | **Trabajos terminados** | Confirmar si S2 cambia el estado de una asignación cuando el trabajo termina, para la consulta del historial. | Equipo de S2. |
 | **Correos automáticos** | No están en los requisitos aprobados. Hay que confirmar si se piden. | Coordinación. |
 | **Acuerdos con otros equipos** (Paso 2, D-05 a D-08) | Cerrar por escrito: <br>· cómo llega la identidad; <br>· quién crea los trabajos y sus estudiantes; <br>· qué parte del historial lee S3; <br>· si S3 consultará los resultados de S4; <br>· qué se hace con la tabla antigua `s3.defensa`. <br>Conviene guardarlos en `docs/contracts/`. | Equipos de S2 y S3, e identidad. |
 | **Respuestas de las autoridades** | Quién autoriza las correcciones y con qué documento, de dónde salen los datos de las actas, qué acta va con cada período, la regla de redondeo en pasos y el modo sin conexión. Ver la sección 4, «Preguntas para las autoridades». | Coordinación y autoridades de la facultad. |
 | **Ambiente de aceptación** | Publicar el sistema con HTTPS, repetir ahí la prueba de rendimiento y probar en tablet Android e iPad. | Responsable de despliegue. |
+
+La configuraci?n general ya est? implementada y disponible en la rama de integraci?n. La [gu?a de Configuraci?n general](configuracion-general.md) describe el alcance, las opciones y ejemplos de uso. La [gu?a de instalaci?n](instalacion/local.md) detalla los scripts que requiere cada base existente.
 
 ## 3. Experiencia e interfaz (UX/UI)
 
