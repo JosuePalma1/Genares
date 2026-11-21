@@ -1,5 +1,5 @@
 import { flujoDelProceso, trabajoEn } from './flujo-proceso';
-import { CAPACIDADES_POR_ROL } from '../../../common/api/identidad-demo';
+import { CAPACIDADES_POR_ROL } from '../../../common/api/capacidades-por-rol';
 import {
   BadRequestException,
   Body,

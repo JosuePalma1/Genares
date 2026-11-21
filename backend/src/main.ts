@@ -21,12 +21,6 @@ async function iniciarAplicacion(): Promise<void> {
     `);
     if (!fila) throw new Error('No se pudo comprobar la base PostgreSQL activa.');
     return fila;
-  }, async rol => {
-    const db = aplicacion.get(DataSource);
-    const [catalogo] = await db.query("SELECT to_regclass('s4.permisos_rol_version') IS NOT NULL AS instalado");
-    if (!catalogo.instalado) return null;
-    const [fila] = await db.query('SELECT permisos FROM s4.permisos_rol_version WHERE rol=$1 ORDER BY id DESC LIMIT 1',[rol]);
-    return fila?.permisos ?? null;
   });
 
   const puerto = Number(process.env.PORT ?? 3001);

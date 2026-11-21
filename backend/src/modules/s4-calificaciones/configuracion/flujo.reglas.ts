@@ -18,7 +18,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { CAPACIDADES_POR_ROL } from '../../../common/api/identidad-demo';
+import { CAPACIDADES_POR_ROL } from '../../../common/api/capacidades-por-rol';
 
 export class PermisosRolDto {
   @IsIn(Object.keys(CAPACIDADES_POR_ROL).filter((r) => r !== 'SUPERUSUARIO')) rol!: Exclude<
