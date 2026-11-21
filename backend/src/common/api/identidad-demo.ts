@@ -172,11 +172,25 @@ export function tokenDeSolicitud(solicitud: SolicitudDemo): string | undefined {
  * Sustituye la identidad técnica local por la del usuario de demostración cuando la petición trae
  * su sesión, y deja la identidad de la petición disponible para las consultas (ámbito).
  */
-export function crearMiddlewareIdentidadDemo(firmador: ReturnType<typeof crearFirmador>) {
+export type LeerPermisosRol = (rol: RolDemo) => Promise<readonly string[] | null>;
+export function crearMiddlewareIdentidadDemo(firmador: ReturnType<typeof crearFirmador>, leerPermisos?: LeerPermisosRol) {
   return (solicitud: SolicitudDemo, _respuesta: unknown, continuar: () => void): void => {
     const token = tokenDeSolicitud(solicitud);
     const usuario = firmador.verificar(token);
-    if (usuario) solicitud.identidadApi = identidadDeUsuarioDemo(usuario);
+    if (usuario) {
+      const base = identidadDeUsuarioDemo(usuario);
+      if (leerPermisos && usuario.rol !== 'SUPERUSUARIO') {
+        void leerPermisos(usuario.rol).then(permisos => {
+          solicitud.identidadApi = permisos ? {...base, capacidades: permisos} : base;
+          ejecutarConIdentidad(solicitud.identidadApi, continuar);
+        }, () => {
+          solicitud.identidadApi = undefined;
+          ejecutarConIdentidad(undefined, continuar);
+        });
+        return;
+      }
+      solicitud.identidadApi = base;
+    }
     // Una sesión vencida o de un arranque anterior no debe convertirse en la identidad local,
     // que lo ve todo: la petición queda sin identidad y el servidor responde 401.
     else if (token) solicitud.identidadApi = undefined;
@@ -224,7 +238,7 @@ export function crearManejadorSesionDemo(firmador: ReturnType<typeof crearFirmad
     }
     if (ruta === `${RUTA}/sesion` && metodo === 'GET') {
       const usuario = firmador.verificar(tokenDeSolicitud(solicitud));
-      return usuario ? responder(respuesta, 200, { usuario: resumenUsuarioDemo(usuario) })
+      return usuario ? responder(respuesta, 200, { usuario: { ...resumenUsuarioDemo(usuario), permisosPersonalizados: solicitud.identidadApi?.capacidades && solicitud.identidadApi.capacidades.join() !== CAPACIDADES_POR_ROL[usuario.rol].join() ? solicitud.identidadApi.capacidades : undefined } })
         : responder(respuesta, 401, { statusCode: 401, code: 'SIN_SESION_DEMO', message: 'No hay sesión de demostración.' });
     }
     if (ruta === `${RUTA}/sesion` && metodo === 'POST') {

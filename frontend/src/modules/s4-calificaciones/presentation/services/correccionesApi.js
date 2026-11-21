@@ -62,7 +62,7 @@ export function crearServicioCorreccionesApi({ clienteJson = cliente, fetcher = 
       formulario.append('motivo', motivo);
       formulario.append('revisionEsperada', String(revisionEsperada));
       formulario.append('puntajes', JSON.stringify(puntajes));
-      formulario.append('justificativo', justificativo);
+      if (justificativo) formulario.append('justificativo', justificativo);
       let respuesta;
       try {
         respuesta = await fetcher(`${API_BASE_URL}${RUTA}`, {

@@ -5,5 +5,5 @@ import { ActaArchivada } from './entidades/acta-archivada.entity';
 import { ConsecutivoActa } from './entidades/consecutivo-acta.entity';
 import { DocumentosController } from './documentos.controller';
 import { DocumentosService } from './documentos.service';
-@Module({ imports: [EvaluacionesModule, TypeOrmModule.forFeature([ActaArchivada, ConsecutivoActa])], controllers: [DocumentosController], providers: [DocumentosService] })
+@Module({ imports: [EvaluacionesModule, TypeOrmModule.forFeature([ActaArchivada, ConsecutivoActa])], controllers: [DocumentosController], providers: [DocumentosService], exports: [DocumentosService] })
 export class DocumentosModule {}

@@ -1,3 +1,4 @@
+import { ReemplazarDto } from './reemplazos';
 import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Publica, RequiereCapacidades } from '../../../../common/api/metadatos-api';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../../common/api/identidad-api';
@@ -13,6 +14,20 @@ export class EvaluacionesMerController {
       || process.env.DB_NAME !== 'genares_integrado_dev') {
       throw new ForbiddenException('Esta funcionalidad de integración no está disponible en producción.');
     }
+  }
+
+  @Get(':asignacionId/reemplazos/candidatos')
+  @RequiereCapacidades('integracion:guardar-borrador')
+  candidatos(@Param('asignacionId', new ParseUUIDPipe()) id: string, @Req() req: SolicitudConIdentidad) {
+    this.verificarEscrituraLocal(req);
+    return this.servicio.candidatos(id);
+  }
+
+  @Post(':asignacionId/reemplazos')
+  @RequiereCapacidades('integracion:guardar-borrador')
+  reemplazar(@Param('asignacionId', new ParseUUIDPipe()) id: string, @Body() dto: ReemplazarDto, @Req() req: SolicitudConIdentidad) {
+    this.verificarEscrituraLocal(req);
+    return this.servicio.reemplazar(id,dto,actorValidadoDe(req));
   }
 
   @Publica()

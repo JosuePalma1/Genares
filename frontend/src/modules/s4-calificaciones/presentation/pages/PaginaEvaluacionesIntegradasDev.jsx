@@ -1,7 +1,10 @@
+import { ConvocatoriasTrabajo } from '../components/ConvocatoriasTrabajo';
+import ReemplazoEtapa from '../components/ReemplazoEtapa';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { BookOpenCheck, CheckCircle2, CloudUpload, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
 import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
+import { FormularioRubricaComparativa } from '../components/FormularioRubricaComparativa';
 import { FormularioRubrica } from '../components/FormularioRubrica';
 import { DialogoGenares } from '../components/dialogos';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
@@ -13,6 +16,7 @@ import { claveBorrador, leerBorrador, guardarBorrador, eliminarBorrador, leerExp
   guardarExpediente, etiquetaSincronizacion, ESTADO_LOCAL, sincronizarBorrador,
   RESULTADO_SINCRONIZACION, estadoAlConsultarExpediente, marcarEnEdicion } from '../../domain/borradoresLocales';
 import { usarConexion, esErrorDeConexion } from '../hooks/usarConexion';
+import { sumarCalificaciones, maximoEtapa } from '../../domain/flujoTrabajo';
 import { usarRespaldoBorradores } from '../hooks/usarRespaldoBorradores';
 import './evaluacionesMerDev.css';
 
@@ -36,13 +40,7 @@ export default function PaginaEvaluacionesIntegradasDev(props) {
     {...props} etapaInicial={etapaInicial} evaluadorInicial={evaluadorInicial} />;
 }
 
-function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) {
-  const { asignacionId, idEstudiante } = useParams();
-  const [estado, setEstado] = useState({ status: 'cargando', datos: null, error: null });
-  const [recarga, setRecarga] = useState(0);
-  const [etapaId, setEtapaId] = useState(etapaInicial);
-  const [estudianteId, setEstudianteId] = useState('');
-  const [evaluadorId, setEvaluadorId] = useState(evaluadorInicial);
+function usarEvaluacionIndividual({ activo = true, asignacionId, tipo, etapa, indicadores, rubricaFormulario, datos, evaluador, evaluadorId, etapaId, idEstudiante, estudiante, estado, setRecarga, sinConexion, redDisponible, registrarResultado }) {
   const [notas, setNotas] = useState({});
   const [revision, setRevision] = useState(0);
   const [cambiado, setCambiado] = useState(false);
@@ -54,43 +52,13 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
   const [contextoCargado, setContextoCargado] = useState(null);
   const operacion = useRef(false);
   const revisionBaseLocal = useRef(0);
-  const { sinConexion, redDisponible, registrarResultado } = usarConexion();
-
-  useEffect(() => {
-    const abort = new AbortController();
-    setEstado((previo) => estadoAlConsultarExpediente(previo, asignacionId));
-    obtenerEvaluacionesMerDev(asignacionId, { signal: abort.signal })
-      .then((datos) => {
-        if (abort.signal.aborted) return;
-        registrarResultado(null);
-        guardarExpediente(asignacionId, datos);
-        setEstado({ status: 'listo', datos, error: null, asignacionId });
-      })
-      .catch((error) => {
-        if (abort.signal.aborted) return;
-        registrarResultado(error);
-        const copia = esErrorDeConexion(error) || !redDisponible ? leerExpediente(asignacionId) : null;
-        setEstado(copia ? { status: 'listo', datos: copia.datos, desdeCopia: true, asignacionId }
-          : { status: 'error', datos: null, error, asignacionId });
-      });
-    return () => abort.abort();
-  }, [asignacionId, recarga, redDisponible, registrarResultado]);
-
-  const datos = estado.datos;
-  const etapasEditables = useMemo(() => (datos?.etapas ?? []).filter((e) =>
-    (e.kind === tipo || e.kind === 'PERSONALIZADA') && e.scope === (tipo === 'ORAL' ? 'ESTUDIANTE_INDIVIDUAL' : 'TRABAJO_COMPARTIDO')), [datos, tipo]);
-  const etapa = etapasEditables.find((e) => e.id === etapaId) ?? etapasEditables[0];
-  const indicadores = useMemo(() => etapa?.categorias.flatMap((c) => c.indicadores) ?? [], [etapa]);
-  const rubricaFormulario = useMemo(() => adaptarEtapaRubricaMer(etapa), [etapa]);
   const calificaciones = useMemo(() => obtenerCalificacionesEditables(notas), [notas]);
   const observaciones = useMemo(() => obtenerObservacionesEditables(notas), [notas]);
-  const estudiante = datos?.estudiantes.find((e) => e.id === (estudianteId || idEstudiante)) ?? datos?.estudiantes[0];
-  const evaluador = datos?.evaluadores.find((e) => e.id === evaluadorId) ?? datos?.evaluadores[0];
   const idTitular = tipo === 'ORAL' ? estudiante?.id : null;
   const etiqueta = tipo === 'ORAL' ? 'oral' : 'escrita';
   const evaluacion = datos?.evaluaciones.find((e) => e.idEtapaRubrica === etapa?.id
     && e.idAsignacionTribunal === evaluador?.id && e.idEstudiante === idTitular);
-  const claveRespaldo = claveBorrador({
+  const claveRespaldo = !activo ? null : claveBorrador({
     asignacionId, tipo, idEtapa: etapa?.id, idTitular, idEvaluador: evaluador?.id,
   });
   // RF-31: esta página sincroniza su propio borrador; la sincronización global lo omite mientras está abierta.
@@ -112,7 +80,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
   const escalaConsolidado = resultadoEstudiante?.resultadoFinal?.calificacionMaxima ?? Number(datos?.escalaFinal ?? 10).toFixed(2);
 
   useEffect(() => {
-    if (!claveRespaldo) return;
+    if (!claveRespaldo || (cambiado && contextoCargado === claveRespaldo)) return;
     const revisionServidor = Number(evaluacion?.revision ?? 0);
     const respaldo = leerBorrador(claveRespaldo);
     revisionBaseLocal.current = respaldo?.revisionBase ?? revisionServidor;
@@ -141,6 +109,13 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
 
   function cambiarNota(id, campo, valor) {
     if (operacion.current || contextoCargado !== claveRespaldo || estadoLocal === ESTADO_LOCAL.CONFLICTO) return;
+    if (campo === 'score' && valor !== '') {
+      const maximo = Number(indicadores.find((i) => i.id === id)?.calificacionMaxima);
+      if (!/^\d*(?:\.\d{0,4})?$/.test(String(valor)) || Number(valor) > maximo) {
+        setAviso({ tipo: 'error', texto: `Ingresa una nota entre 0 y ${maximo}, con hasta cuatro decimales.` });
+        return;
+      }
+    }
     const siguientes = { ...notas, [id]: { ...notas[id], [campo]: valor } };
     setNotas(siguientes);
     const revisionBase = revisionBaseLocal.current;
@@ -164,7 +139,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
     return () => { clearTimeout(inicial); clearInterval(reintento); };
   }, [editable, contextoCargado, claveRespaldo, redDisponible, estadoLocal, notas]);
 
-  async function guardar(cerrar = false) {
+  async function guardar(cerrar = false, confirmado = false) {
     if (!editable || operacion.current || contextoCargado !== claveRespaldo
       || estadoLocal === ESTADO_LOCAL.CONFLICTO || !indicadores.length
       || (cerrar && (sinConexion || estado.desdeCopia))) return;
@@ -177,12 +152,12 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
       validarPuntajesOrales(indicadores, puntajes);
       if (cerrar) {
         if (!datos.puedeCerrarEvaluaciones || !completo) return;
-        const respuesta = await DialogoGenares.fire({
+        const respuesta = confirmado ? { isConfirmed: true } : await DialogoGenares.fire({
           icon: 'warning',
-          title: `¿Cerrar la evaluación ${etiqueta}?`,
-          text: `Se registrarán las notas de ${estudiante?.nombre && tipo === 'ORAL' ? estudiante.nombre : 'la revisión compartida'} para ${evaluador.nombre}. El formulario quedará en solo lectura.`,
+          title: tipo === 'ORAL' || etapa.kind === 'PERSONALIZADA' ? '¿Terminar de calificar?' : '¿Cerrar la evaluación escrita?',
+          text: `${tipo === 'ORAL' ? estudiante.nombre : datos.tema} · ${etapa.nombre} · ${evaluador.nombre}. Revisa el total antes de cerrar: ${sumarCalificaciones(calificaciones, indicadores).toFixed(2)} / ${maximoEtapa(rubricaFormulario, etapa.id).toFixed(2)}. El formulario quedará en solo lectura.`,
           showCancelButton: true,
-          confirmButtonText: 'Cerrar evaluación',
+          confirmButtonText: tipo === 'ORAL' ? 'Terminar de calificar' : 'Cerrar evaluación',
           cancelButtonText: 'Seguir editando',
         });
         if (!respuesta.isConfirmed) return;
@@ -242,106 +217,20 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
   guardarRef.current = guardar;
   const sincronizacion = etiquetaSincronizacion({ estadoLocal, guardadoServidor, revision, sinConexion });
 
-  const escritas = (datos?.evaluaciones ?? []).filter((e) =>
-    datos.etapas.some((etapaActual) => etapaActual.id === e.idEtapaRubrica && etapaActual.kind === 'ESCRITA'));
+  return { evaluacion, revision, editable, guardando, estadoLocal, cambiado, completo, cerrado, avisoRespaldo, aviso, sincronizacion, revisionBaseLocal, descartarCambios, guardar, seleccionNoDisponible, calificaciones, observaciones, cambiarNota, contextoCargado, claveRespaldo, confirmarCambio, consolidado, escalaConsolidado, estudiante, resultadoEstudiante };
+}
 
-  return <div className="evaluaciones-mer-page">
-    <EncabezadoPagina eyebrow="MER unificado · S2 + S3 + S4" title="Rúbrica y evaluación"
-      description={datos?.tema ?? 'Información de la evaluación desde PostgreSQL'}
-      breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Expediente', to: `/trabajos/${asignacionId}` }, 'Rúbrica y evaluación']}
-      actions={<button className="button button-outline" type="button" onClick={() => {
-        if (confirmarCambio()) setRecarga((actual) => actual + 1);
-      }}><RefreshCw size={16}/> Recargar</button>} />
-    {datos?.modo === 'DEMOSTRACION'
-      ? <AlertaInstitucional titulo="Demostración por roles">
-          Los borradores se respaldan en este dispositivo y el cierre requiere confirmación del servidor.
-          {datos.evaluadores.length === 1 && datos.evaluadoresTribunal?.length > 1
-            ? ` Califica como ${datos.evaluadores[0].nombre}: solo puede firmar sus propias evaluaciones.`
-            : ' Su rol puede consultar esta evaluación, pero no calificarla.'}
-        </AlertaInstitucional>
-      : <AlertaInstitucional titulo="Prueba local con PostgreSQL">
-          Los borradores se respaldan en este dispositivo. El cierre requiere confirmación de PostgreSQL.
-          El docente seleccionado identifica al evaluador en esta simulación local.
-        </AlertaInstitucional>}
-    {estado.desdeCopia && <p role="status">Expediente recuperado de este dispositivo. El cierre estará disponible al volver a consultar el servidor.</p>}
-    {estado.status === 'cargando' && <div className="card" role="status">Consultando rúbrica y evaluaciones…</div>}
-    {estado.status === 'error' && <AlertaInstitucional tono="danger" titulo="No se pudo cargar la rúbrica">{estado.error?.message ?? 'Error de consulta.'}</AlertaInstitucional>}
-    {estado.status === 'listo' && datos && <>
-      <section className="card em-ficha">
-        <div><span className="section-kicker">Rúbrica asignada · S4</span><h2>{datos.tema}</h2></div>
-        <dl><div><dt>Versión</dt><dd>{datos.versionRubrica}</dd></div>
-          <div><dt>Estado del trabajo</dt><dd>{etiquetaEstadoTrabajo(datos.estadoProceso)}</dd></div>
-          <div><dt>Etapas</dt><dd>{datos.etapas.length}</dd></div>
-          <div><dt>Evaluadores de S3</dt><dd>{datos.evaluadores.length}</dd></div></dl>
-      </section>
-      <section className="card em-seccion">
-        <h2><BookOpenCheck size={20}/> Estructura de la rúbrica</h2>
-        {datos.etapas.map((e) => <div className="em-etapa" key={e.id}>
-          <strong>{e.nombre || e.kind} <small>· {e.scope === 'TRABAJO_COMPARTIDO' ? 'Compartida' : 'Individual'}</small></strong>
-          {e.categorias.map((c) => <div className="em-categoria" key={c.id}>
-            <span>{c.nombre}</span>
-            <ul>{c.indicadores.map((i) => <li key={i.id}>{i.label || i.descripcion || 'Indicador'} <small>Máx. {i.calificacionMaxima}</small></li>)}</ul>
-          </div>)}
-        </div>)}
-      </section>
-      <section className="card em-seccion">
-        <h2><CheckCircle2 size={20}/> Evaluaciones escritas existentes</h2>
-        <p className="em-ayuda">Se consultan desde S4; aquí no pueden editarse ni reabrirse.</p>
-        {escritas.length === 0 ? <EstadoVacio title="Sin evaluaciones escritas" description="No existen notas escritas para esta asignación." /> :
-          <div className="em-lista">{escritas.map((e) => <div key={e.id} className="em-fila">
-            <span>{(datos.evaluadoresTribunal ?? datos.evaluadores).find((v) => v.id === e.idAsignacionTribunal)?.nombre ?? 'Evaluador'}</span>
-            <strong>{e.total == null ? 'Pendiente' : `${e.total} puntos`}</strong><span>{e.estado}</span>
-          </div>)}</div>}
-      </section>
-      <section className="card em-seccion">
-        <h2><UserRound size={20}/> Evaluación {etiqueta}</h2>
-        <p><Link to={tipo === 'ORAL' ? `/evaluaciones/${asignacionId}/escrita` : `/evaluaciones/${asignacionId}`}>
-          {tipo === 'ORAL' ? 'Abrir evaluación escrita' : 'Abrir evaluación oral'}
-        </Link></p>
-        <p className="em-ayuda">{tipo === 'ORAL'
-          ? 'Cada estudiante y evaluador conserva su propio borrador.'
-          : 'Cada evaluador registra una nota compartida para los integrantes del trabajo.'}</p>
-        <div className="em-selectores">
-          {tipo === 'ORAL' && <div className="field"><label htmlFor="em-estudiante">Estudiante de S2</label>
-            <select className="select" id="em-estudiante" value={estudiante?.id ?? ''} onChange={(e) => {
-              if (confirmarCambio()) { setEstudianteId(e.target.value); setAviso(null); }
-            }}>{datos.estudiantes.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
-          <div className="field"><label htmlFor="em-evaluador">Evaluador de S3</label>
-            <select className="select" id="em-evaluador" value={evaluador?.id ?? ''} onChange={(e) => {
-              if (confirmarCambio()) { setEvaluadorId(e.target.value); setAviso(null); }
-            }}>{datos.evaluadores.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>
-          {etapasEditables.length > 1 && <div className="field"><label htmlFor="em-etapa">Etapa</label>
-            <select className="select" id="em-etapa" value={etapa?.id ?? ''} onChange={(e) => {
-              if (confirmarCambio()) { setEtapaId(e.target.value); setAviso(null); }
-            }}>{etapasEditables.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
-        </div>
-        {!etapa ? <EstadoVacio title="Sin etapa" description="Esta rúbrica no tiene una etapa para esta evaluación."/> :
-          <form onSubmit={(evento) => { evento.preventDefault(); void guardar(); }} className="em-form">
-            <FormularioRubrica
-              rubrica={rubricaFormulario}
-              etapa={etapa.id}
-              calificaciones={calificaciones}
-              observaciones={observaciones}
-              alCambiarCalificacion={(id, valor) => cambiarNota(id, 'score', valor)}
-              alCambiarObservacion={(id, valor) => cambiarNota(id, 'observation', valor)}
-              readOnly={!editable || contextoCargado !== claveRespaldo}
-              guardadoEnCurso={guardando}
-              bloqueoEdicion={estadoLocal === ESTADO_LOCAL.CONFLICTO}
-              showObservations
-              showCompletionState
-              preservarPrecision
-              mostrarEtiquetaCerrada={Boolean(cerrado)}
-              className="em-rubrica-formulario"
-              idPrefix="em-mer-oral"
-            />
+function AccionesEvaluacion({ modelo, etiqueta, indicadores, redDisponible, datos, sinConexion, estado, evaluador, setRecarga }) {
+  const { evaluacion, revision, editable, guardando, estadoLocal, cambiado, completo, cerrado, avisoRespaldo, aviso, sincronizacion, revisionBaseLocal, descartarCambios, guardar, seleccionNoDisponible } = modelo;
+  return <>
             <div className="em-acciones">
               <span>Estado: <strong>{evaluacion?.estado ?? 'Sin borrador'}</strong> · Revisión {revision}</span>
               <div className="em-botones">
-                <button className="button button-primary" type="submit" disabled={!editable || guardando || (!estadoLocal && !cambiado) || !redDisponible || estadoLocal === ESTADO_LOCAL.CONFLICTO || indicadores.length === 0}>
-                  <CloudUpload size={17}/>{guardando ? 'Guardando…' : `Guardar borrador ${etiqueta}`}</button>
-                {datos.puedeCerrarEvaluaciones && !cerrado && <button className="button button-outline" type="button"
+                <button className={etiqueta === 'oral' ? "button button-outline" : "button button-primary"} type="button" onClick={() => void guardar()} disabled={!editable || guardando || (!estadoLocal && !cambiado) || !redDisponible || estadoLocal === ESTADO_LOCAL.CONFLICTO || indicadores.length === 0}>
+                  <CloudUpload size={17}/>{guardando ? 'Guardando…' : etiqueta === 'oral' ? 'Guardar como borrador' : `Guardar borrador ${etiqueta}`}</button>
+                {datos.puedeCerrarEvaluaciones && !cerrado && <button className={etiqueta === 'oral' ? "button button-primary" : "button button-outline"} type="button"
                   disabled={!editable || guardando || !completo || sinConexion || estado.desdeCopia || estadoLocal === ESTADO_LOCAL.CONFLICTO} onClick={() => void guardar(true)}>
-                  Cerrar evaluación {etiqueta}
+                  {etiqueta === 'oral' ? 'Terminar de calificar' : 'Cerrar evaluación escrita'}
                 </button>}
               </div>
             </div>
@@ -353,6 +242,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
             </p>}
             {!datos.puedeGuardarBorradores && <p className="em-ayuda"><ShieldAlert size={16}/> Para guardar, activa la identidad técnica local únicamente en tu base de desarrollo.</p>}
             <p className="em-pendiente" role="status">{guardando ? 'Sincronizando con el servidor…' : sincronizacion.texto}</p>
+            {editable && (sinConexion || estado.desdeCopia) && <p>Conéctate para enviar el cierre definitivo de la evaluación.</p>}
             {seleccionNoDisponible && <p role="alert">El borrador seleccionado requiere una etapa, estudiante o evaluador que no está disponible con esta cuenta.</p>}
             {estadoLocal === ESTADO_LOCAL.CONFLICTO && <p role="alert">
               {cerrado ? 'Esta evaluación ya está cerrada en el servidor.'
@@ -366,14 +256,189 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
               }}>Descartar copia local y recargar</button>}
             {avisoRespaldo && <p className="em-ayuda" role="status">{avisoRespaldo}</p>}
             {aviso && <p className={aviso.tipo === 'error' ? 'em-error' : 'em-exito'} role="status">{aviso.texto}</p>}
+  </>;
+}
+
+function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) {
+  const { asignacionId, idEstudiante } = useParams();
+  const [estado, setEstado] = useState({ status: 'cargando', datos: null, error: null });
+  const [recarga, setRecarga] = useState(0);
+  const [etapaId, setEtapaId] = useState(etapaInicial);
+  const [estudianteId, setEstudianteId] = useState('');
+  const [evaluadorId, setEvaluadorId] = useState(evaluadorInicial);
+  const { sinConexion, redDisponible, registrarResultado } = usarConexion();
+
+  useEffect(() => {
+    const abort = new AbortController();
+    setEstado((previo) => estadoAlConsultarExpediente(previo, asignacionId));
+    obtenerEvaluacionesMerDev(asignacionId, { signal: abort.signal })
+      .then((datos) => {
+        if (abort.signal.aborted) return;
+        registrarResultado(null);
+        guardarExpediente(asignacionId, datos);
+        setEstado({ status: 'listo', datos, error: null, asignacionId });
+      })
+      .catch((error) => {
+        if (abort.signal.aborted) return;
+        registrarResultado(error);
+        const copia = esErrorDeConexion(error) || !redDisponible ? leerExpediente(asignacionId) : null;
+        setEstado(copia ? { status: 'listo', datos: copia.datos, desdeCopia: true, asignacionId }
+          : { status: 'error', datos: null, error, asignacionId });
+      });
+    return () => abort.abort();
+  }, [asignacionId, recarga, redDisponible, registrarResultado]);
+
+  const datos = estado.datos;
+  const etapasEditables = useMemo(() => (datos?.etapas ?? []).filter((e) =>
+    (e.kind === tipo || e.kind === 'PERSONALIZADA') && e.scope === (tipo === 'ORAL' ? 'ESTUDIANTE_INDIVIDUAL' : 'TRABAJO_COMPARTIDO')), [datos, tipo]);
+  const etapa = etapasEditables.find((e) => e.id === etapaId) ?? etapasEditables[0];
+  const indicadores = useMemo(() => etapa?.categorias.flatMap((c) => c.indicadores) ?? [], [etapa]);
+  const rubricaFormulario = useMemo(() => adaptarEtapaRubricaMer(etapa), [etapa]);
+  const bina = tipo === 'ORAL' && datos?.estudiantes.length === 2;
+  const estudiante = bina ? datos.estudiantes[0] : datos?.estudiantes.find((e) => e.id === (estudianteId || idEstudiante)) ?? datos?.estudiantes[0];
+  const evaluadoresEtapa = datos?.evaluadoresPorEtapa?.[etapa?.id] ?? datos?.evaluadores ?? [];
+  const evaluador = evaluadoresEtapa.find((e) => e.id === evaluadorId) ?? evaluadoresEtapa[0];
+  const etiqueta = tipo === 'ORAL' ? 'oral' : 'escrita';
+  const contexto = { asignacionId, tipo, etapa, indicadores, rubricaFormulario, datos, evaluador, evaluadorId, etapaId, idEstudiante, estado, setRecarga, sinConexion, redDisponible, registrarResultado };
+  const primero = usarEvaluacionIndividual({ ...contexto, estudiante });
+  const segundo = usarEvaluacionIndividual({ ...contexto, activo: bina, estudiante: bina ? datos.estudiantes[1] : null });
+  const modelos = bina ? [primero, segundo] : [primero];
+  const porEstudiante = Object.fromEntries(modelos.map((m) => [m.estudiante?.id, m]));
+  const confirmarCambio = () => modelos.every((m) => m.confirmarCambio());
+  const { calificaciones, observaciones, cambiarNota, editable, contextoCargado, claveRespaldo, guardando, estadoLocal, cerrado, guardar } = primero;
+
+  const escritas = (datos?.evaluaciones ?? []).filter((e) =>
+    datos.etapas.some((etapaActual) => etapaActual.id === e.idEtapaRubrica && etapaActual.kind === 'ESCRITA'));
+
+  return <div className="evaluaciones-mer-page">
+    <EncabezadoPagina eyebrow="MER unificado · S2 + S3 + S4" title="Rúbrica y evaluación"
+      description={datos?.tema ?? 'Información de la evaluación desde PostgreSQL'}
+      breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Expediente', to: `/trabajos/${asignacionId}` }, 'Rúbrica y evaluación']}
+      actions={<button className="button button-outline" type="button" onClick={() => {
+        if (confirmarCambio()) setRecarga((actual) => actual + 1);
+      }}><RefreshCw size={16}/> Recargar</button>} />
+    {datos?.puedeGuardarBorradores && etapa && evaluador?.docente && <ReemplazoEtapa key={etapa.id + evaluador.docente}
+      asignacion={asignacionId} puesto={evaluador} etapa={etapa} confirmarCambio={confirmarCambio} actualizar={() => setRecarga(n => n + 1)} />}
+    {datos?.modo === 'DEMOSTRACION'
+      ? <AlertaInstitucional titulo="Demostración por roles">
+          Los borradores se respaldan en este dispositivo y el cierre requiere confirmación del servidor.
+          {evaluadoresEtapa.length === 1 && datos.evaluadoresTribunal?.length > 1
+            ? ` Califica como ${evaluadoresEtapa[0].nombre}: solo puede firmar sus propias evaluaciones.`
+            : datos.puedeGuardarBorradores ? ' Selecciona el evaluador para registrar su calificación.' : ' Su rol permite consultar esta evaluación.'}
+        </AlertaInstitucional>
+      : <AlertaInstitucional titulo="Prueba local con PostgreSQL">
+          Los borradores se respaldan en este dispositivo. El cierre requiere confirmación de PostgreSQL.
+          El docente seleccionado identifica al evaluador en esta simulación local.
+        </AlertaInstitucional>}
+    {estado.desdeCopia && <p role="status">Expediente recuperado de este dispositivo. El cierre estará disponible al volver a consultar el servidor.</p>}
+    {estado.status === 'cargando' && <div className="card" role="status">Consultando rúbrica y evaluaciones…</div>}
+    {estado.status === 'error' && <AlertaInstitucional tono="danger" titulo="No se pudo cargar la rúbrica">{estado.error?.message ?? 'Error de consulta.'}</AlertaInstitucional>}
+    {estado.status === 'listo' && datos && <>
+      {!estado.desdeCopia && <ConvocatoriasTrabajo trabajo={asignacionId} />}
+      <section className="card em-ficha">
+        <div><span className="section-kicker">Rúbrica asignada · S4</span><h2>{datos.tema}</h2></div>
+        <dl><div><dt>Versión</dt><dd>{datos.versionRubrica}</dd></div>
+          <div><dt>Estado del trabajo</dt><dd>{etiquetaEstadoTrabajo(datos.estadoProceso)}</dd></div>
+          <div><dt>Etapas</dt><dd>{datos.etapas.length}</dd></div>
+          <div><dt>Evaluadores de S3</dt><dd>{datos.evaluadores.length}</dd></div></dl>
+      </section>
+      <section className="card em-seccion">
+        <h2><UserRound size={20}/> {etapa?.kind === 'PERSONALIZADA' ? etapa.nombre : `Evaluación ${etiqueta}`}</h2>
+        <p><Link to={tipo === 'ORAL' ? `/evaluaciones/${asignacionId}/escrita` : `/evaluaciones/${asignacionId}`}>
+          {tipo === 'ORAL' ? 'Abrir evaluación escrita' : 'Abrir evaluación oral'}
+        </Link></p>
+        <p className="em-ayuda">{tipo === 'ORAL'
+          ? 'Cada estudiante y evaluador conserva su propio borrador.'
+          : 'Cada evaluador registra una nota compartida para los integrantes del trabajo.'}</p>
+        <div className="em-selectores">
+          {tipo === 'ORAL' && !bina && <div className="field"><label htmlFor="em-estudiante">Estudiante de S2</label>
+            <select className="select" id="em-estudiante" value={estudiante?.id ?? ''} onChange={(e) => {
+              if (confirmarCambio()) { setEstudianteId(e.target.value); }
+            }}>{datos.estudiantes.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
+          <div className="field"><label htmlFor="em-evaluador">Evaluador de S3</label>
+            <select className="select" id="em-evaluador" value={evaluador?.id ?? ''} onChange={(e) => {
+              if (confirmarCambio()) { setEvaluadorId(e.target.value); }
+            }}>{evaluadoresEtapa.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>
+          {etapasEditables.length > 1 && <div className="field"><label htmlFor="em-etapa">Etapa</label>
+            <select className="select" id="em-etapa" value={etapa?.id ?? ''} onChange={(e) => {
+              if (confirmarCambio()) { setEtapaId(e.target.value); }
+            }}>{etapasEditables.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
+        </div>
+        {!etapa ? <EstadoVacio title="Sin etapa" description="Esta rúbrica no tiene una etapa para esta evaluación."/> :
+          <form onSubmit={(evento) => { evento.preventDefault(); void guardar(); }} className={tipo === 'ORAL' ? 'em-form em-oral' : 'em-form'}>
+            {bina ? <FormularioRubricaComparativa rubrica={rubricaFormulario} etapaId={etapa.id} mostrarObservaciones={false}
+              estudiantes={datos.estudiantes.map((e) => ({ ...e, nombres: e.nombre, apellidos: '' }))}
+              formularios={porEstudiante}
+              estados={Object.fromEntries(modelos.map((m) => [m.estudiante.id, {
+                cerrado: m.cerrado, bloqueado: !m.editable || m.guardando || m.contextoCargado !== m.claveRespaldo || m.estadoLocal === ESTADO_LOCAL.CONFLICTO,
+              }]))}
+              alCambiarCalificacion={(persona, id, valor) => porEstudiante[persona].cambiarNota(id, 'score', valor)}
+              alCambiarObservacion={(persona, id, valor) => porEstudiante[persona].cambiarNota(id, 'observation', valor)}
+            /> : <FormularioRubrica
+              rubrica={rubricaFormulario}
+              etapa={etapa.id}
+              calificaciones={calificaciones}
+              observaciones={observaciones}
+              alCambiarCalificacion={(id, valor) => cambiarNota(id, 'score', valor)}
+              alCambiarObservacion={(id, valor) => cambiarNota(id, 'observation', valor)}
+              readOnly={!editable || contextoCargado !== claveRespaldo}
+              guardadoEnCurso={guardando}
+              bloqueoEdicion={estadoLocal === ESTADO_LOCAL.CONFLICTO}
+              showObservations={tipo !== 'ORAL'}
+              showCompletionState
+              nombreParaRueda={tipo === 'ORAL' ? estudiante?.nombre : undefined}
+              preservarPrecision
+              mostrarEtiquetaCerrada={Boolean(cerrado)}
+              className="em-rubrica-formulario"
+              idPrefix="em-mer-oral"
+            />}
+            {modelos.map((modelo) => <section key={modelo.estudiante?.id ?? 'escrita'}>
+              {bina && <h3>{modelo.estudiante.nombre} · {sumarCalificaciones(modelo.calificaciones, indicadores).toFixed(2)} / {maximoEtapa(rubricaFormulario, etapa.id).toFixed(2)}</h3>}
+              {tipo === 'ORAL' && indicadores.length > 0 && <details className="em-comentario">
+                <summary>Comentario final de {modelo.estudiante?.nombre} (opcional){modelo.observaciones[indicadores.at(-1).id] ? ' · registrado' : ''}</summary>
+                <textarea className="textarea" rows={2} aria-label={`Comentario final de ${modelo.estudiante?.nombre}`}
+                  value={modelo.observaciones[indicadores.at(-1).id] ?? ''}
+                  disabled={modelo.guardando}
+                  readOnly={!modelo.editable || modelo.contextoCargado !== modelo.claveRespaldo || modelo.estadoLocal === ESTADO_LOCAL.CONFLICTO}
+                  onChange={(e) => modelo.cambiarNota(indicadores.at(-1).id, 'observation', e.target.value)} />
+                {indicadores.slice(0, -1).filter((i) => modelo.observaciones[i.id]).map((i) =>
+                  <p key={i.id}><strong>{i.label || i.descripcion}</strong> · {modelo.observaciones[i.id]}</p>)}
+              </details>}
+              <AccionesEvaluacion {...contexto} modelo={modelo} etiqueta={etiqueta} />
+            </section>)}
+            {bina && datos.puedeCerrarEvaluaciones && modelos.every((m) => m.editable && m.completo && !m.guardando && m.estadoLocal !== ESTADO_LOCAL.CONFLICTO) &&
+              <button type="button" className="button button-outline" disabled={sinConexion || estado.desdeCopia} onClick={async () => {
+                const revision = modelos.map((m) => m.estudiante.nombre + ' · ' + sumarCalificaciones(m.calificaciones, indicadores).toFixed(2)).join(' / ');
+                const respuesta = await DialogoGenares.fire({ title: '¿Terminar de calificar a ambos estudiantes?', text: revision, showCancelButton: true, confirmButtonText: 'Confirmar notas definitivas', cancelButtonText: 'Seguir editando' });
+                if (respuesta.isConfirmed) await Promise.all(modelos.map((m) => m.guardar(true, true)));
+              }}>Revisar y terminar con ambos</button>}
           </form>}
       </section>
-      {estudiante && <section className="card em-seccion">
+      <details className="card em-seccion">
+        <summary><BookOpenCheck size={20}/> Estructura de la rúbrica</summary>
+        {datos.etapas.map((e) => <div className="em-etapa" key={e.id}>
+          <strong>{e.nombre || e.kind} <small>· {e.scope === 'TRABAJO_COMPARTIDO' ? 'Compartida' : 'Individual'}</small></strong>
+          {e.categorias.map((c) => <div className="em-categoria" key={c.id}>
+            <span>{c.nombre}</span>
+            <ul>{c.indicadores.map((i) => <li key={i.id}>{i.label || i.descripcion || 'Indicador'} <small>Máx. {i.calificacionMaxima}</small></li>)}</ul>
+          </div>)}
+        </div>)}
+      </details>
+      <details className="card em-seccion">
+        <summary><CheckCircle2 size={20}/> Evaluaciones escritas existentes</summary>
+        <p className="em-ayuda">Se consultan desde S4; aquí no pueden editarse ni reabrirse.</p>
+        {escritas.length === 0 ? <EstadoVacio title="Sin evaluaciones escritas" description="No existen notas escritas para esta asignación." /> :
+          <div className="em-lista">{escritas.map((e) => <div key={e.id} className="em-fila">
+            <span>{(datos.evaluadoresTribunal ?? datos.evaluadores).find((v) => v.id === e.idAsignacionTribunal)?.nombre ?? 'Evaluador'}</span>
+            <strong>{e.total == null ? 'Pendiente' : `${e.total} puntos`}</strong><span>{e.estado}</span>
+          </div>)}</div>}
+      </details>
+      {modelos.filter((m) => m.estudiante).map(({ estudiante, consolidado, escalaConsolidado, resultadoEstudiante }) => <section key={estudiante.id} className="card em-seccion">
         <h2>Resultado consolidado de {estudiante.nombre}</h2>
         {consolidado == null
           ? <p>El resultado aparece cuando el tribunal completa y cierra todas las evaluaciones requeridas.</p>
-          : <p><strong>{consolidado} / {escalaConsolidado}</strong></p>}
-      </section>}
+          : <p><strong>{consolidado} / {escalaConsolidado}</strong>{typeof resultadoEstudiante?.aprobado === 'boolean' && ` · ${resultadoEstudiante.aprobado ? 'Aprobado' : 'Reprobado'} · mínimo ${resultadoEstudiante.umbral}`}</p>}
+      </section>)}
       <div className="em-volver"><Link className="button button-outline" to={`/trabajos/${asignacionId}`}>Volver al expediente</Link></div>
     </>}
   </div>;

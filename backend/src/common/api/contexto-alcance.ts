@@ -57,6 +57,14 @@ const MARCA_SUPERUSUARIO = '/*ACCESO_SUPERUSUARIO*/';
  * Condición SQL de ámbito para un trabajo. `asignacion` es el alias de s2.asignacion_tema y
  * `codigoCarrera` la expresión con el código de su carrera. Se completa con conAlcance().
  */
+function tribunalConReemplazo(asignacion: string) {
+  return `EXISTS (SELECT 1 FROM s4.reemplazos_etapa_actuales re
+    JOIN s4.procesos_evaluacion proc ON proc.id=re.proceso AND proc.estado_registro=1
+    JOIN gen.docente dr ON dr.id=re.docente AND dr.activo
+    JOIN gen.usuario ur ON ur.id=dr.usuario_id AND ur.activo
+    WHERE proc.asignacion_tema_id=${asignacion}.id AND ur.sujeto_autenticacion=${MARCA_TRIBUNAL})`;
+}
+
 export function filtroAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): string {
   return `
   AND (${MARCA_CARRERAS}::text[] IS NULL OR ${codigoCarrera} = ANY(${MARCA_CARRERAS}::text[]))
@@ -66,7 +74,7 @@ export function filtroAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): str
     JOIN s3.docente_carrera_periodo dc_alc ON dc_alc.docente_carrera_periodo_id = m_alc.docente_carrera_periodo_id
     JOIN gen.docente d_alc ON d_alc.id = dc_alc.docente_id AND d_alc.activo
     JOIN gen.usuario u_alc ON u_alc.id = d_alc.usuario_id AND u_alc.activo
-    WHERE at_alc.asignacion_tema_id = ${asignacion}.id AND u_alc.sujeto_autenticacion = ${MARCA_TRIBUNAL}))`;
+    WHERE at_alc.asignacion_tema_id = ${asignacion}.id AND u_alc.sujeto_autenticacion = ${MARCA_TRIBUNAL}) OR ${tribunalConReemplazo(asignacion)})`;
 }
 
 /**
@@ -76,13 +84,13 @@ export function filtroAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): str
  */
 export function accesoPorAlcance(asignacion = 'a', codigoCarrera = 'c.codigo'): string {
   return `(${MARCA_SUPERUSUARIO}(${MARCA_CARRERAS}::text[] IS NOT NULL AND ${codigoCarrera} = ANY(${MARCA_CARRERAS}::text[]))
-    OR (${MARCA_TRIBUNAL}::text IS NOT NULL AND EXISTS (
+    OR (${MARCA_TRIBUNAL}::text IS NOT NULL AND (EXISTS (
       SELECT 1 FROM s3.asignacion_tribunal at_alc
       JOIN s3.miembros_tribunal m_alc ON m_alc.miembro_tribunal_id = at_alc.miembro_tribunal_id
       JOIN s3.docente_carrera_periodo dc_alc ON dc_alc.docente_carrera_periodo_id = m_alc.docente_carrera_periodo_id
       JOIN gen.docente d_alc ON d_alc.id = dc_alc.docente_id AND d_alc.activo
       JOIN gen.usuario u_alc ON u_alc.id = d_alc.usuario_id AND u_alc.activo
-      WHERE at_alc.asignacion_tema_id = ${asignacion}.id AND u_alc.sujeto_autenticacion = ${MARCA_TRIBUNAL})))`;
+      WHERE at_alc.asignacion_tema_id = ${asignacion}.id AND u_alc.sujeto_autenticacion = ${MARCA_TRIBUNAL}) OR ${tribunalConReemplazo(asignacion)})))`;
 }
 
 /**

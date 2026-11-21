@@ -1,3 +1,4 @@
+import { RuedaNota, eventosToque } from './RuedaNota';
 import { LockKeyhole } from 'lucide-react';
 import {
   calificacionCategoria,
@@ -13,15 +14,17 @@ const formatearCalificacion = (valor) => Number(valor || 0).toFixed(2);
 
 export function FormularioRubricaComparativa({
   rubrica,
+  etapaId = 'ORAL',
+  mostrarObservaciones = true,
   estudiantes,
   formularios,
   estados,
   alCambiarCalificacion,
   alCambiarObservacion,
 }) {
-  const etapa = obtenerDefinicionEtapa(rubrica, 'ORAL');
-  const categorias = obtenerCategoriasEtapa(rubrica, 'ORAL');
-  const maximo = maximoEtapa(rubrica, 'ORAL');
+  const etapa = obtenerDefinicionEtapa(rubrica, etapaId);
+  const categorias = obtenerCategoriasEtapa(rubrica, etapaId);
+  const maximo = maximoEtapa(rubrica, etapaId);
 
   return (
     <div className="rubrica-formulario rubrica-comparativa-form">
@@ -29,7 +32,7 @@ export function FormularioRubricaComparativa({
         <div>
           <span className="page-eyebrow">{String(etapa?.codigo ?? 'PARTE II').replaceAll('_', ' ')}{etapa?.porcentaje ? ` · ${etapa.porcentaje} %` : ''}</span>
           <h2>{etapa?.nombre ?? 'Sustentación del proyecto'}</h2>
-          <p>Cada indicador se muestra una vez. Registre valores y observaciones independientes para cada estudiante.</p>
+          {mostrarObservaciones && <p>Cada indicador se muestra una vez. Registre valores y observaciones independientes para cada estudiante.</p>}
         </div>
         <strong className="rubrica-comparativa-maximo">Máximo {formatearCalificacion(maximo)} por estudiante</strong>
       </header>
@@ -58,7 +61,8 @@ export function FormularioRubricaComparativa({
                     {estudiantes.map((estudiante, studentIndex) => {
                       const formulario = formularios[estudiante.id] ?? { calificaciones: {}, observaciones: {} };
                       const cerrado = estados[estudiante.id]?.cerrado;
-                      const valor = valorCalificacionPresentable(formulario.calificaciones?.[indicador.id]);
+                      const bloqueado = cerrado || estados[estudiante.id]?.bloqueado;
+                      const valor = etapaId !== 'ORAL' ? formulario.calificaciones?.[indicador.id] ?? '' : valorCalificacionPresentable(formulario.calificaciones?.[indicador.id]);
                       const incompleto = formulario.mostrarErrores && !cerrado && valor === '';
                       const nombre = nombreCompleto(estudiante);
                       const inputId = `comparativa-${estudiante.id}-${indicador.id}`;
@@ -77,7 +81,7 @@ export function FormularioRubricaComparativa({
                           </div>
 
                           <div className="calificacion-control">
-                            <label htmlFor={inputId}>Calificación de {nombre}</label>
+                            <label className={mostrarObservaciones ? undefined : 'sr-only'} htmlFor={inputId}>Calificación de {nombre}</label>
                             <div className="calificacion-input-wrap">
                               <input
                                 className="calificacion-input"
@@ -86,10 +90,10 @@ export function FormularioRubricaComparativa({
                                 type="number"
                                 min="0"
                                 max={indicador.maximo}
-                                step="0.01"
+                                step={etapaId === 'ORAL' ? '0.01' : 'any'}
                                 inputMode="decimal"
                                 value={valor}
-                                readOnly={cerrado}
+                                readOnly={bloqueado}
                                 aria-invalid={incompleto || undefined}
                                 aria-describedby={`${helpId}${incompleto ? ` ${errorId}` : ''}`}
                                 onChange={(evento) => alCambiarCalificacion(estudiante.id, indicador.id, evento.target.value, indicador.maximo)}
@@ -102,26 +106,29 @@ export function FormularioRubricaComparativa({
                               <button
                                 type="button"
                                 className="button button-outline button-sm calificacion-max-button"
+                                disabled={bloqueado}
                                 title={`Asignar máximo a ${nombre}: ${formatearCalificacion(indicador.maximo)} puntos`}
-                                onClick={() => alCambiarCalificacion(estudiante.id, indicador.id, indicador.maximo, indicador.maximo)}
+                                {...eventosToque(() => alCambiarCalificacion(estudiante.id, indicador.id, indicador.maximo, indicador.maximo))}
                               >
                                 Máx
                               </button>
                             )}
+                          {!mostrarObservaciones && !cerrado && <RuedaNota nombre={nombre} indicador={indicador}
+                              valor={valor} disabled={bloqueado} alElegir={(v) => alCambiarCalificacion(estudiante.id, indicador.id, v, indicador.maximo)} />}
                           </div>
 
-                          <div className="criterion-note">
+                          {mostrarObservaciones && <div className="criterion-note">
                             <label htmlFor={observationId}>Observación de {nombre} <span>(opcional)</span></label>
                             <textarea
                               className="textarea"
                               id={observationId}
                               value={formulario.observaciones?.[indicador.id] ?? ''}
-                              readOnly={cerrado}
+                              readOnly={bloqueado}
                               rows="2"
                               placeholder={cerrado ? 'Sin observaciones' : `Observación para ${estudiante.nombres}`}
                               onChange={(evento) => alCambiarObservacion(estudiante.id, indicador.id, evento.target.value)}
                             />
-                          </div>
+                          </div>}
                         </div>
                       );
                     })}

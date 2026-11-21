@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, Award, BookOpenCheck, CalendarDays, ClipboardCheck, FileClock, FilePen, FileSearch,
-  FileText, History, LayoutDashboard, ListChecks, Lock, LogOut, PanelLeft, ShieldCheck, University,
+  FileText, History, LayoutDashboard, ListChecks, Lock, LogOut, Menu, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
 import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { iniciales } from '../../domain/flujoTrabajo';
@@ -59,13 +59,14 @@ export const NAVEGACION = [
   {
     etiqueta: 'Control',
     elementos: [
+      { to: '/configuracion', etiqueta: 'Configuración general', icon: ListChecks },
       {
         clave: 'auditoria', etiqueta: 'Auditoría', icon: History,
         // Cada subopción exige su propia autorización confirmada por el servidor.
         hijos: [
           { to: '/auditoria', etiqueta: 'Historial de cambios', icon: FileClock, end: true,
             permiso: 'auditoria', exigencia: EXIGENCIA.AUTORIZACION },
-          { to: '/auditoria/correcciones', etiqueta: 'Solicitudes de corrección', icon: FilePen,
+          { to: '/auditoria/correcciones', etiqueta: 'Solicitudes', icon: FilePen,
             permiso: 'correcciones', exigencia: EXIGENCIA.AUTORIZACION },
         ],
       },
@@ -102,9 +103,9 @@ function Opcion({ elemento, rutaActual, alNavegar, subopcion = false }) {
   );
 }
 
-export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false, rol = null }) {
+export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false, rol = null, permisosPersonalizados }) {
   // Usuario de demostración: además de los permisos, solo las opciones de su rol (Paso 2, A.4).
-  const grupos = filtrarNavegacionPorRol(filtrarNavegacion(NAVEGACION, permisos), rol);
+  const grupos = filtrarNavegacionPorRol(filtrarNavegacion(NAVEGACION, permisos), rol, permisosPersonalizados);
   return (
     <nav className={movil ? 'mobile-links' : 'side-nav'} aria-label={movil ? 'Navegación móvil' : 'Navegación principal'}>
       {grupos.map((grupo) => (
@@ -169,13 +170,43 @@ export function EstructuraAplicacion({ children }) {
   const referenciaNavegacionMovil = useRef(null);
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
   const permisos = usarPermisosNavegacion();
+  const [cabeceraOculta, ocultarCabecera] = useState(false);
   const avisoBorradores = avisoColaBorradores(usarSincronizacionBorradores());
   const sesionDemo = usarSesionDemo();
   const esVistaEvaluacionesApi = ubicacion.pathname === '/mis-evaluaciones'
     || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/');
 
   useEffect(() => {
+    ocultarCabecera(false);
+    const movil = window.matchMedia?.('(max-width: 1080px), (pointer: coarse) and (max-width: 1440px)');
+    let anterior = Math.max(0, window.scrollY);
+    const alDesplazar = () => {
+      if (!movil?.matches) return;
+      const actual = Math.max(0, window.scrollY);
+      if (actual > 0 && Math.abs(actual - anterior) < 6) return;
+      const cabecera = referenciaNavegacionMovil.current?.closest('header');
+      ocultarCabecera(actual > (cabecera?.offsetHeight ?? 0) && actual > anterior
+        && !cabecera?.querySelector('details[open]'));
+      anterior = actual;
+    };
+    const cerrarMenu = (evento) => {
+      const menu = referenciaNavegacionMovil.current;
+      if (!menu?.open) return;
+      if (evento.type === 'keydown') {
+        if (evento.key !== 'Escape') return;
+        menu.querySelector('summary')?.focus();
+      } else if (menu.contains(evento.target)) return;
+      menu.open = false;
+    };
+    window.addEventListener('scroll', alDesplazar, { passive: true });
+    document.addEventListener('pointerdown', cerrarMenu);
+    document.addEventListener('keydown', cerrarMenu);
     if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
+    return () => {
+      window.removeEventListener('scroll', alDesplazar);
+      document.removeEventListener('pointerdown', cerrarMenu);
+      document.removeEventListener('keydown', cerrarMenu);
+    };
   }, [ubicacion.pathname]);
 
   useEffect(() => {
@@ -202,11 +233,17 @@ export function EstructuraAplicacion({ children }) {
             <small>Facultad de Ciencias de la Vida y Tecnologías</small>
           </div>
         </NavLink>
-        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={identidadLocal} rol={usuarioDemo?.rol ?? null} />
+        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={identidadLocal} rol={usuarioDemo?.rol ?? null} permisosPersonalizados={usuarioDemo?.permisosPersonalizados} />
       </aside>
 
-      <header className="topbar app-topbar">
+      <header className={`topbar app-topbar ${cabeceraOculta ? 'cabecera-oculta' : ''}`} onFocusCapture={() => ocultarCabecera(false)}>
         <div className="topbar-left">
+      <details className="movil-nav app-movil-nav" ref={referenciaNavegacionMovil}>
+            <summary aria-label="Menú del sistema" title="Menú del sistema"><Menu size={23} aria-hidden="true" /></summary>
+            <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} rol={usuarioDemo?.rol ?? null} permisosPersonalizados={usuarioDemo?.permisosPersonalizados} alNavegar={() => {
+              if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
+            }} />
+          </details>
           <button
             type="button"
             className="icon-button sidebar-toggle-btn"
@@ -246,12 +283,7 @@ export function EstructuraAplicacion({ children }) {
         </div>
       </header>
 
-      <details className="movil-nav app-movil-nav" ref={referenciaNavegacionMovil}>
-        <summary>Menú del sistema</summary>
-        <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} rol={usuarioDemo?.rol ?? null} alNavegar={() => {
-          if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
-        }} />
-      </details>
+
 
       <main className="main-content" id="main-content" tabIndex="-1">
         {sesionDemo.fase === 'comprobando'

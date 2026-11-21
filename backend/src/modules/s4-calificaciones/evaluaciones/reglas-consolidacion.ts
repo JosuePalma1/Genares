@@ -49,13 +49,17 @@ export function promedioRacional(valores: readonly Racional[]): Racional | null 
 }
 
 export function redondearRacionalHalfUp(valor: Racional): string {
+  return publicarRacional(valor, 'HALF_UP');
+}
+
+export function publicarRacional(valor: Racional, metodo: 'HALF_UP'|'TRUNCAR'):string {
   if (valor.numerador < 0n || valor.denominador <= 0n) {
     throw new RangeError('Las calificaciones deben ser racionales no negativos.');
   }
   const centesimasEscaladas = valor.numerador * 100n;
   let centesimas = centesimasEscaladas / valor.denominador;
   const resto = centesimasEscaladas % valor.denominador;
-  if (resto * 2n >= valor.denominador) centesimas += 1n;
+  if (metodo==='HALF_UP' && resto * 2n >= valor.denominador) centesimas += 1n;
   return `${centesimas / 100n}.${(centesimas % 100n).toString().padStart(2, '0')}`;
 }
 

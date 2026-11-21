@@ -33,8 +33,8 @@ export class ProgramacionesSustentacionController {
 
   @Get('trabajos-disponibles')
   @RequiereCapacidades('programaciones:leer')
-  trabajosDisponibles(@Query() filtros: ConsultarProgramacionesDto) {
-    return this.programaciones.trabajosDisponibles(filtros);
+  trabajosDisponibles(@Query() filtros: ConsultarProgramacionesDto, @Req() solicitud: SolicitudConIdentidad) {
+    return this.programaciones.trabajosDisponibles(filtros, this.rolProgramacion(solicitud));
   }
 
   @Get('impresion')
@@ -55,11 +55,15 @@ export class ProgramacionesSustentacionController {
     return this.programaciones.obtener(id);
   }
 
+  private rolProgramacion(solicitud: SolicitudConIdentidad) {
+    return solicitud.identidadApi?.rol ?? (solicitud.identidadApi?.tipo === 'DESARROLLO_LOCAL' ? 'SUPERUSUARIO' : '');
+  }
+
   @Post()
   @RequiereCapacidades('programaciones:administrar')
   crear(@Req() solicitud: SolicitudConIdentidad, @Body() dto: CrearProgramacionDto) {
     return this.programaciones.crear(
-      dto, actorValidadoDe(solicitud), solicitud.identidadApi?.tipo === 'DESARROLLO_LOCAL',
+      dto, actorValidadoDe(solicitud), solicitud.identidadApi?.tipo === 'DESARROLLO_LOCAL', this.rolProgramacion(solicitud),
     );
   }
 

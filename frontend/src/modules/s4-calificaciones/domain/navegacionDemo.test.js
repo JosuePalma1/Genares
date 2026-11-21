@@ -28,6 +28,7 @@ describe('menú por rol en la demostración (Paso 2, A.4)', () => {
       expect(lista).toContain(rutaInicialPorRol(rol));
     }
     expect(rutaInicialPorRol('ADMINISTRACION')).toBe('/maestros/modalidades');
+    expect(rutaInicialPorRol('TRIBUNAL')).toBe('/mis-evaluaciones');
     expect(rutaInicialPorRol(undefined)).toBe('/dashboard');
   });
 });

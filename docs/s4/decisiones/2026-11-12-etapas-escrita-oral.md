@@ -116,3 +116,10 @@ Quedan fuera por ahora:
 **Requisito en la base.** `backend/fixtures/s4-asignacion-rubrica-proceso.sql` concede `INSERT` sobre `s4.procesos_evaluacion` a `genares`. Lo ejecuta el usuario en pgAdmin como `postgres`.
 
 **Implementación:** `asignarRubricaVigente` y `CONSULTA_RUBRICA_VIGENTE_ASIGNACION` en `evaluaciones/mer/evaluaciones-mer.service.ts`; pruebas en `evaluaciones-mer.asignacion-rubrica.spec.ts`.
+## Seguimiento de las entrevistas de noviembre de 2026
+
+La escrita se revisa antes de la defensa. En la práctica puede registrarse el mismo día. El flujo ordinario permite programar con las dos escritas completas. La configuración debe distinguir la excepción de programación y las condiciones de cierre. Las observaciones de revisión escrita llegan habitualmente al tutor. En la oral, los docentes priorizan el puntaje y suelen dar la devolución verbalmente.
+
+La rúbrica suele mantenerse durante el semestre. El administrador define qué versión aplica a cada carrera, modalidad y período. Cada intento conserva la configuración con la que se evaluó. Las firmas se gestionan fuera de S4.
+
+Después del piloto de la APK, la prioridad de configuración académica es reunir la escala, el mínimo y la versión de rúbrica vigente, reutilizando el editor de rúbricas. Probar dos períodos con reglas distintas y verificar que una nueva publicación conserva los resultados históricos. Un caso de prueba es una etapa con máximos de 2,50 + 2,50 + 5,00 sobre 10 y un peso del 50 %.

@@ -10,7 +10,7 @@ export class PuntajeBorradorDto {
   idIndicador!: string;
 
   @IsOptional()
-  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @IsNumber({ allowNaN: false, allowInfinity: false, maxDecimalPlaces: 4 })
   @Min(0)
   score?: number | null;
 

@@ -56,7 +56,7 @@ export class DocumentosService {
   async contexto(trabajoId: string, actor: string, puedeEmitirDocumentos = false, puedeConsultarDemostracion = false) {
     const [datos, configuracion] = await Promise.all([
       this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion),
-      this.valorNotaMinima(),
+      this.valorNotaMinima(trabajoId),
     ]);
     const escala = datos.rubrica.escalaFinal ?? 10;
     const umbral = notaMinimaEnEscala(configuracion.valor, escala);
@@ -119,7 +119,7 @@ export class DocumentosService {
   async preliminar(trabajoId: string, estudianteId: string, formato: FormatoActaDto['formato'], actor: string, puedeConsultarDemostracion = false) {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, puedeConsultarDemostracion);
     const pendientes = pendientesActa(datos, estudianteId);
-    const configuracion = await this.valorNotaMinima();
+    const configuracion = await this.valorNotaMinima(trabajoId);
     const estudiante = datos.estudiantes.find(({ id }) => id === estudianteId);
     return {
       pdf: await pdfActaPreliminar(datos, estudianteId, formato, pendientes, notaMinimaEnEscala(configuracion.valor, datos.rubrica.escalaFinal ?? 10)),
@@ -139,7 +139,7 @@ export class DocumentosService {
     return this.db.transaction(async (manager) => {
       await establecerActorAuditoria(manager, actor);
       // Bloquea el umbral durante la emisión para que el PDF y su snapshot coincidan.
-      const [configuracion] = await manager.query(`SELECT porcentaje::text AS valor FROM s4.configuracion_nota_minima WHERE id=1 FOR SHARE`);
+      const [configuracion] = await manager.query(`SELECT COALESCE((SELECT to_jsonb(p)->>'porcentaje_aprobacion' FROM s4.procesos_evaluacion p WHERE p.asignacion_tema_id=$1 AND p.estado_registro=1), porcentaje::text) AS valor FROM s4.configuracion_nota_minima WHERE id=1 FOR SHARE`,[trabajoId]);
       if (!configuracion) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
       const escala = Number(resultado.calificacionMaxima);
       const umbral = notaMinimaEnEscala(configuracion.valor, escala);
@@ -205,9 +205,9 @@ export class DocumentosService {
     return acta;
   }
 
-  private async valorNotaMinima(): Promise<{ valor: string; actualizadoEn: Date; actualizadoPor: string }> {
-    const [configuracion] = await this.db.query(`SELECT porcentaje::text AS valor, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
-      FROM s4.configuracion_nota_minima WHERE id=1`);
+  private async valorNotaMinima(trabajoId?:string): Promise<{ valor: string; actualizadoEn: Date; actualizadoPor: string }> {
+    const [configuracion] = await this.db.query(`SELECT COALESCE((SELECT to_jsonb(p)->>'porcentaje_aprobacion' FROM s4.procesos_evaluacion p WHERE p.asignacion_tema_id=$1 AND p.estado_registro=1), porcentaje::text) AS valor, actualizado_en AS "actualizadoEn", actualizado_por AS "actualizadoPor"
+      FROM s4.configuracion_nota_minima WHERE id=1`,[trabajoId ?? null]);
     if (!configuracion) throw new ConflictException('La configuración académica de nota mínima no está instalada.');
     return configuracion;
   }

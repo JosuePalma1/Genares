@@ -151,3 +151,29 @@
   /* Cada botón ocupa al menos su contenido: si no caben, pasan a otra fila (antes la flecha de «Volver» se salía). */
   .react-app-shell .page-header-actions .button { flex: 1 1 auto; min-width: max-content; }
 }
+
+@media (max-width: 1080px), (pointer: coarse) and (max-width: 1440px) {
+  .react-app-shell .app-sidebar, .app-topbar .sidebar-toggle-btn { display: none; }
+  .react-app-shell .app-topbar { left: 0; transition: transform .18s ease-out; }
+  .react-app-shell .cabecera-oculta { transform: translateY(-105%); }
+  .react-app-shell .main-content { margin-left: 0; padding-top: calc(var(--header-height) + 1rem); }
+  .app-topbar .topbar-left { min-width: 0; justify-content: flex-start; }
+  .app-topbar .app-movil-nav {
+    display: block; position: static; flex: 0 0 44px; border: 0; background: transparent; box-shadow: none;
+  }
+  .app-topbar .app-movil-nav > summary {
+    display: grid; place-items: center; height: 44px; width: 44px; min-height: 44px;
+    padding: 0; list-style: none; cursor: pointer; border-radius: .5rem;
+  }
+  .app-topbar .app-movil-nav > summary::after,
+  .app-topbar .app-movil-nav > summary::-webkit-details-marker { display: none; }
+  .app-topbar .app-movil-nav[open] > .mobile-links {
+    display: grid; position: absolute; inset: 100% auto auto 0; width: min(30rem, 100%);
+    box-sizing: border-box; max-height: calc(100dvh - var(--header-height)); overflow-y: auto;
+    overscroll-behavior: contain; padding: 1rem; background: var(--color-surface-raised); box-shadow: var(--elevation-low);
+  }
+  .app-topbar .app-movil-nav:not([open]) > .mobile-links { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-app-shell .app-topbar { transition: none; }
+}

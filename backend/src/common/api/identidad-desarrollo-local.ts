@@ -1,6 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { IdentidadApi, SolicitudConIdentidad } from './identidad-api';
-import { crearFirmador, crearManejadorSesionDemo, crearMiddlewareIdentidadDemo } from './identidad-demo';
+import { LeerPermisosRol, crearFirmador, crearManejadorSesionDemo, crearMiddlewareIdentidadDemo } from './identidad-demo';
 
 export interface EntornoAccesoDesarrollo {
   NODE_ENV?: string;
@@ -182,6 +182,7 @@ export async function instalarIdentidadDesarrolloLocal(
   aplicacion: INestApplication,
   entorno: EntornoAccesoDesarrollo = process.env,
   verificarBase?: () => Promise<VerificacionBaseDesarrollo>,
+  leerPermisos?: LeerPermisosRol,
 ): Promise<boolean> {
   const habilitado = entorno.NODE_ENV === 'development' && entorno.LOCAL_DEV_OPEN_ACCESS === 'true';
   if (!habilitado) return false;
@@ -205,7 +206,7 @@ export async function instalarIdentidadDesarrolloLocal(
   aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(capacidades));
   // Usuarios de demostración: si la petición trae su sesión, sustituyen a la identidad técnica.
   const firmador = crearFirmador();
-  aplicacion.use(crearMiddlewareIdentidadDemo(firmador));
+  aplicacion.use(crearMiddlewareIdentidadDemo(firmador,leerPermisos));
   aplicacion.use(crearMiddlewareProteccionEscrituraLocal(origenes));
   aplicacion.use(crearManejadorSesionDemo(firmador));
   return true;

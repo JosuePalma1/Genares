@@ -59,3 +59,69 @@
   .evaluaciones-mer-page .em-rubrica-formulario .rubrica-live-summary{position:static;padding:16px}
   .em-rubrica-formulario .rubrica-summary-categorias{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Controles de sustentación: una entrada breve y un atajo táctil por alumno. */
+.em-oral .rubrica-estudiante-control {
+  display: flex;
+  flex-direction: column;
+  gap: .35rem;
+  padding: .65rem;
+}
+.em-oral .rubrica-estudiante-control-heading {
+  padding: 0;
+  border: 0;
+}
+.em-oral .rubrica-estudiante-control-heading > div > span { display: none; }
+.em-oral .calificacion-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(44px, .68fr) minmax(44px, .68fr);
+  gap: clamp(4px, 1vw, 8px);
+  align-items: center;
+  width: 100%;
+  max-width: 19rem;
+  min-width: 0;
+}
+.em-oral .calificacion-control > label:not(.sr-only),
+.em-oral .calificacion-error,
+.em-oral .rueda-panel { grid-column: 1 / -1; }
+.em-oral .calificacion-error { order: 1; }
+.em-oral .calificacion-input-wrap { min-width: 0; width: 100%; min-height: 44px; }
+.em-oral .calificacion-input-wrap .calificacion-input {
+  width: 100%;
+  min-height: 40px;
+  padding: .25rem .4rem;
+}
+.em-oral .calificacion-input-wrap > span { display: none; }
+.em-oral .calificacion-max-button {
+  width: 100%;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+}
+.em-oral .rubrica-comparativa-indicador { padding: .75rem; }
+.em-oral .rubrica-comparativa-estudiantes {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: .5rem;
+}
+.em-comentario { margin-block: .6rem; }
+.em-comentario summary { cursor: pointer; padding-block: .5rem; }
+
+.em-oral .calificacion-control > button {
+  width: 100%; height: 44px; min-width: 44px; padding: .35rem; box-sizing: border-box;
+}
+.rueda-panel { padding: .5rem; border: 1px solid #bac9d5; border-radius: .5rem; }
+.rueda-panel p { margin: 0; font-size: .85rem; }
+.rueda-panel footer { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.rueda-panel footer button { min-height: 44px; }
+.rueda-marco { position: relative; }
+.rueda-marco::after { content: ''; position: absolute; inset: 44px 0; border-block: 1px solid #7298a8; pointer-events: none; }
+.rueda-panel footer button, .rueda-lista { touch-action: none; }
+.rueda-lista { height: 132px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; mask-image: linear-gradient(transparent, black 30%, black 70%, transparent); }
+.rueda-valor { position: absolute; width: 100%; height: 44px; text-align: center; line-height: 44px; scroll-snap-align: center; font-variant-numeric: tabular-nums; }
+.rueda-valor[data-activo="true"] { transform: scale(1.18); font-weight: 700; }
+
+.em-oral .rueda-abrir, .em-oral .calificacion-max-button { touch-action: manipulation; }
+.rueda-marco::after { background: rgb(35 126 128 / 6%); border-radius: .4rem; }
+@media (prefers-reduced-motion: no-preference) {
+  .rueda-valor { transition: transform 110ms ease-out; }
+}

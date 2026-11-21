@@ -70,7 +70,29 @@ Solo en modo local, el backend acepta ese origen: CORS para los orígenes exacto
   4. al recargar sin backend se recupera el borrador;
   5. al reconectar se sincroniza solo y el borrador local se elimina (confirmado en PostgreSQL; la nota de prueba se restauró después).
 
+## Validación en navegador (S4-16)
+
+Fecha de prueba: 10 de noviembre de 2026, hora de Bogotá.
+
+Se utilizó Chrome con el modo Offline de DevTools, que bloqueó las solicitudes reales de la pestaña. Genares se ejecutó con Vite y NestJS locales, conectados a PostgreSQL `genares_integrado_dev`. La segunda pestaña permaneció conectada para simular otro dispositivo.
+
+| Escenario | Resultado observado |
+| --- | --- |
+| RF-29, RF-30 y RF-32: edición durante el corte | En la rúbrica oral DEV-1 de Pedro, con Lucía como evaluadora, se guardaron localmente la nota 7.25 y su observación. Chrome informó `navigator.onLine=false` y el formulario mostró «Pendiente de sincronización». |
+| Recarga desde el formulario | El botón «Recargar» recuperó el expediente, la nota y la observación desde el dispositivo. El botón «Cerrar evaluación oral» estaba deshabilitado incluso con el indicador completo. |
+| RF-31: reconexión | El formulario sincronizó automáticamente y mostró «Guardado en servidor · revisión 1». La lectura de la API respaldada por PostgreSQL devolvió el borrador, la nota y la observación. |
+| RF-31 y RN-22: reintento | Dos POST con el mismo identificador de operación devolvieron el mismo ID y la misma revisión 3. |
+| RF-47 y RN-29: revisión concurrente | La pestaña offline editó sobre la revisión 2. La pestaña conectada guardó la revisión 3 con nota 8. Al reconectar, el formulario mostró conflicto y conservó la observación local. La revisión 3 y su observación remota permanecieron en el servidor. |
+| Separación por evaluador | Al cambiar a David para el mismo estudiante, la nota y la observación del formulario estaban vacías. La prueba de navegador usó un solo estudiante. |
+| Recarga completa y reapertura offline | Una recarga de Chrome ignorando caché abrió la página de error. Se cerró la pestaña de Genares y se intentó abrir la ruta en otra pestaña del mismo perfil aislado, también offline. Chrome devolvió `ERR_INTERNET_DISCONNECTED`. Al reconectar y abrir la ruta, reaparecieron la observación local y el conflicto. |
+
+Se compararon las cinco evaluaciones DEV preexistentes antes y después y sus respuestas fueron idénticas. La prueba dejó un único borrador ficticio nuevo en revisión 3, con ID `8e43f2ff-9645-45f8-bc54-79721b7df7c3`. No se cerró ninguna evaluación.
+
 ## Pendiente de probar en una tablet física
+
+**Piloto con docentes.** Al terminar cada sustentación, observar si el docente encuentra su trabajo, califica la etapa y reconoce cuándo quedó enviada su nota. Probar el corte y retorno de red con datos de prueba. Registrar dispositivo, orientación, tiempo hasta abrir la rúbrica y pasos que requirieron ayuda. Preguntar qué le demoró, dónde dudó y qué cambiaría. Usar los resultados para priorizar mejoras.
+
+Para el acceso institucional, coordinar con DIT la identificación mediante Office 365 y su vínculo con el docente asignado. El piloto de desarrollo puede empezar con usuarios de prueba.
 
 No hay emulador ni tablet en el equipo donde se generó la APK. Falta comprobar:
 

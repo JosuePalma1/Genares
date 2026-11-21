@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   ArrowRight, BookOpenCheck, CalendarClock, Check, CheckCircle2, FileClock, FileSearch, GraduationCap,
@@ -7,7 +7,7 @@ import {
 import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
 import { usarPaginaTrabajosApi, usarTrabajoApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
-import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
+import { getJsonApi, postJsonApi, ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import { usarTrazabilidadTrabajoApi } from '../hooks/usarTrazabilidadTrabajoApi';
 import { usarValorDiferido } from '../hooks/usarValorDiferido';
 import { Paginador } from '../components/Paginador';
@@ -196,6 +196,21 @@ function datosProgreso(trabajo, consultaEvaluaciones) {
 }
 
 function AvanceTrabajoApi({ trabajo, consultaEvaluaciones }) {
+  const [flujo,setFlujo] = useState(null);
+  const [errorFlujo,setErrorFlujo] = useState('');
+  const [ocupado,setOcupado] = useState(false);
+  const ruta = '/configuracion-general/trabajos/'+trabajo.id;
+  useEffect(()=>{
+    const abort=new AbortController();
+    setFlujo(null); setErrorFlujo('');
+    if (trabajo.versionFlujo > 1) getJsonApi(ruta,{signal:abort.signal}).then(setFlujo).catch(e=>{if(!abort.signal.aborted)setErrorFlujo(e.message);});
+    return ()=>abort.abort();
+  },[ruta,trabajo.versionFlujo]);
+  async function cambiar(paso,accion) {
+    setOcupado(true); setErrorFlujo('');
+    try {await postJsonApi(ruta+'/pasos/'+paso,{accion});setFlujo(await getJsonApi(ruta));}
+    catch(e){setErrorFlujo(e.message);} finally{setOcupado(false);}
+  }
   const { etapas, estadoEtapas } = datosProgreso(trabajo, consultaEvaluaciones);
   const evaluacionesPorMiembro = new Map();
   for (const { evaluaciones } of etapas) {
@@ -219,8 +234,8 @@ function AvanceTrabajoApi({ trabajo, consultaEvaluaciones }) {
       {/* Se desplaza en horizontal en pantallas medianas: debe poder alcanzarse con el teclado (WCAG 2.1.1). */}
       <div className="card-body trabajo-progress-timeline" tabIndex={0} role="region" aria-label="Avance del proceso; desplazamiento horizontal disponible">
         <ol className="process-steps" aria-label="Etapas del trabajo">
-          {PASOS_PROCESO.map((paso, indice) => {
-            const progreso = estadoEtapas(paso.id);
+          {(flujo?.version > 1 ? flujo.pasos : PASOS_PROCESO).map((paso, indice) => {
+            const progreso = paso.tipo ? {completado:paso.cumplido, detalle:paso.estado === 'SOLICITADO' ? 'Esperando aprobación' : paso.estado.toLowerCase()} : estadoEtapas(paso.id);
             return (
               <li
                 className={`process-step ${progreso.completado ? 'is-done' : ''} ${progreso.actual ? 'is-current' : ''}`.trim()}
@@ -230,14 +245,19 @@ function AvanceTrabajoApi({ trabajo, consultaEvaluaciones }) {
                 <span className="process-step-marker" aria-hidden="true">
                   {progreso.completado ? <Check /> : indice + 1}
                 </span>
-                <span>{paso.etiqueta}</span>
+                <span>{paso.nombre ?? paso.etiqueta}</span>
                 <small className="trabajo-progress-step-detail">{progreso.detalle}</small>
+                {paso.acciones?.map(accion=><button type="button" key={accion} disabled={ocupado} onClick={()=>cambiar(paso.id,accion)}>
+                  {accion==='SOLICITAR'?(paso.aprobadores.length?'Solicitar aprobación':'Marcar cumplido'):accion==='APROBAR'?'Aprobar':'Rechazar'}</button>)}
               </li>
             );
           })}
         </ol>
       </div>
 
+      {flujo?.historial?.length>0 && <details><summary>Historial de pasos</summary><ol>{flujo.historial.map((h,i)=>
+        <li key={i}>{flujo.pasos.find(p=>p.id===h.paso)?.nombre} · {h.accion} · {h.actor} · {new Date(h.fecha).toLocaleString()}</li>)}</ol></details>}
+      {errorFlujo && <p role="alert">{errorFlujo}</p>}
       {trabajo.miembrosTribunal.length > 0 && (
         <div className="tribunal-progress-grid">
           {trabajo.miembrosTribunal.map((miembro) => {
@@ -480,8 +500,8 @@ export function PaginaTrabajosApi() {
                   <div className="trabajo-list-tribunal"><span className="trabajo-list-label"><UsersRound size={16} /> Tribunal confirmado</span><span>{datosTribunal(trabajo)}</span></div>
                   <footer>
                     <div className="trabajo-stage-progress">
-                      <span><strong>Progreso verificado: {progreso.porcentaje}%</strong> · {progreso.confirmados} de {progreso.total} hitos</span>
-                      <progress value={progreso.porcentaje} max="100" aria-label={`Progreso verificado ${progreso.porcentaje}%`} title="El avance cuenta únicamente los hitos respaldados por estados registrados." />
+                      {trabajo.versionFlujo > 1 ? <span>Flujo v{trabajo.versionFlujo} · consulte los hitos en el expediente</span> : <><span><strong>Progreso verificado: {progreso.porcentaje}%</strong> · {progreso.confirmados} de {progreso.total} hitos</span>
+                      <progress value={progreso.porcentaje} max="100" aria-label={`Progreso verificado ${progreso.porcentaje}%`} title="El avance cuenta únicamente los hitos respaldados por estados registrados." /></>}
                       <span><strong>Rúbrica:</strong> {trabajo.rubrica ? `${trabajo.rubrica} · ${trabajo.versionRubrica ?? 'versión no indicada'}` : 'Sin versión asociada'}</span>
                       <span>Evaluaciones escritas cerradas: <strong>{trabajo.escritasCerradas}</strong> · Sesiones: <strong>{trabajo.sesiones.length}</strong></span>
                     </div>
@@ -647,7 +667,7 @@ export function PaginaDetalleTrabajoApi() {
           ))}
           <div className="trabajo-api-actions">
             <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}>Abrir evaluaciones escritas</Link>
-            {trabajo.estudiantes.map((estudiante) => (
+            {trabajo.estudiantes.length === 2 ? <Link className="button button-outline" to={`/evaluaciones/${trabajo.id}`}>Calificar sustentación de la bina</Link> : trabajo.estudiantes.map((estudiante) => (
               <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}>
                 Evaluar oral · {nombre(estudiante)}
               </Link>

@@ -40,4 +40,9 @@ INSERT INTO s4.historial_nota_minima (id, porcentaje_anterior, porcentaje_nuevo,
 SELECT (SELECT COALESCE(max(id), 0) + 1 FROM s4.historial_nota_minima),
   NULL, porcentaje, now(), 'sistema:valor-inicial' FROM inicial;
 
+DO $$ BEGIN
+  IF to_regclass('s4.version_flujo') IS NOT NULL THEN
+    GRANT SELECT, INSERT ON s4.version_flujo, s4.historial_paso, s4.continuidad_estudiante, s4.permisos_rol_version TO genares;
+  END IF;
+END $$;
 COMMIT;

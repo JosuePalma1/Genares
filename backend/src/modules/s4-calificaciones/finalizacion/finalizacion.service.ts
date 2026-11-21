@@ -1,3 +1,4 @@
+import { flujoDelProceso, trabajoEn } from '../configuracion/flujo-proceso';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EstadoTrabajo } from '../../../common/domain/enums-dominio';
@@ -111,8 +112,8 @@ export class FinalizacionService {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, accesoLocal);
     const procesoId = datos.trabajo.procesoId as string;
     // estado: el guardado (decide si ya está finalizado); estadoCalculado: el que se muestra (Paso 1 §3.1).
-    const [proceso]: Array<{ estado: string | null; estadoCalculado?: string | null }> = await this.db.query(`
-      SELECT p.estado, estado_calculado.estado AS "estadoCalculado"
+    const [proceso]: Array<{ estado: string | null; versionFlujo?: number; estadoCalculado?: string | null }> = await this.db.query(`
+      SELECT p.estado, (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo", estado_calculado.estado AS "estadoCalculado"
       FROM s4.procesos_evaluacion p
       JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id
       LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
@@ -133,6 +134,15 @@ export class FinalizacionService {
         actaArchivada: conActa.has(estudiante.id),
       })),
     });
+    if ((proceso.versionFlujo ?? 1) > 1) {
+      const trabajo = await trabajoEn(this.db.manager,trabajoId);
+      if (!trabajo) throw new NotFoundException('Trabajo no disponible.');
+      const flujo = await flujoDelProceso(this.db.manager, trabajo, '', actor);
+      for (const paso of flujo.pasos.filter(p => p.obligatorio && !p.cumplido)) {
+        evaluacion.pendientesTrabajo.push(`Falta completar: ${paso.nombre}.`);
+        evaluacion.puedeFinalizar = false;
+      }
+    }
     return {
       trabajo: {
         id: datos.trabajo.id as string, titulo: datos.trabajo.titulo as string,

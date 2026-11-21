@@ -1,5 +1,5 @@
 import {
-  promedioRacional, racional, racionalDesdeDecimal, redondearRacionalHalfUp, serializarRacional, sumarRacionales,
+  promedioRacional, publicarRacional, racional, racionalDesdeDecimal, redondearRacionalHalfUp, serializarRacional, sumarRacionales,
 } from '../reglas-consolidacion';
 
 /** Reglas del formulario local; el máximo lo establece la rúbrica de PostgreSQL. */
@@ -63,7 +63,7 @@ export interface NotaConsolidada {
 }
 
 export function detallarConsolidacionMer<T extends EtapaConsolidada>(
-  etapas: T[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string, escala = 10,
+  etapas: T[], evaluadores: string[], notas: NotaConsolidada[], estudiante: string, escala = 10, metodo: 'HALF_UP'|'TRUNCAR' = 'HALF_UP',
 ) {
   let resultado = racional(0n);
   let ponderacion = racional(0n);
@@ -125,8 +125,8 @@ export function detallarConsolidacionMer<T extends EtapaConsolidada>(
       ? 'EN_PROGRESO' : detalle.some((e) => e.evaluaciones.length)
         ? 'EVALUACIONES_CERRADAS_INCOMPLETAS' : 'SIN_EVALUACIONES',
     resultadoFinal: completo ? {
-      exacto: serializarRacional(resultado), calificacion: redondearRacionalHalfUp(resultado),
-      calificacionMaxima: escala.toFixed(2), redondeo: 'HALF_UP_A_DOS_DECIMALES',
+      exacto: serializarRacional(resultado), calificacion: publicarRacional(resultado,metodo),
+      calificacionMaxima: escala.toFixed(2), redondeo: metodo === 'TRUNCAR' ? 'TRUNCAR_A_DOS_DECIMALES' : 'HALF_UP_A_DOS_DECIMALES',
     } : null,
   };
 }

@@ -1,3 +1,6 @@
+import { registrarReemplazo, ReemplazarDto } from './reemplazos';
+import { notaAprobada, notaMinimaEnEscala } from '../../documentos/reglas-acta';
+import { requisitosAccion, trabajoEn } from '../../configuracion/flujo-proceso';
 import {
   BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException,
 } from '@nestjs/common';
@@ -9,6 +12,8 @@ import { ESTADO_CALCULADO_TRABAJO } from '../../trabajos/trabajos.service';
 import { accesoPorAlcance, alcanceActual, conAlcance, hayRestriccionDeAlcance, identidadActual } from '../../../../common/api/contexto-alcance';
 
 interface IdentidadProceso {
+  porcentajeAprobacion?: string;
+  redondeoFinal?: 'HALF_UP'|'TRUNCAR';
   procesoId: string;
   asignacionId: string;
   tema: string;
@@ -39,7 +44,8 @@ export interface ParticipanteMer {
 
 /** Proceso evaluable del trabajo con su versión de rúbrica visible ($1 = asignación). */
 export const CONSULTA_PROCESO_EXPEDIENTE = `
-  SELECT p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
+  SELECT COALESCE(to_jsonb(p)->>'porcentaje_aprobacion',(SELECT porcentaje::text FROM s4.configuracion_nota_minima WHERE id=1)) AS "porcentajeAprobacion",
+    COALESCE(to_jsonb(p)->>'redondeo_final','HALF_UP') AS "redondeoFinal", p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
          p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica", vr.escala_final AS "escalaFinal",
          -- Paso 1 §3.1: el estado del trabajo se calcula desde los datos, como en Trabajos e Inicio.
          estado_calculado.estado AS "estadoProceso",
@@ -173,6 +179,19 @@ export class EvaluacionesMerService {
     });
   }
 
+  reemplazar(asignacion: string, dto: ReemplazarDto, actor: string) {
+    this.verificarEntornoEscritura();
+    return registrarReemplazo(this.db, asignacion, dto, actor);
+  }
+
+  async candidatos(asignacion: string) {
+    await this.obtenerExpediente(asignacion);
+    return this.db.query(`SELECT DISTINCT d.id, concat_ws(' ',p.nombres,p.apellidos) AS nombre
+      FROM s3.miembros_tribunal mt JOIN s3.docente_carrera_periodo dc USING(docente_carrera_periodo_id)
+      JOIN gen.docente d ON d.id=dc.docente_id AND d.activo JOIN gen.usuario u ON u.id=d.usuario_id AND u.activo
+      JOIN gen.persona p ON p.id=d.persona_id ORDER BY nombre,d.id`);
+  }
+
   async obtenerExpediente(asignacionId: string, db: Pick<DataSource, 'query'> = this.db) {
     // Usuarios con ámbito: solo trabajos de sus carreras o de su tribunal (antes de crear nada).
     if (hayRestriccionDeAlcance()) {
@@ -204,15 +223,20 @@ export class EvaluacionesMerService {
           ))
         JOIN gen.persona persona ON persona.id = est.persona_id
         WHERE a.id = $1 ORDER BY persona.apellidos, persona.nombres`, [asignacionId]),
-      db.query<Array<ParticipanteMer & { sujeto: string | null }>>(`SELECT at.asignacion_tribunal_id AS id,
-          TRIM(CONCAT_WS(' ', per.nombres, per.apellidos)) AS nombre, u.sujeto_autenticacion AS sujeto
+      db.query<Array<ParticipanteMer & { sujeto: string | null; docente: string; reemplazos: Array<{etapa:string; docente:string; sujeto:string; nombre:string}> }>>(`SELECT at.asignacion_tribunal_id AS id,
+          TRIM(CONCAT_WS(' ', per.nombres, per.apellidos)) AS nombre, u.sujeto_autenticacion AS sujeto, doc.id AS docente,
+          (SELECT COALESCE(jsonb_agg(jsonb_build_object('etapa',re.etapa,'docente',dr.id,'sujeto',ur.sujeto_autenticacion,
+              'nombre',concat_ws(' ',pr.nombres,pr.apellidos))), '[]'::jsonb)
+           FROM s4.reemplazos_etapa_actuales re JOIN gen.docente dr ON dr.id=re.docente
+           JOIN gen.persona pr ON pr.id=dr.persona_id LEFT JOIN gen.usuario ur ON ur.id=dr.usuario_id AND ur.activo
+           WHERE re.puesto=at.asignacion_tribunal_id AND re.proceso=$2) AS reemplazos
         FROM s3.asignacion_tribunal at
         JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
         JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
         JOIN gen.docente doc ON doc.id = dcp.docente_id
         JOIN gen.persona per ON per.id = doc.persona_id
         LEFT JOIN gen.usuario u ON u.id = doc.usuario_id AND u.activo
-        WHERE at.asignacion_tema_id = $1 ORDER BY per.apellidos, per.nombres`, [asignacionId]),
+        WHERE at.asignacion_tema_id = $1 ORDER BY per.apellidos, per.nombres`, [asignacionId,proceso.procesoId]),
       db.query(`SELECT e.id, e.id_etapa_rubrica AS "idEtapaRubrica",
           e.id_asignacion_tribunal AS "idAsignacionTribunal", e.id_estudiante AS "idEstudiante",
           e.estado, e.estado_registro AS "estadoRegistro", COALESCE(e.revision, 0) AS revision,
@@ -244,6 +268,10 @@ export class EvaluacionesMerService {
     const evaluadoresSeleccionables = tribunalDe
       ? evaluadores.filter(({ sujeto }) => sujeto === tribunalDe).map(({ id, nombre }) => ({ id, nombre }))
       : evaluadoresTribunal;
+    const evaluadoresPorEtapa = Object.fromEntries(etapas.map(etapa => [etapa.id, evaluadores.flatMap(e => {
+      const actual = e.reemplazos?.find(r => r.etapa === etapa.id) ?? e;
+      return tribunalDe && actual.sujeto !== tribunalDe ? [] : [{ id: e.id, nombre: actual.nombre, docente: actual.docente }];
+    })]));
     const etapasVisibles = etapas.filter((etapa) => Number(etapa.estadoRegistro ?? 1) === 1).map((etapa) => ({
       ...etapa,
       categorias: etapa.categorias.filter((categoria: Record<string, unknown>) => Number(categoria.estadoRegistro ?? 1) === 1)
@@ -269,11 +297,14 @@ export class EvaluacionesMerService {
       }));
     const idsEvaluacionesVisibles = new Set(evaluacionesVisibles.map((evaluacion: Record<string, unknown>) => String(evaluacion.id)));
     return {
-      ...proceso, estudiantes, evaluadores: evaluadoresSeleccionables, evaluadoresTribunal,
+      ...proceso, estudiantes, evaluadores: evaluadoresSeleccionables, evaluadoresTribunal, evaluadoresPorEtapa,
       etapas: etapasVisibles, evaluaciones: evaluacionesVisibles,
       consolidados: estudiantes.map(({ id }) => {
-        const resultado = detallarConsolidacionMer(etapas, idsEvaluadores, evaluaciones, id, proceso.escalaFinal);
-        return { idEstudiante: id, total: resultado.resultadoFinal?.calificacion ?? null, ...resultado,
+        const resultado = detallarConsolidacionMer(etapas, idsEvaluadores, evaluaciones, id, proceso.escalaFinal, proceso.redondeoFinal);
+        const final = resultado.resultadoFinal;
+        const umbral = proceso.porcentajeAprobacion ? notaMinimaEnEscala(proceso.porcentajeAprobacion, Number(proceso.escalaFinal)) : null;
+        const aprobado = final && umbral ? notaAprobada(final.calificacion,umbral,Number(proceso.escalaFinal)) : null;
+        return { idEstudiante: id, aprobado, umbral, total: resultado.resultadoFinal?.calificacion ?? null, ...resultado,
           // El cálculo usa los totales guardados; aquí solo se oculta la estructura retirada.
           etapas: resultado.etapas.filter((etapa) => Number(etapa.estadoRegistro ?? 1) === 1).map((etapa) => ({
             ...etapa,
@@ -301,7 +332,7 @@ export class EvaluacionesMerService {
       // Una sola transacción guarda contexto, evaluación, notas y auditoría.
       // Bloquear el proceso evita dos creaciones simultáneas del mismo borrador.
       const [proceso] = await manager.query(`
-        SELECT p.id, p.id_version_rubrica AS "versionId"
+        SELECT p.id, p.id_version_rubrica AS "versionId", (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo"
         FROM s4.procesos_evaluacion p
         JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id AND a.estado = 'VIGENTE'
         JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
@@ -319,23 +350,20 @@ export class EvaluacionesMerService {
         throw new BadRequestException('La etapa no corresponde a la evaluación solicitada.');
       }
       const [asignacionTribunal] = await manager.query(`
-        SELECT dcp.docente_id AS "idDocente"
+        SELECT COALESCE(re.docente,dcp.docente_id) AS "idDocente"
         FROM s3.asignacion_tribunal at
         JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
         JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
+        LEFT JOIN s4.reemplazos_etapa_actuales re ON re.proceso=$3 AND re.etapa=$4 AND re.puesto=at.asignacion_tribunal_id
         WHERE at.asignacion_tribunal_id = $1 AND at.asignacion_tema_id = $2
-      `, [dto.idAsignacionTribunal, asignacionId]);
+      `, [dto.idAsignacionTribunal, asignacionId, proceso.id, dto.idEtapaRubrica]);
       if (!asignacionTribunal) throw new BadRequestException('Evaluador no asignado por S3 a este tema.');
       // RN-24: un usuario con ámbito solo firma como su propio evaluador.
       if (hayRestriccionDeAlcance()) {
         const [propio] = await manager.query(`
-          SELECT 1 FROM s3.asignacion_tribunal at
-          JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
-          JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
-          JOIN gen.docente d ON d.id = dcp.docente_id AND d.activo
-          JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
-          WHERE at.asignacion_tribunal_id = $1 AND u.sujeto_autenticacion = $2
-        `, [dto.idAsignacionTribunal, identidadActual()?.sujeto ?? null]);
+          SELECT 1 FROM gen.docente d JOIN gen.usuario u ON u.id=d.usuario_id AND u.activo
+          WHERE d.id=$1 AND d.activo AND u.sujeto_autenticacion=$2
+        `, [asignacionTribunal.idDocente, identidadActual()?.sujeto ?? null]);
         if (!propio) throw new ForbiddenException('Solo puede guardar o cerrar sus propias evaluaciones.');
       }
       if (idEstudiante) {
@@ -373,6 +401,12 @@ export class EvaluacionesMerService {
       const validar = actorCierre ? validarPuntajesCierre : validarPuntajesBorrador;
       try { validar(indicadores, dto.puntajes); }
       catch (error) { throw new BadRequestException((error as Error).message); }
+      if (actorCierre && proceso.versionFlujo > 1) {
+        const trabajo = await trabajoEn(manager,asignacionId);
+        if (!trabajo) throw new NotFoundException('Trabajo no disponible.');
+        const pendientes = await requisitosAccion(manager, trabajo, 'CERRAR_'+tipo);
+        if (pendientes.length) throw new ConflictException('Falta completar: '+pendientes.join(', '));
+      }
       if (actorCierre) {
         const [estructura] = await manager.query(`
           SELECT e.calificacion_maxima > 0

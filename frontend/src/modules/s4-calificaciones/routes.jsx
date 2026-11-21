@@ -1,3 +1,4 @@
+import ConfiguracionGeneral from './presentation/pages/ConfiguracionGeneral';
 import { PaginaResultadoApi } from './presentation/pages/PaginaEvaluacionesApi';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { EstructuraAplicacion } from './presentation/layouts/EstructuraAplicacion';
@@ -51,6 +52,7 @@ export default function Aplicacion() {
         <Route path="/resultados/:idTrabajo/:idEstudiante" element={<PaginaResultadoApi />} />
         <Route path="/rubrica/:idTrabajo/:idEstudiante/:idMiembro" element={<PaginaImpresionRubrica />} />
         <Route path="/consulta" element={<PaginaConsulta />} />
+        <Route path="/configuracion" element={<ConfiguracionGeneral />} />
         <Route path="/documentos" element={<PaginaDocumentos />} />
         <Route path="/rubricas" element={<PaginaRubricas />} />
         <Route path="/rubricas/nueva" element={<PaginaNuevaRubrica />} />

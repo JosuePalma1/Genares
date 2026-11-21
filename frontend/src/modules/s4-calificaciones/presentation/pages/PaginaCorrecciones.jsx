@@ -1,3 +1,4 @@
+import { SolicitudesReprobacion } from '../components/SolicitudesReprobacion';
 import { useCallback, useEffect, useState } from 'react';
 import { Check, FileText, RefreshCw, X } from 'lucide-react';
 import { DialogoGenares as Swal } from '../components/dialogos';
@@ -60,9 +61,9 @@ export function TarjetaSolicitud({ solicitud, puedeAutorizar, ocupado, alAprobar
       </dl>
       <TablaCambios solicitud={solicitud} />
       <div className="finalizacion-acciones">
-        <button className="button button-outline" type="button" disabled={ocupado} onClick={() => alVerJustificativo(solicitud)}>
+        {solicitud.justificativoNombre !== null && <button className="button button-outline" type="button" disabled={ocupado} onClick={() => alVerJustificativo(solicitud)}>
           <FileText size={16} aria-hidden="true" /> Ver PDF justificativo
-        </button>
+        </button>}
         {puedeAutorizar && solicitud.estado === 'PENDIENTE' && <>
           <button className="button button-outline" type="button" disabled={ocupado} onClick={() => alRechazar(solicitud)}><X size={16} aria-hidden="true" /> Rechazar</button>
           <button className="button button-primary" type="button" disabled={ocupado} onClick={() => alAprobar(solicitud)}><Check size={16} aria-hidden="true" /> Aprobar y aplicar</button>
@@ -140,11 +141,12 @@ export default function PaginaCorrecciones() {
     <div className="seguimiento-api-page">
       <EncabezadoPagina
         eyebrow="Auditoría"
-        title="Solicitudes de corrección"
+        title="Solicitudes"
         description="Correcciones extraordinarias de evaluaciones cerradas (RF-36). Solo se aplican tras la aprobación de un autorizador; la nota anterior se conserva."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Auditoría' }, { etiqueta: 'Solicitudes de corrección' }]}
         actions={<button className="button button-outline" type="button" disabled={datos.cargando} onClick={() => cargar()}><RefreshCw size={16} aria-hidden="true" /> Actualizar</button>}
       />
+      {datos.capacidades?.puedeAutorizar && <SolicitudesReprobacion />}
       <section className="seguimiento-api-section seguimiento-api-filters" aria-label="Filtro de solicitudes">
         <div className="field">
           <label htmlFor="correcciones-estado">Estado</label>

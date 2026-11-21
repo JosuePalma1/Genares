@@ -100,6 +100,7 @@ SELECT
   CASE WHEN a.grupo_id IS NOT NULL THEN 'Bina o grupo' ELSE 'Individual' END AS "tipoTrabajo",
   a.estado AS "estadoAsignacion",
   p.id AS "procesoId",
+  COALESCE((to_jsonb(p)->>'version_flujo')::int,1) AS "versionFlujo",
   p.estado AS "estadoProceso",
   vr.version AS "versionRubrica",
   (

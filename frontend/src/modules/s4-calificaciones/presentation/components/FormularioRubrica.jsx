@@ -1,3 +1,4 @@
+import { RuedaNota, eventosToque } from './RuedaNota';
 import { ClipboardList, LockKeyhole } from 'lucide-react';
 import {
   calificacionCategoria,
@@ -30,6 +31,7 @@ export function FormularioRubrica({
   idPrefix = 'rubrica',
   className = '',
   preservarPrecision = false,
+  nombreParaRueda,
   mostrarEtiquetaCerrada = true,
 }) {
   const categorias = etapa
@@ -145,11 +147,13 @@ export function FormularioRubrica({
                             className="button button-outline button-sm calificacion-max-button"
                             aria-disabled={guardadoEnCurso || bloqueoEdicion || undefined}
                             title={`Asignar valoración máxima (${formatearCalificacion(indicador.maximo)} pts)`}
-                            onClick={() => alCambiarCalificacion(indicador.id, indicador.maximo, indicador.maximo)}
+                            {...eventosToque(() => alCambiarCalificacion(indicador.id, indicador.maximo, indicador.maximo))}
                           >
                             Máx
                           </button>
                         )}
+                      {nombreParaRueda && !readOnly && <RuedaNota nombre={nombreParaRueda} indicador={indicador}
+                          valor={currentScore} disabled={guardadoEnCurso || bloqueoEdicion} alElegir={(v) => alCambiarCalificacion(indicador.id, v, indicador.maximo)} />}
                       </div>
                       {showObservations && (
                         <div className="criterion-note">
