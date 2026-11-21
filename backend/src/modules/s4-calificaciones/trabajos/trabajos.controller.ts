@@ -33,7 +33,8 @@ export class TrabajosController {
 
 /** La consulta general de trabajos (y su resumen) solo existe en el entorno local de desarrollo. */
 export function exigirConsultaGeneralLocal(solicitud: SolicitudConIdentidad): void {
-  if (solicitud.identidadApi?.tipo !== 'DESARROLLO_LOCAL'
+  // DEMOSTRACION: usuarios de prueba; ven solo su ámbito (filtroAlcance en las consultas).
+  if (!['DESARROLLO_LOCAL', 'DEMOSTRACION'].includes(solicitud.identidadApi?.tipo ?? '')
     || !['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
     throw new ForbiddenException('La consulta general de trabajos solo está disponible en el entorno local de desarrollo.');
   }

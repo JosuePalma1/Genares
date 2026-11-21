@@ -105,7 +105,7 @@ export function PaginaMisEvaluacionesApi() {
             <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignación'}</p>
             <div className="form-actions">
               {trabajo.miembrosTribunal.length > 0 && <Link className="button button-primary" to={'/evaluaciones/' + trabajo.id + '/escrita'}><ClipboardCheck size={16} /> Consultar y evaluar</Link>}
-              {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}><BookOpenCheck size={16} /> Evaluar oral | {estudiante.nombres} {estudiante.apellidos}</Link>)}
+              {trabajo.estudiantes.length === 2 ? <Link className="button button-outline" to={`/evaluaciones/${trabajo.id}`}>Calificar sustentación de la bina</Link> : trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}><BookOpenCheck size={16} /> Evaluar oral | {estudiante.nombres} {estudiante.apellidos}</Link>)}
               {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={estudiante.id} to={'/resultados/' + trabajo.id + '/' + estudiante.id}><BookOpenCheck size={16} /> Resultado | {estudiante.nombres} {estudiante.apellidos}</Link>)}
             </div>
           </article>

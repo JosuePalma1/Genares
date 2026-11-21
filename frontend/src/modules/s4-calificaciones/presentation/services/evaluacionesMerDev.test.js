@@ -9,6 +9,7 @@ describe('Formulario oral MER unificado', () => {
   });
   it('valida los límites definidos en el servidor', () => {
     expect(() => validarPuntajesOrales(indicadores, [{ score: 10.1 }])).toThrow(/puntaje/);
-    expect(() => validarPuntajesOrales(indicadores, [{ score: 9.5 }])).not.toThrow();
+    expect(() => validarPuntajesOrales(indicadores, [{ score: 0.1234 }])).not.toThrow();
+    expect(() => validarPuntajesOrales(indicadores, [{ score: 0.12345 }])).toThrow(/decimales/);
   });
 });

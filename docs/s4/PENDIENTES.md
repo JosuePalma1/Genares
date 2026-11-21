@@ -17,6 +17,8 @@ Las funciones de S4 están hechas y probadas en local:
 
 Lo que falta:
 
+- Revisar con tribunales la UX de la APK en celular y tablet: desplazamiento, gestos simultáneos, precisión de la rueda y visibilidad del menú durante una sustentación.
+
 - probar todo de principio a fin;
 - mejorar la experiencia de uso;
 - llevar S4 al repositorio común;
@@ -284,6 +286,21 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
    No existe todavía.
 4. **Calificar debe ser rápido y sencillo**, en la escrita y en la oral: menos desplazamiento, el formulario primero y el total siempre a la vista.
 
+   **Prioridad alta (17/11/2026).** Josué lo probó con la demo por roles y calificar la escrita le resultó muy engorroso. Lo que lo complica hoy:
+   - **Encontrar dónde empezar:**
+     - el recorrido es Mis evaluaciones → «Registrar evaluación escrita»;
+     - ese botón solo aparece si el trabajo tiene exactamente dos miembros de tribunal (`PaginaMisEvaluaciones.jsx`);
+     - si no los tiene, no hay ningún aviso de por qué falta.
+   - **Pantalla mezclada:** la de la escrita (`PaginaEvaluacionesIntegradasDev.jsx`) junta la estructura de la rúbrica, las evaluaciones de los demás y el formulario de calificación. Quien califica tiene que buscar dónde poner la nota.
+   - **Dos pasos poco claros:** «Guardar borrador escrita» y «Cerrar evaluación escrita». Cerrar exige todos los indicadores, pero no se ve cuántos faltan.
+
+   Propuesta:
+   - pantalla con solo el formulario de la rúbrica, con los indicadores en orden y la nota de cada uno al lado;
+   - el total y «faltan N indicadores» siempre a la vista;
+   - guardado automático del borrador;
+   - un solo botón «Cerrar», que diga qué falta;
+   - lo demás (rúbrica completa, notas de los otros miembros) en una pestaña o un panel aparte.
+
 ### Resultados, Documentos y PDF
 
 1. **«Ver rúbrica PDF · miembro 1 y 2» debe abrir el PDF en otra pestaña**, no llevar a Documentos. **Hecho el 17/11/2026, para todos los PDF:** se abren en una **pestaña nueva, directamente en el visor de PDF del navegador**, que ya trae descargar, imprimir y zoom. No hay pantalla de Genares alrededor. Afecta a:
@@ -456,7 +473,7 @@ Ya existe: Auditoría › Solicitudes de corrección.
 
 ### Preguntas para las autoridades
 
-1. **Corrección de notas:** ¿quién autoriza (qué cargo) y qué documento debe adjuntarse? El sistema ya pide un PDF, pero no sabe qué documento es válido ni quién puede aprobar.
+1. **Corrección de notas:** cualquier miembro del tribunal puede solicitar la corrección de su nota y adjuntar evidencia en PDF, sin exigir un modelo documental. La persona con permiso de gestión tramita el caso en Solicitudes. Las firmas y el tratamiento posterior de un acta emitida corresponden al procedimiento externo.
 2. **Datos de las actas.**
    - **Campos que hoy se quedan sin rellenar:**
      - fecha y hora en letras;
@@ -465,8 +482,8 @@ Ya existe: Auditoría › Solicitudes de corrección.
      - nombres y títulos del tribunal, del decano y del secretario.
 
      ¿De dónde salen: de S1, S2 o S3, o se escriben a mano?
-   - **¿Qué acta corresponde a cada período?** La PAT-04-F-017 suma sobre 20 (7/10 + 9/10 = 16/20) y la PAT-01-F-019 sobre 10. La parte técnica está en «PDF de la rúbrica y de las actas», más arriba.
-3. **Redondeo y decimales.** Hay que confirmar por escrito:
+   - **Plantillas de referencia.** La PAT-04-F-017 suma sobre 20 (7/10 + 9/10 = 16/20) y la PAT-01-F-019 sobre 10. La parte técnica está en «PDF de la rúbrica y de las actas», más arriba.
+3. **Redondeo y decimales.** Criterio actual: conservar 6,995 como valor original, publicar 7,00 y marcar aprobado sobre 10 con mínimo 7. El administrador debe poder versionar el umbral y el método. Las notas siguientes documentan la discusión anterior sobre los pasos de cálculo:
    - **Cómo funciona hoy el sistema:**
      - las notas de cada indicador se escriben con hasta 2 decimales;
      - los cálculos intermedios se hacen con **precisión exacta**, sin redondear;
@@ -551,14 +568,11 @@ Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resue
 
 ### Preguntas para las autoridades (además de las de la sección 4)
 
-5. **¿Qué pasa si un miembro del tribunal no califica?** Por enfermedad, ausencia u olvido.
-   - Hoy la nota final exige que **todos** cierren, así que ese estudiante se queda bloqueado.
-   - ¿Se reemplaza al miembro? El tribunal lo gestiona S3.
-   - ¿Qué pasa con lo que ya calificó?
-6. **¿Hay un límite de diferencia entre los dos miembros?** Algunas facultades piden un tercer evaluador si las notas se separan mucho, por ejemplo 3 puntos. Si existe esa regla, hay que programarla.
-7. **¿Hay segunda oportunidad si el estudiante reprueba?** ¿Existe una nueva sustentación? ¿Va con una rúbrica nueva o con la misma?
-8. **¿Qué versión de la rúbrica de Proyecto Integrador está vigente?** ¿La del Word (5 + 5, sin Producto) o la del Plan de titulación PAT-04-F-001 (10 + 10 al 50 %, con Producto)? ¿Otras modalidades, como el examen complexivo, tienen su propia rúbrica? Mientras no se confirme, el sistema permite crear y activar cada versión sin tocar código. **Josué lo consultará (17/11/2026).** Hasta entonces sigue activa la del Word (V1). Si se elige la del Plan, falta guardar la letra de cada categoría: en el Plan, la sustentación empieza otra vez en A, y hoy el PDF sigue con D, E, F.
-9. **¿Cómo aparece la nota final en el acta?** ¿Como suma (16/20, como en el ejemplo de la PAT-04-F-017) o como promedio (8/10, como dice el Plan)? El resultado es el mismo; solo cambia cómo se escribe.
+5. **Reemplazo en la defensa.** El miembro del tribunal o el administrador registra el reemplazo acordado, mediante selección del catálogo de S3 o ingreso del nombre. S4 conserva quién registró el cambio, cuándo, a quién reemplaza y desde qué etapa interviene. La escrita ya registrada conserva su autor. El acuerdo entre docentes es externo y registrar el cambio no depende del envío de correo.
+6. **Presidencia.** Interviene presencialmente si hay desacuerdo. En S4 califican los dos miembros, cada uno con su propia nota. El cierre no requiere una tercera nota ni una acción del presidente.
+7. **Reprobación y solicitudes.** Mostrar «Reprobado» y habilitar su gestión desde Solicitudes para quien tenga permiso. El administrador puede asignar el caso a un período posterior y retomarlo desde «Revisión escrita pendiente». Registrar el intento anterior y permitir definir plazo, tribunal, rúbrica y si se conserva o se repite la escrita.
+8. **Configuración por ámbito y vigencia.** TI y Software son las carreras iniciales. El administrador asigna la versión de rúbrica por carrera, modalidad y período. Deben coexistir distribuciones como 5 + 5 y 2,50 + 2,50 + 5,00. Conservar la versión utilizada en cada evaluación.
+9. **Programación y cierre.** Con las dos escritas completas se habilita programar. Configurar por separado si se admite programación excepcional con escritas pendientes y cuándo se bloquea el cierre. Registrar las excepciones aplicadas.
 
 ### Para la entrega y la demostración
 

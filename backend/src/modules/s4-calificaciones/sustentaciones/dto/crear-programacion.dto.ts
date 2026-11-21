@@ -1,8 +1,11 @@
 import {
-  ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min,
+  IsBoolean, ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsInt, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min,
 } from 'class-validator';
 
 export class CrearProgramacionDto {
+  @IsOptional() @IsBoolean() confirmarAdvertencia?: boolean;
+  @IsOptional() @IsString() @MaxLength(1000) motivoExcepcion?: string;
+
   @IsUUID('loose')
   idTrabajo!: string;
 

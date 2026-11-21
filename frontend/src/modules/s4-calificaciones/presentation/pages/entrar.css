@@ -1,0 +1,49 @@
+/* Entrada de demostración por roles (rama demo/accesos-por-rol). */
+.entrar-pagina {
+  display: grid;
+  min-height: 100vh;
+  place-items: start center;
+  padding: var(--space-8) var(--space-4);
+  background: var(--color-background, #f3f6f9);
+}
+
+.entrar-tarjeta {
+  display: grid;
+  gap: var(--space-4);
+  width: min(100%, 640px);
+  padding: var(--space-6);
+}
+
+.entrar-tarjeta h1 { margin: 0; font-size: 1.5rem; }
+.entrar-tarjeta h2 { margin: var(--space-2) 0 0; font-size: 1.05rem; }
+
+.entrar-marca { display: flex; align-items: center; gap: var(--space-3); }
+/* La marca es clara para el menú oscuro: aquí necesita su propio fondo. */
+.entrar-marca .brand-mark { background: var(--color-primary); color: #fff; border-color: var(--color-primary); }
+.entrar-marca strong { display: block; }
+.entrar-marca small { color: var(--color-muted); }
+
+.entrar-formulario { display: grid; gap: var(--space-3); }
+.entrar-formulario .button { justify-self: start; }
+
+.entrar-error { margin: 0; color: var(--color-state-danger-text); font-weight: 600; }
+
+.entrar-usuarios td small { display: block; color: var(--color-muted); }
+
+.entrar-usuario {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-primary);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.entrar-usuario:focus-visible { outline: 3px solid var(--color-focus-ring); outline-offset: 2px; }
+
+@media (max-width: 480px) {
+  .entrar-tarjeta { padding: var(--space-4); }
+  .entrar-formulario .button { justify-self: stretch; }
+}

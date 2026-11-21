@@ -18,6 +18,16 @@ Los valores `LOCAL_DEV_OPEN_ACCESS=true` y `ENABLE_INTEGRACION_DEV=true` habilit
 
 Ejecuta primero `backend/fixtures/s4-escalas-calificacion.sql` en pgAdmin como propietario del esquema S4. Convierte el umbral anterior a porcentaje y conserva las rúbricas y actas existentes sobre 10.
 
+Para habilitar **Configuración general** en una base existente, ejecuta como propietario [configuracion-flujo.sql](../../../backend/fixtures/configuracion-flujo.sql) después del script de escalas. Se puede repetir. En una instalación nueva, las tablas y el disparador también están en el script inicial. Entra como superusuario en **Control → Configuración general** para publicar reglas o administrar permisos.
+
+En una base existente, ejecuta además estos scripts en pgAdmin como propietario, en este orden:
+
+1. [convocatorias-individuales.sql](../../../backend/fixtures/convocatorias-individuales.sql)
+2. [excepciones-programacion.sql](../../../backend/fixtures/excepciones-programacion.sql)
+3. [reemplazos-correcciones.sql](../../../backend/fixtures/reemplazos-correcciones.sql)
+
+Cada proceso conserva la versión de flujo, el umbral y el redondeo asignados. La publicación puede limitarse por carrera, modalidad y período. Los permisos por rol se aplican a las siguientes peticiones de la demo dentro del ámbito del usuario. En **Solicitudes**, quien puede autorizar correcciones puede consultar resultados reprobados y registrar la continuidad individual en un período posterior. El registro de continuidad conserva la nota y el umbral del intento.
+
 Si el rol `genares` aún no tiene los permisos del MER, ejecuta manualmente `backend/fixtures/permisos-consulta-mer.sql` y `backend/fixtures/permisos-operacion-s4.sql` desde pgAdmin como `postgres`, conectado a `genares_integrado_dev`. Estos scripts aplican permisos e inicializan el valor local de nota mínima; no alteran las tablas académicas de S1, S2 o S3.
 
 ## Iniciar ambos servicios
@@ -52,3 +62,5 @@ npm --prefix .\frontend run dev
 No ejecutes migraciones de TypeORM ni SQL del prototipo antiguo. La conexión usa `synchronize: false` y `migrationsRun: false`. S4 consulta asignaciones de S2, tribunales de S3 y los datos de evaluación de S4 en el MER compartido.
 
 Las notas y expedientes ficticios existentes se conservan. `backend/fixtures/etapa-5-rubrica-mer.sql` es solo para la base local de pruebas y no se ejecuta al arrancar la aplicación.
+
+Consulta la [guía de Configuración general](../configuracion-general.md) para conocer las opciones y los datos que administra.

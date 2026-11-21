@@ -3,6 +3,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { InstantaneaRubrica, filtrarInstantaneaVisible } from '../rubricas/instantanea-rubrica';
 import { TrabajosService } from '../trabajos/trabajos.service';
 import { EvaluacionesMerService } from './mer/evaluaciones-mer.service';
+import { accesoPorAlcance, conAlcance } from '../../../common/api/contexto-alcance';
 
 @Injectable()
 export class EvaluacionesService {
@@ -17,14 +18,20 @@ export class EvaluacionesService {
   async datosDocumentales(trabajoId: string, actorId: string, puedeConsultarDemostracion = false) {
     return this.dataSource.transaction('REPEATABLE READ', async (manager) => {
       if (!puedeConsultarDemostracion) {
-        const [acceso] = await manager.query(`
-          SELECT 1 FROM s3.asignacion_tribunal a
-          JOIN s3.miembros_tribunal m ON m.miembro_tribunal_id = a.miembro_tribunal_id
-          JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = m.docente_carrera_periodo_id
-          JOIN gen.docente d ON d.id = dcp.docente_id AND d.activo
-          JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
-          WHERE a.asignacion_tema_id = $1 AND u.sujeto_autenticacion = $2
-        `, [trabajoId, actorId]);
+        // El tribunal del trabajo o, para roles por carrera (usuarios de demostración), sus carreras.
+        const [acceso] = await manager.query(...conAlcance(`
+          SELECT 1 FROM s2.asignacion_tema asig
+          JOIN gen.tema tema ON tema.id = asig.tema_id
+          LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+          WHERE asig.id = $1 AND (EXISTS (
+            SELECT 1 FROM s3.asignacion_tribunal a
+            JOIN s3.miembros_tribunal m ON m.miembro_tribunal_id = a.miembro_tribunal_id
+            JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = m.docente_carrera_periodo_id
+            JOIN gen.docente d ON d.id = dcp.docente_id AND d.activo
+            JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
+            WHERE a.asignacion_tema_id = asig.id AND u.sujeto_autenticacion = $2
+          ) OR ${accesoPorAlcance('asig', 'c.codigo')})
+        `, [trabajoId, actorId]));
         if (!acceso) throw new ForbiddenException('No tiene acceso a los documentos de este trabajo.');
       }
 

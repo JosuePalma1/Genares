@@ -1,3 +1,4 @@
+import { flujoDelProceso, trabajoEn } from '../configuracion/flujo-proceso';
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EstadoTrabajo } from '../../../common/domain/enums-dominio';
@@ -8,6 +9,7 @@ import { CONSULTA_PERIODOS, ESTADO_CALCULADO_TRABAJO, TEXTO_BUSCABLE_TRABAJO } f
 import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from '../trabajos/paginacion-trabajos';
 import { ConsultarFinalizacionDto } from './consultar-finalizacion.dto';
 import { evaluarFinalizacion } from './finalizacion.reglas';
+import { accesoPorAlcance, conAlcance } from '../../../common/api/contexto-alcance';
 
 // Mismo filtro de acceso que Documentos: fuera del acceso local, solo el tribunal del trabajo.
 const ACCESO_TRIBUNAL = `EXISTS (
@@ -17,6 +19,9 @@ const ACCESO_TRIBUNAL = `EXISTS (
   JOIN gen.docente d ON d.id = dc.docente_id AND d.activo
   JOIN gen.usuario u ON u.id = d.usuario_id AND u.activo
   WHERE at.asignacion_tema_id = a.id AND u.sujeto_autenticacion = $1)`;
+
+// Además del tribunal, los roles por carrera ven los trabajos de sus carreras (usuarios de demostración).
+const ACCESO_AMBITO = `(${ACCESO_TRIBUNAL} OR ${accesoPorAlcance('a', 'c.codigo')})`;
 
 /** Cada elemento exige una consulta documental completa: páginas cortas. */
 export const LIMITE_FINALIZACION_PREDETERMINADO = 10;
@@ -39,7 +44,7 @@ WITH filtrados AS (
   LEFT JOIN gen.carrera c ON c.id = t.carrera_id
   LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
   LEFT JOIN gen.modalidad m ON m.id = t.modalidad_id
-  WHERE a.estado = 'VIGENTE' AND ($2::boolean OR ${ACCESO_TRIBUNAL})
+  WHERE a.estado = 'VIGENTE' AND ($2::boolean OR ${ACCESO_AMBITO})
     AND ($3::text IS NULL OR pa.codigo = $3::text)
     AND ($4::text IS NULL OR ($4::text = 'finalizados') = (COALESCE(p.estado, '') = '${EstadoTrabajo.FINALIZADO}'))
     AND ($5::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $5::text) > 0)
@@ -57,14 +62,15 @@ export class FinalizacionService {
 
   /** Lista los trabajos vigentes con sus condiciones de finalización. */
   async listar(actor: string, accesoLocal: boolean) {
-    const trabajos: Array<{ id: string }> = await this.db.query(`
+    const trabajos: Array<{ id: string }> = await this.db.query(...conAlcance(`
       SELECT a.id
       FROM s2.asignacion_tema a
       JOIN gen.tema tema ON tema.id = a.tema_id
       JOIN s4.procesos_evaluacion p ON p.asignacion_tema_id = a.id AND p.estado_registro = 1
       JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
-      WHERE a.estado = 'VIGENTE' AND ($2::boolean OR ${ACCESO_TRIBUNAL})
-      ORDER BY tema.titulo, a.id`, [actor, accesoLocal]);
+      LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+      WHERE a.estado = 'VIGENTE' AND ($2::boolean OR ${ACCESO_AMBITO})
+      ORDER BY tema.titulo, a.id`, [actor, accesoLocal]));
     const elementos = [];
     for (const { id } of trabajos) elementos.push(await this.consultar(id, actor, accesoLocal));
     return { elementos };
@@ -77,9 +83,9 @@ export class FinalizacionService {
     });
     const periodos: Array<{ codigo: string; nombre: string | null; activo: boolean }> = await this.db.query(CONSULTA_PERIODOS);
     const periodo = periodoAplicado(filtros.periodo, periodos);
-    const [{ total, ids }]: Array<{ total: number; ids: string[] }> = await this.db.query(CONSULTA_PAGINA_FINALIZACION, [
+    const [{ total, ids }]: Array<{ total: number; ids: string[] }> = await this.db.query(...conAlcance(CONSULTA_PAGINA_FINALIZACION, [
       actor, accesoLocal, periodo, filtros.situacion ?? null, normalizarBusqueda(filtros.buscar), limite, desplazamiento,
-    ]);
+    ]));
     return {
       elementos: await this.consultarVarios(ids, actor, accesoLocal),
       paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
@@ -106,8 +112,8 @@ export class FinalizacionService {
     const datos = await this.evaluaciones.datosDocumentales(trabajoId, actor, accesoLocal);
     const procesoId = datos.trabajo.procesoId as string;
     // estado: el guardado (decide si ya está finalizado); estadoCalculado: el que se muestra (Paso 1 §3.1).
-    const [proceso]: Array<{ estado: string | null; estadoCalculado?: string | null }> = await this.db.query(`
-      SELECT p.estado, estado_calculado.estado AS "estadoCalculado"
+    const [proceso]: Array<{ estado: string | null; versionFlujo?: number; estadoCalculado?: string | null }> = await this.db.query(`
+      SELECT p.estado, (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo", estado_calculado.estado AS "estadoCalculado"
       FROM s4.procesos_evaluacion p
       JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id
       LEFT JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
@@ -128,6 +134,15 @@ export class FinalizacionService {
         actaArchivada: conActa.has(estudiante.id),
       })),
     });
+    if ((proceso.versionFlujo ?? 1) > 1) {
+      const trabajo = await trabajoEn(this.db.manager,trabajoId);
+      if (!trabajo) throw new NotFoundException('Trabajo no disponible.');
+      const flujo = await flujoDelProceso(this.db.manager, trabajo, '', actor);
+      for (const paso of flujo.pasos.filter(p => p.obligatorio && !p.cumplido)) {
+        evaluacion.pendientesTrabajo.push(`Falta completar: ${paso.nombre}.`);
+        evaluacion.puedeFinalizar = false;
+      }
+    }
     return {
       trabajo: {
         id: datos.trabajo.id as string, titulo: datos.trabajo.titulo as string,

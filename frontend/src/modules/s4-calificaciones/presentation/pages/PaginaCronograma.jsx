@@ -255,6 +255,7 @@ export default function PaginaCronograma() {
 
   async function guardar(evento) {
     evento.preventDefault();
+    const campos = new FormData(evento.currentTarget);
     if (!puedeEditar || guardando) return;
     if (!formulario.fechaProgramada || !formulario.horaProgramada || !formulario.sala.trim() || (!idEdicion && !idTrabajo)
       || !Number.isInteger(Number(formulario.duracionEstimadaMinutos))
@@ -280,6 +281,8 @@ export default function PaginaCronograma() {
           idTrabajo,
           ...datosSesion,
           duracionEstimadaMinutos: Number(formulario.duracionEstimadaMinutos),
+          confirmarAdvertencia: campos.has('confirmarAdvertencia'),
+          motivoExcepcion: campos.get('motivoExcepcion') || undefined,
           ...(trabajoSeleccionado ? { idEstudiantes: participantes } : {}),
         });
       }
@@ -402,7 +405,7 @@ export default function PaginaCronograma() {
                       </option>
                     ))}
                   </select>
-                  {trabajosDisponibles.length === 0 && !cargandoTrabajos && <small>No hay trabajos elegibles con estudiantes sin programación. Se requieren dos evaluaciones escritas cerradas y un tribunal confirmado.</small>}
+                  {trabajosDisponibles.length === 0 && !cargandoTrabajos && <small>No hay trabajos elegibles con estudiantes sin programación. Revisa los requisitos de programación del flujo asignado.</small>}
                 </div>
               ) : (
                 <div className="cronograma-selected-work">
@@ -411,6 +414,18 @@ export default function PaginaCronograma() {
                 </div>
               )}
 
+              {!idEdicion && trabajoSeleccionado?.politicaProgramacion && (
+                <div key={idTrabajo}>
+                  {trabajoSeleccionado.politicaProgramacion.advertencias.length > 0 && (
+                    <label><input type="checkbox" name="confirmarAdvertencia" required /> Confirmo que deseo programar con estos requisitos pendientes: {trabajoSeleccionado.politicaProgramacion.advertencias.join(', ')}</label>
+                  )}
+                  {trabajoSeleccionado.politicaProgramacion.excepciones.length > 0 && (
+                    <label className="field">Motivo de excepción para {trabajoSeleccionado.politicaProgramacion.excepciones.join(', ')}
+                      <textarea name="motivoExcepcion" required maxLength={1000} className="input" />
+                    </label>
+                  )}
+                </div>
+              )}
               {trabajoSeleccionado && (
                 <div className="cronograma-context-grid">
                   <div><strong>Estudiante(s)</strong><span>{personaLista(trabajoSeleccionado.estudiantes)}</span></div>

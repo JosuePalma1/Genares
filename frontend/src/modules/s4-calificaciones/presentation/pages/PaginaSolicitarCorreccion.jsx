@@ -10,12 +10,12 @@ import './correcciones.css';
 const MAXIMO_PDF = 5 * 1024 * 1024;
 
 /** Valida en pantalla lo mismo que el servidor volverá a validar. */
-export function erroresSolicitud({ puntajes, motivo, archivo }) {
+export function erroresSolicitud({ puntajes, motivo, archivo, evidenciaObligatoria = true }) {
   const errores = [];
   if (motivo.trim().length < 10) errores.push('El motivo debe tener al menos 10 caracteres.');
-  if (!archivo) errores.push('Adjunte el PDF justificativo.');
-  else if (archivo.type !== 'application/pdf') errores.push('El justificativo debe ser un archivo PDF.');
-  else if (archivo.size > MAXIMO_PDF) errores.push('El PDF justificativo supera 5 MB.');
+  if (!archivo && evidenciaObligatoria) errores.push('Adjunte el PDF justificativo.');
+  else if (archivo && archivo.type !== 'application/pdf') errores.push('El justificativo debe ser un archivo PDF.');
+  else if (archivo && archivo.size > MAXIMO_PDF) errores.push('El PDF justificativo supera 5 MB.');
   for (const p of puntajes) {
     const valor = Number(p.nuevo);
     if (p.nuevo === '' || !Number.isFinite(valor) || valor < 0 || valor > Number(p.calificacionMaxima)) {
@@ -49,7 +49,7 @@ export default function PaginaSolicitarCorreccion() {
     return () => controlador.abort();
   }, [idEvaluacion]);
 
-  const errores = useMemo(() => erroresSolicitud({ puntajes, motivo, archivo }), [puntajes, motivo, archivo]);
+  const errores = useMemo(() => erroresSolicitud({ puntajes, motivo, archivo, evidenciaObligatoria: contexto.datos?.evidenciaObligatoria }), [puntajes, motivo, archivo, contexto.datos]);
   // Solo informativo: el total oficial lo calcula PostgreSQL con NUMERIC exacto.
   const totalReferencial = useMemo(() => puntajes.reduce((suma, p) => suma + (Number(p.nuevo) || 0), 0).toFixed(2), [puntajes]);
   const cambiar = (idIndicador, campo, valor) => establecerPuntajes((actuales) => actuales
@@ -75,13 +75,13 @@ export default function PaginaSolicitarCorreccion() {
   };
 
   const datos = contexto.datos;
-  const bloqueada = Boolean(datos?.bloqueos.length);
+  const bloqueada = Boolean(datos?.bloqueos.length || datos?.plazoVencido);
   return (
     <div className="seguimiento-api-page">
       <EncabezadoPagina
         eyebrow="Auditoría"
         title="Solicitar corrección de una evaluación cerrada"
-        description="Indique las notas corregidas, el motivo y el PDF justificativo. Nada cambia hasta que un autorizador apruebe la solicitud."
+        description="Indique las notas corregidas, el motivo y la evidencia que corresponda. Nada cambia hasta que un autorizador apruebe la solicitud."
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Solicitudes de corrección', to: '/auditoria/correcciones' }, { etiqueta: 'Nueva solicitud' }]}
       />
       {contexto.cargando && <p role="status">Consultando la evaluación…</p>}
@@ -92,9 +92,10 @@ export default function PaginaSolicitarCorreccion() {
             <div><h2>{datos.trabajo}</h2><p>{datos.etapa} · revisión {datos.revision} · total actual {datos.total ?? '—'}</p></div>
             <Link className="button button-outline" to={`/trabajos/${datos.idTrabajo}`}>Ver expediente</Link>
           </header>
+          {datos.limiteSolicitud && <p>Plazo para solicitar hasta {new Date(datos.limiteSolicitud).toLocaleString()}.</p>}
           {bloqueada && (
             <AlertaInstitucional tono="warning" titulo="No se puede solicitar la corrección">
-              <ul>{datos.bloqueos.map((bloqueo) => <li key={bloqueo}>{bloqueo}</li>)}</ul>
+              <ul>{datos.plazoVencido && <li>Venció el plazo para solicitar la corrección.</li>}{datos.bloqueos.map((bloqueo) => <li key={bloqueo}>{bloqueo}</li>)}</ul>
             </AlertaInstitucional>
           )}
         </section>
@@ -125,7 +126,7 @@ export default function PaginaSolicitarCorreccion() {
               <textarea id="correccion-motivo" className="input" rows={4} maxLength={2000} value={motivo} onChange={(e) => establecerMotivo(e.target.value)} />
             </div>
             <div className="field">
-              <label htmlFor="correccion-pdf">PDF justificativo (máximo 5 MB) <span aria-hidden="true">*</span></label>
+              <label htmlFor="correccion-pdf">PDF justificativo (máximo 5 MB) {datos.evidenciaObligatoria === false ? '(opcional)' : '(obligatorio)'}</label>
               <input id="correccion-pdf" className="input" type="file" accept="application/pdf" onChange={(e) => establecerArchivo(e.target.files?.[0] ?? null)} />
             </div>
             {intentado && errores.length > 0 && (

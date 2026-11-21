@@ -24,6 +24,14 @@ export class DocumentosController {
     const capacidades = r.identidadApi?.capacidades ?? [];
     return this.servicio.contexto(t, actorValidadoDe(r), capacidades.includes('documentos:emitir'), puedeConsultarDemostracion(r));
   }
+  @Get('configuracion/umbral-general')
+  @RequiereCapacidades('configuracion-academica:administrar')
+  umbralGeneral() { return this.servicio.configuracionNotaMinima(true); }
+  @Put('configuracion/umbral-general')
+  @RequiereCapacidades('configuracion-academica:administrar')
+  guardarUmbral(@Body() dto: ActualizarNotaMinimaDto,@Req() r:SolicitudConIdentidad) {
+    return this.servicio.actualizarNotaMinima(dto,actorValidadoDe(r));
+  }
   @Get('configuracion/nota-minima') configuracionNotaMinima(@Req() r: SolicitudConIdentidad) {
     return this.servicio.configuracionNotaMinima((r.identidadApi?.capacidades ?? []).includes('configuracion-academica:administrar'));
   }

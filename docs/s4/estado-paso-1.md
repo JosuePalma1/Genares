@@ -7,6 +7,8 @@ Solo se listan los requisitos que una revisión del 11–12/11/2026 encontró in
 
 ## Resueltos
 
+**Aclaración de entrevista, registrada el 20/11/2026.** Para la escala consultada, la docente confirmó que el mínimo es 7 sobre 10 y que 6,996 se publica como 7,00 y aprueba. Este ejemplo sirve como criterio de aceptación para la nota publicada y el estado de aprobación. Josué precisó también el caso 6,995: conservar el original, publicar 7,00 y aprobar. Umbral, escala y redondeo deberán quedar vinculados a la configuración aplicada para que los cambios futuros preserven el historial.
+
 | Requisito | Qué se hizo | Comprobado |
 | --- | --- | --- |
 | RF-22, RF-24 · Ocho estados del proceso | El estado se calcula desde los datos, por estudiante y por trabajo: el del estudiante con menor avance (`ESTADO_CALCULADO_TRABAJO`, en `trabajos.service.ts`). Lo usan Trabajos, el filtro por estado, Inicio, Finalización y la ficha de la evaluación. Solo `FINALIZADO` sigue siendo un estado guardado. | Pruebas unitarias. Consultas en la base local, con variantes simuladas y una bina con avance desigual. Los 202 trabajos de carga se reparten en los estados esperados. |

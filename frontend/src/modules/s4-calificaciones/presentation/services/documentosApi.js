@@ -2,6 +2,7 @@ import { crearClienteHttp, ErrorApiHttp, ErrorRespuestaApi } from './clienteHttp
 import { API_BASE_URL } from '../../infrastructure/config/rubricas';
 import { FUENTE_EVALUACIONES } from '../../infrastructure/config/evaluaciones';
 import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
+import { cabeceraSesionDemo } from './sesionDemo';
 import { nombreDeDisposition } from '../../infrastructure/dispositivo/pdfNativo';
 
 export const DOCUMENTOS_API_HABILITADA = FUENTE_EVALUACIONES === 'api';
@@ -75,7 +76,7 @@ async function pedirPdf(url, signal) {
     signal,
     credentials: 'omit',
     cache: 'no-store',
-    headers: { Accept: 'application/pdf' },
+    headers: { Accept: 'application/pdf', ...cabeceraSesionDemo() },
   });
   if (!respuesta.ok) throw new ErrorApiHttp(respuesta.status);
   if (!respuesta.headers.get('content-type')?.includes('application/pdf')) throw new Error('El servidor no devolvió un documento PDF.');

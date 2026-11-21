@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { CONSULTA_PERIODOS, FILTRO_TRABAJOS_MER } from '../trabajos/trabajos.service';
 import { periodoAplicado, TODOS_LOS_PERIODOS } from '../trabajos/paginacion-trabajos';
+import { conAlcance, filtroAlcance } from '../../../common/api/contexto-alcance';
 
 /**
  * Estados por estudiante que equivalen a «resultado completo»: todos los evaluadores cerraron todas
@@ -40,7 +41,9 @@ JOIN s4.procesos_evaluacion p ON p.id = ar.id_proceso_evaluacion AND p.estado_re
 JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id
 JOIN gen.tema t ON t.id = a.tema_id
 LEFT JOIN gen.periodo_academico pa ON pa.id = t.periodo_academico_id
+LEFT JOIN gen.carrera c ON c.id = t.carrera_id
 WHERE ar.estado_registro = 1 AND ($1::text IS NULL OR pa.codigo = $1::text)
+${filtroAlcance()}
 `;
 
 export interface ResumenSeguimiento {
@@ -62,9 +65,9 @@ export class SeguimientoService {
     const periodos: ResumenSeguimiento['periodos'] = await this.db.query(CONSULTA_PERIODOS);
     const periodo = periodoAplicado(periodoSolicitado, periodos);
     const [[conteos], [{ actas }]] = await Promise.all([
-      this.db.query(CONSULTA_CONTEOS_SEGUIMIENTO, [periodo]) as Promise<Array<ResumenSeguimiento['trabajos']
+      this.db.query(...conAlcance(CONSULTA_CONTEOS_SEGUIMIENTO, [periodo])) as Promise<Array<ResumenSeguimiento['trabajos']
         & { programaciones: number; resultadosCompletos: number }>>,
-      this.db.query(CONSULTA_ACTAS_SEGUIMIENTO, [periodo]) as Promise<Array<{ actas: number }>>,
+      this.db.query(...conAlcance(CONSULTA_ACTAS_SEGUIMIENTO, [periodo])) as Promise<Array<{ actas: number }>>,
     ]);
     return {
       periodo: periodo ?? TODOS_LOS_PERIODOS,

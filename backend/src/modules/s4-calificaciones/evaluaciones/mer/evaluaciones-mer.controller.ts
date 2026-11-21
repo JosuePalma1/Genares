@@ -1,3 +1,4 @@
+import { ReemplazarDto } from './reemplazos';
 import { Body, Controller, ForbiddenException, Get, Param, ParseUUIDPipe, Post, Req } from '@nestjs/common';
 import { Publica, RequiereCapacidades } from '../../../../common/api/metadatos-api';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../../common/api/identidad-api';
@@ -13,6 +14,20 @@ export class EvaluacionesMerController {
       || process.env.DB_NAME !== 'genares_integrado_dev') {
       throw new ForbiddenException('Esta funcionalidad de integración no está disponible en producción.');
     }
+  }
+
+  @Get(':asignacionId/reemplazos/candidatos')
+  @RequiereCapacidades('integracion:guardar-borrador')
+  candidatos(@Param('asignacionId', new ParseUUIDPipe()) id: string, @Req() req: SolicitudConIdentidad) {
+    this.verificarEscrituraLocal(req);
+    return this.servicio.candidatos(id);
+  }
+
+  @Post(':asignacionId/reemplazos')
+  @RequiereCapacidades('integracion:guardar-borrador')
+  reemplazar(@Param('asignacionId', new ParseUUIDPipe()) id: string, @Body() dto: ReemplazarDto, @Req() req: SolicitudConIdentidad) {
+    this.verificarEscrituraLocal(req);
+    return this.servicio.reemplazar(id,dto,actorValidadoDe(req));
   }
 
   @Publica()
@@ -56,8 +71,10 @@ export class EvaluacionesMerController {
 
   private verificarEscrituraLocal(req: SolicitudConIdentidad): void {
     this.verificarDemostracion();
-    if (req.identidadApi?.tipo !== 'DESARROLLO_LOCAL') {
-      throw new ForbiddenException('La evaluación de prueba solo acepta la identidad técnica local.');
+    // DEMOSTRACION (rama demo/accesos-por-rol): el tribunal guarda y cierra sus evaluaciones; la guardia
+    // exige la capacidad de su rol y el servicio, que solo firme como su propio evaluador (RN-24).
+    if (!['DESARROLLO_LOCAL', 'DEMOSTRACION'].includes(req.identidadApi?.tipo ?? '')) {
+      throw new ForbiddenException('La evaluación de prueba solo acepta la identidad técnica local o la de demostración.');
     }
   }
 }

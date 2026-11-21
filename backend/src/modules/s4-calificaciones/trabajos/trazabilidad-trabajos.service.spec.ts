@@ -46,6 +46,22 @@ describe('TrazabilidadTrabajosService', () => {
     expect(String(query.mock.calls[1][0])).toContain('EXTRACT(EPOCH FROM "ocurrido_en")');
   });
 
+  it.each([
+    ['TRABAJO_REGISTRADO', 'S2', 'Asignación de tema vigente en el seeder piloto.', 'DIRECTA'],
+    ['TRIBUNAL_ASIGNADO', 'S3', 'Dos miembros de tribunal asignados por el seeder piloto.', 'DIRECTA'],
+    ['TRIBUNAL_CONFIRMADO', 'S3', 'S4 muestra como confirmado el tribunal asignado en el piloto.', 'RECONSTRUIDA'],
+    ['TRIBUNAL_CONFIRMADO', 'S3', 'DIRECTA', 'DIRECTA'],
+  ])('conserva la clasificación de evidencia para %s (%s, %s)', async (tipo, origen, evidencia, esperada) => {
+    const query = jest.fn().mockResolvedValueOnce([{}]).mockResolvedValueOnce([
+      { id: ID_EVENTO, ocurridoEn: new Date(), tipo, origen, evidencia },
+    ]);
+    const servicio = new TrazabilidadTrabajosService({ query } as unknown as DataSource);
+
+    const respuesta = await servicio.consultar(ID_TRABAJO);
+
+    expect(respuesta.elementos[0]).toMatchObject({ tipo, origen, evidencia: esperada });
+  });
+
   it('responde 404 si el expediente no existe y no consulta eventos de otro trabajo', async () => {
     const query = jest.fn().mockResolvedValueOnce([]);
     const servicio = new TrazabilidadTrabajosService({ query } as unknown as DataSource);

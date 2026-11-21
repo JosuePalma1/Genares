@@ -14,10 +14,12 @@ export class TrazabilidadTrabajosController {
     @Query('cursor') cursor: string | undefined,
     @Req() solicitud: SolicitudConIdentidad,
   ) {
-    // Mantiene el mismo alcance restringido que la consulta actual de expedientes.
+    // Mantiene el mismo alcance restringido que la consulta actual de expedientes. Los usuarios de
+    // demostración solo consultan trabajos de su ámbito (el servicio lo comprueba).
     const actor = actorValidadoDe(solicitud);
-    if (solicitud.identidadApi?.tipo !== 'DESARROLLO_LOCAL'
-      || actor !== 'GENARES:LOCAL_DEVELOPMENT'
+    const tipo = solicitud.identidadApi?.tipo;
+    const local = tipo === 'DESARROLLO_LOCAL' && actor === 'GENARES:LOCAL_DEVELOPMENT';
+    if (!(local || tipo === 'DEMOSTRACION')
       || !['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
       throw new ForbiddenException('La consulta de trazabilidad no está habilitada para esta identidad.');
     }

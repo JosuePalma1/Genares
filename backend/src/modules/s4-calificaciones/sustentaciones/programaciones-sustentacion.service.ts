@@ -1,3 +1,6 @@
+import { evaluarProgramacion } from '../configuracion/flujo.reglas';
+import { flujoDelProceso, trabajoEn } from '../configuracion/flujo-proceso';
+import { conAlcance, filtroAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 import {
   ConflictException,
   ForbiddenException,
@@ -66,6 +69,8 @@ WHERE a.estado = 'VIGENTE'
   AND ($2::uuid IS NULL OR t.periodo_academico_id = $2::uuid)
   AND ($3::text IS NULL OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $3::text) > 0
     OR strpos(lower(COALESCE(c.codigo, '')), $3::text) > 0)
+  -- RF-03 a RF-05: carreras del usuario o, si es tribunal, solo sus sesiones («Mis sustentaciones»).
+  ${filtroAlcance()}
 `;
 
 /**
@@ -99,7 +104,7 @@ export const CONSULTA_TRABAJOS_DISPONIBLES = `
 SELECT a.id, ARRAY(${estudiantesSinProgramacion('a.id', 'p.id')} ORDER BY 1) AS pendientes
 ${FILTRO_TRABAJOS_PROGRAMACION}
   AND EXISTS (${estudiantesSinProgramacion('a.id', 'p.id')})
-  AND (SELECT count(*) FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id) = 2
+  AND EXISTS (SELECT 1 FROM s3.asignacion_tribunal at WHERE at.asignacion_tema_id = a.id)
 `;
 
 /** Estudiantes de la asignación con su marca de programación ($1 asignación · $2 proceso). */
@@ -142,9 +147,9 @@ export class ProgramacionesSustentacionService {
       : { limite: null, pagina: 1, desplazamiento: 0 };
     const estado = filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado ?? null;
     const [[{ total, filas }], catalogos] = await Promise.all([
-      this.dataSource.query(CONSULTA_PROGRAMACIONES, [
+      this.dataSource.query(...conAlcance(CONSULTA_PROGRAMACIONES, [
         filtros.carreraId ?? null, periodoId, normalizarBusqueda(filtros.buscar), estado, limite, desplazamiento,
-      ]) as Promise<Array<{ total: number; filas: Array<{ id: string; idTrabajo: string }> }>>,
+      ])) as Promise<Array<{ total: number; filas: Array<{ id: string; idTrabajo: string }> }>>,
       this.listarCatalogos(),
     ]);
     const idsTrabajo = [...new Set(filas.map(({ idTrabajo }) => idTrabajo))];
@@ -178,6 +183,13 @@ export class ProgramacionesSustentacionService {
     return solicitado && solicitado !== TODOS_LOS_PERIODOS_PROGRAMACION ? solicitado : null;
   }
 
+  /** Usuarios con ámbito (demostración): solo programan trabajos de sus carreras. */
+  private async exigirTrabajoEnAlcance(idTrabajo: string): Promise<void> {
+    if (!hayRestriccionDeAlcance()) return;
+    const [trabajo] = await this.trabajos.consultar(idTrabajo);
+    if (!trabajo) throw new NotFoundException('No existe el trabajo solicitado.');
+  }
+
   async obtener(id: string): Promise<Record<string, unknown>> {
     const [relacion] = await this.dataSource.query(`
       SELECT p.asignacion_tema_id AS "idTrabajo"
@@ -206,23 +218,36 @@ export class ProgramacionesSustentacionService {
     };
   }
 
-  async trabajosDisponibles(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
+  async trabajosDisponibles(filtros: ConsultarProgramacionesDto, rol = ''): Promise<Record<string, unknown>> {
     // PostgreSQL descarta los trabajos con todos sus estudiantes programados (incluso en programaciones
     // ocultas) o sin tribunal completo; la regla de elegibilidad se vuelve a comprobar sobre el detalle.
     const [candidatos, catalogos] = await Promise.all([
-      this.dataSource.query(CONSULTA_TRABAJOS_DISPONIBLES, [
+      this.dataSource.query(...conAlcance(CONSULTA_TRABAJOS_DISPONIBLES, [
         filtros.carreraId ?? null, this.periodoExplicito(filtros.periodoId), normalizarBusqueda(filtros.buscar),
-      ]) as Promise<Array<{ id: string; pendientes?: string[] }>>,
+      ])) as Promise<Array<{ id: string; pendientes?: string[] }>>,
       this.listarCatalogos(),
     ]);
     const pendientes = new Map(candidatos.map(({ id, pendientes: ids }) => [id, ids ?? []]));
     const trabajos = candidatos.length ? await this.trabajos.consultar(null, candidatos.map(({ id }) => id)) : [];
+    const disponibles = [];
+    const politicas = new Map<string, ReturnType<typeof evaluarProgramacion>>();
+    for (const t of trabajos) {
+      if (!t.procesoId || !t.evaluadoresAsignados) continue;
+      if (Number(t.versionFlujo) > 1) {
+        const flujo = await flujoDelProceso(this.dataSource.manager, t, rol, '');
+        const politica = evaluarProgramacion(flujo.pasos, rol);
+        if (politica.impedimentos.length) continue;
+        politicas.set(t.id, politica);
+      } else if (t.evaluadoresAsignados !== 2 || t.escritasCerradas !== 2) continue;
+      disponibles.push(t);
+    }
     return {
-      elementos: trabajos.filter((t) => t.procesoId && t.evaluadoresAsignados === 2 && t.escritasCerradas === 2)
+      elementos: disponibles
         .map((trabajo) => {
           const sinProgramacion = pendientes.get(trabajo.id) ?? [];
           return {
             ...this.contexto(trabajo),
+            politicaProgramacion: politicas.get(trabajo.id),
             // Estudiantes que aún pueden incluirse en una sesión nueva (RN-28).
             estudiantesPendientes: trabajo.estudiantes.filter((estudiante) => sinProgramacion.includes(estudiante.id)),
           };
@@ -232,7 +257,8 @@ export class ProgramacionesSustentacionService {
     };
   }
 
-  async crear(dto: CrearProgramacionDto, actorId: string, accesoLocal = false): Promise<Record<string, unknown>> {
+  async crear(dto: CrearProgramacionDto, actorId: string, accesoLocal = false, rol = ''): Promise<Record<string, unknown>> {
+    await this.exigirTrabajoEnAlcance(dto.idTrabajo);
     const fecha = validarFechaProgramada(dto.fechaProgramada);
     const hora = validarHoraProgramada(dto.horaProgramada);
     const sala = validarSalaProgramada(dto.sala);
@@ -251,7 +277,7 @@ export class ProgramacionesSustentacionService {
         if (!accesoLocal && !cuenta) throw new ForbiddenException('La identidad no está vinculada a una cuenta institucional activa.');
 
         const [proceso] = await manager.query(`
-          SELECT p.id FROM s4.procesos_evaluacion p
+          SELECT p.id, (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo" FROM s4.procesos_evaluacion p
           JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id AND a.estado = 'VIGENTE'
           WHERE a.id = $1 AND p.estado_registro = 1 FOR UPDATE OF p
         `, [dto.idTrabajo]);
@@ -270,7 +296,18 @@ export class ProgramacionesSustentacionService {
         // por trabajo); una bina puede sustentar junta o en sesiones separadas.
         const estudiantes = await manager.query(CONSULTA_ESTUDIANTES_PROGRAMABLES, [dto.idTrabajo, proceso.id]) as EstudianteProgramable[];
         const participantes = elegirParticipantesSesion(estudiantes, dto.idEstudiantes);
-        if (trabajo.tribunal !== 2 || trabajo.cerradas !== 2) {
+        let politica: ReturnType<typeof evaluarProgramacion> | undefined;
+        if (proceso.versionFlujo > 1) {
+          const actual = await trabajoEn(manager,dto.idTrabajo);
+          if (!actual || !trabajo.tribunal) throw new ConflictException('Falta el tribunal asignado.');
+          const flujo = await flujoDelProceso(manager, actual, rol, actorId);
+          politica = evaluarProgramacion(flujo.pasos, rol);
+          if (politica.impedimentos.length) throw new ConflictException('Falta completar: ' + politica.impedimentos.join(', '));
+          if (politica.advertencias.length && !dto.confirmarAdvertencia)
+            throw new ConflictException('Confirma los requisitos pendientes: ' + politica.advertencias.join(', '));
+          if (politica.excepciones.length && !dto.motivoExcepcion?.trim())
+            throw new ConflictException('Registra el motivo de la excepción: ' + politica.excepciones.join(', '));
+        } else if (trabajo.tribunal !== 2 || trabajo.cerradas !== 2) {
           throw new ConflictException('La sustentación requiere dos evaluaciones escritas cerradas del tribunal asignado.');
         }
 
@@ -288,6 +325,12 @@ export class ProgramacionesSustentacionService {
           INSERT INTO s4.programacion_estudiante (programacion_sustentacion_id, id_estudiante)
           SELECT $1, unnest($2::uuid[])
         `, [creada.id, participantes]);
+        if (politica && (politica.advertencias.length || politica.excepciones.length)) {
+          await manager.query(`INSERT INTO s4.excepcion_programacion
+            (programacion, version_flujo, actor, rol, advertencias, excepciones, motivo)
+            VALUES ($1,$2,$3,$4,$5,$6,$7)`, [creada.id, proceso.versionFlujo, actorId, rol,
+            politica.advertencias, politica.excepciones, politica.excepciones.length ? dto.motivoExcepcion?.trim() : null]);
+        }
         return creada.id;
       });
       return this.obtener(id);
@@ -298,6 +341,7 @@ export class ProgramacionesSustentacionService {
   }
 
   async actualizar(id: string, dto: ActualizarProgramacionDto, actorId: string): Promise<Record<string, unknown>> {
+    if (hayRestriccionDeAlcance()) await this.obtener(id); // 404 si la sesión no es de su ámbito
     const fecha = validarFechaProgramada(dto.fechaProgramada);
     const hora = validarHoraProgramada(dto.horaProgramada);
     const sala = validarSalaProgramada(dto.sala);
@@ -367,6 +411,7 @@ export class ProgramacionesSustentacionService {
     actorId: string,
     accesoLocal = false,
   ): Promise<Record<string, unknown>> {
+    if (hayRestriccionDeAlcance()) await this.obtener(id); // 404 si la sesión no es de su ámbito
     await this.dataSource.transaction(async (manager) => {
       await establecerActorAuditoria(manager, actorId);
       const cuentas = accesoLocal ? [] : await manager.query(`

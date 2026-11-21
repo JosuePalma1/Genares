@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { conAlcance, filtroAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 import { DataSource, EntityManager } from 'typeorm';
 import { establecerActorAuditoria } from '../auditoria/contexto-auditoria';
 import { PuntajeBorrador } from '../evaluaciones/mer/borrador-oral.reglas';
@@ -23,7 +24,7 @@ export interface ContextoCorreccion {
   idEstudiante: string | null; idProceso: string; tipoEtapa: string; etapa: string; maximoEtapa: string;
   estadoProceso: string | null; idTrabajo: string; trabajo: string;
   puntajes: Array<PuntajeActual & { indicador: string; descripcion: string | null; categoria: string }>;
-  bloqueos: string[]; solicitudAbierta: string | null;
+  evidenciaObligatoria?: boolean; plazoVencido?: boolean; limiteSolicitud?: string | null; bloqueos: string[]; solicitudAbierta: string | null;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -51,9 +52,12 @@ const SELECT_SOLICITUD = `
   LEFT JOIN s3.asignacion_tribunal at ON at.asignacion_tribunal_id = e.id_asignacion_tribunal
   LEFT JOIN s3.miembros_tribunal mt ON mt.miembro_tribunal_id = at.miembro_tribunal_id
   LEFT JOIN s3.docente_carrera_periodo dcp ON dcp.docente_carrera_periodo_id = mt.docente_carrera_periodo_id
-  LEFT JOIN gen.docente d ON d.id = dcp.docente_id
+  LEFT JOIN s4.reemplazos_etapa_actuales re ON re.proceso=p.id AND re.etapa=e.id_etapa_rubrica AND re.puesto=at.asignacion_tribunal_id
+  LEFT JOIN gen.docente d ON d.id = COALESCE(re.docente,dcp.docente_id)
   LEFT JOIN gen.persona pd ON pd.id = d.persona_id
-  WHERE s.estado_registro = 1`;
+  LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+  WHERE s.estado_registro = 1
+  ${filtroAlcance('a', 'c.codigo')}`;
 
 @Injectable()
 export class CorreccionesService {
@@ -66,14 +70,25 @@ export class CorreccionesService {
         e.calificacion_total::text AS total, e.id_estudiante AS "idEstudiante",
         e.id_proceso_evaluacion AS "idProceso", e.etapa AS "tipoEtapa", er.nombre AS etapa,
         er.calificacion_maxima::text AS "maximoEtapa", p.estado AS "estadoProceso",
+        COALESCE(v.evidencia_correccion,true) AS "evidenciaObligatoria",
+        e.cerrada_en + v.dias_correccion * interval '24 hours' AS "limiteSolicitud",
+        CURRENT_TIMESTAMP > e.cerrada_en + v.dias_correccion * interval '24 hours' AS "plazoVencido",
         a.id AS "idTrabajo", tema.titulo AS trabajo
       FROM s4.evaluaciones e
       JOIN s4.procesos_evaluacion p ON p.id = e.id_proceso_evaluacion
+      LEFT JOIN s4.version_flujo v ON v.version = p.version_flujo
       JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id
       JOIN gen.tema tema ON tema.id = a.tema_id
       JOIN s4.etapas_rubrica er ON er.id = e.id_etapa_rubrica
       WHERE e.id = $1`, [idEvaluacion]);
     if (!evaluacion) throw new NotFoundException('No existe la evaluación solicitada.');
+    if (hayRestriccionDeAlcance()) {
+      const [enAlcance] = await db.query(...conAlcance(`
+        SELECT 1 FROM s2.asignacion_tema a JOIN gen.tema tema ON tema.id = a.tema_id
+        LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+        WHERE a.id = $1 ${filtroAlcance('a', 'c.codigo')}`, [evaluacion.idTrabajo]));
+      if (!enAlcance) throw new NotFoundException('No existe la evaluación solicitada.');
+    }
 
     const puntajes: Array<PuntajeActual & { indicador: string; descripcion: string | null; categoria: string }> = await db.query(`
       SELECT ce.id_indicador AS "idIndicador", ce.score::text AS score, ce.observation,
@@ -106,21 +121,22 @@ export class CorreccionesService {
     if (estado && !Object.values(ESTADO_SOLICITUD).includes(estado as never)) {
       throw new BadRequestException('Estado de solicitud no válido.');
     }
-    return this.db.query(`${SELECT_SOLICITUD} AND ($1::text IS NULL OR s.estado = $1)
-      ORDER BY s.solicitado_en DESC, s.id LIMIT 200`, [estado ?? null]);
+    return this.db.query(...conAlcance(`${SELECT_SOLICITUD} AND ($1::text IS NULL OR s.estado = $1)
+      ORDER BY s.solicitado_en DESC, s.id LIMIT 200`, [estado ?? null]));
   }
 
   async detalle(id: string, db: Consulta = this.db) {
-    const [solicitud] = await db.query(`${SELECT_SOLICITUD} AND s.id = $1`, [id]);
+    const [solicitud] = await db.query(...conAlcance(`${SELECT_SOLICITUD} AND s.id = $1`, [id]));
     if (!solicitud) throw new NotFoundException('No existe la solicitud de corrección.');
     return solicitud;
   }
 
   async justificativo(id: string) {
+    await this.detalle(id);
     const [fila] = await this.db.query(`
       SELECT justificativo_ruta AS ruta, justificativo_sha256 AS sha256 FROM s4.solicitudes_correccion_evaluacion
       WHERE id = $1 AND estado_registro = 1`, [id]);
-    if (!fila) throw new NotFoundException('No existe la solicitud de corrección.');
+    if (!fila?.ruta) throw new NotFoundException('La solicitud no tiene evidencia adjunta.');
     try { return await this.almacen.leer(fila.ruta, fila.sha256); }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw new NotFoundException('El PDF justificativo no está disponible en el servidor.');
@@ -135,22 +151,24 @@ export class CorreccionesService {
     if (!Number.isInteger(revision) || revision < 0) throw new BadRequestException('Indique la revisión de la evaluación.');
     let motivo: string;
     let propuestos: PuntajeBorrador[];
-    let pdf: Buffer;
+    let pdf: Buffer | undefined;
     try {
       motivo = validarMotivo(datos.motivo);
       propuestos = typeof datos.puntajes === 'string' ? JSON.parse(datos.puntajes) : datos.puntajes as PuntajeBorrador[];
       if (!Array.isArray(propuestos)) throw new Error('Indique los puntajes corregidos.');
-      pdf = validarJustificativo(archivo);
+      if (archivo) pdf = validarJustificativo(archivo);
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
 
-    const guardado = await this.almacen.guardar(pdf);
+    const guardado = pdf ? await this.almacen.guardar(pdf) : null;
     try {
       return await this.db.transaction(async (manager) => {
         await establecerActorAuditoria(manager, actor);
         await manager.query('SELECT 1 FROM s4.evaluaciones WHERE id = $1 FOR UPDATE', [datos.idEvaluacion]);
         const contexto = await this.contexto(datos.idEvaluacion, manager);
+        if (contexto.plazoVencido) throw new ConflictException('Venció el plazo para solicitar la corrección.');
+        if (contexto.evidenciaObligatoria !== false && !guardado) throw new BadRequestException('Adjunte el PDF justificativo.');
         if (contexto.bloqueos.length) throw new ConflictException({ message: 'No se puede solicitar la corrección.', details: contexto.bloqueos });
         if (contexto.revision !== revision) {
           throw new ConflictException('La evaluación cambió desde que la consultó. Recárguela antes de solicitar la corrección.');
@@ -170,16 +188,16 @@ export class CorreccionesService {
             $8, $9, $10, $11, $12)
           RETURNING id`,
         [datos.idEvaluacion, contexto.idProceso, motivo, revision, JSON.stringify(anteriores), JSON.stringify(corregidos),
-          contexto.total, guardado.ruta, guardado.sha256, (archivo?.originalname ?? 'justificativo.pdf').slice(0, 200),
-          guardado.bytes, actor]);
+          contexto.total, guardado?.ruta ?? null, guardado?.sha256 ?? null, guardado ? (archivo?.originalname ?? 'justificativo.pdf').slice(0, 200) : null,
+          guardado?.bytes ?? null, actor]);
         await this.auditar(manager, datos.idEvaluacion, actor, 'CORRECCION_SOLICITADA', {
           solicitud: solicitud.id, motivo, revisionBase: revision,
-          justificativo: { ruta: guardado.ruta, sha256: guardado.sha256, bytes: guardado.bytes },
+          justificativo: guardado ?? null,
         });
         return this.detalle(solicitud.id, manager);
       });
     } catch (error) {
-      await this.almacen.descartar(guardado.ruta);
+      if (guardado) await this.almacen.descartar(guardado.ruta);
       throw error;
     }
   }

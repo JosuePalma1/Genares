@@ -14,7 +14,7 @@ const puntajes = [
 ];
 
 interface Estado {
-  revision: number; estadoEvaluacion: string; estadoProceso: string; actas: number; abierta: boolean;
+  evidenciaObligatoria?: boolean; plazoVencido?: boolean; revision: number; estadoEvaluacion: string; estadoProceso: string; actas: number; abierta: boolean;
   solicitud?: Record<string, unknown>; totalAplicado?: string;
 }
 
@@ -25,7 +25,7 @@ function preparar(parcial: Partial<Estado> = {}) {
     sqls.push(sql);
     if (sql.includes('FROM s4.evaluaciones e\n      JOIN s4.procesos_evaluacion')) {
       return [{ id: EVALUACION, estado: estado.estadoEvaluacion, estadoRegistro: 1, revision: estado.revision, total: '0.53',
-        idEstudiante: null, idProceso: 'p1', tipoEtapa: 'ESCRITA', etapa: 'Escrita', maximoEtapa: '0.67',
+        evidenciaObligatoria: estado.evidenciaObligatoria, plazoVencido: estado.plazoVencido, idEstudiante: null, idProceso: 'p1', tipoEtapa: 'ESCRITA', etapa: 'Escrita', maximoEtapa: '0.67',
         estadoProceso: estado.estadoProceso, idTrabajo: 't1', trabajo: 'Tema' }];
     }
     if (sql.includes('FROM s4.calificaciones_evaluacion ce\n      JOIN')) return puntajes;
@@ -89,6 +89,20 @@ describe('solicitud de corrección (AU-02)', () => {
     await servicio.solicitar(solicitudValida(), pdf, 'docente');
     const sql = escrituras();
     expect(sql).toEqual(['INSERT INTO s4.solicitudes_correccion_evaluacion', 'INSERT INTO s4.eventos_auditoria_evaluacion (id_evaluacion, actor_id, accion, detalles, ocurrido_en)']);
+  });
+
+  it('acepta una solicitud sin archivo cuando la versión del proceso lo permite', async () => {
+    const { servicio, almacen, escrituras } = preparar({ evidenciaObligatoria: false });
+    await servicio.solicitar(solicitudValida(), undefined, 'docente');
+    expect(almacen.guardar).not.toHaveBeenCalled();
+    expect(escrituras()).toHaveLength(2);
+  });
+
+  it('rechaza solicitudes posteriores al plazo sin dejar evidencia huérfana', async () => {
+    const { servicio, almacen, escrituras } = preparar({ plazoVencido: true });
+    await expect(servicio.solicitar(solicitudValida(), pdf, 'docente')).rejects.toThrow(/plazo/);
+    expect(escrituras()).toEqual([]);
+    expect(almacen.descartar).toHaveBeenCalledTimes(1);
   });
 
   it('rechaza sin PDF, con motivo corto o con puntajes inválidos, sin escribir nada', async () => {

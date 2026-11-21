@@ -17,10 +17,10 @@ function renderizar(props = {}, ruta = '/dashboard') {
 }
 
 const OPCIONES_ANEXO_A = ['Inicio', 'Trabajos de titulación', 'Cronograma', 'Mis evaluaciones', 'Rúbricas',
-  'Seguimiento', 'Resultados', 'Documentos', 'Auditoría'];
+  'Seguimiento', 'Resultados', 'Documentos', 'Configuración general', 'Auditoría'];
 
 describe('barra lateral de Genares', () => {
-  it('incluye las nueve opciones de la matriz de navegación en su orden', () => {
+  it('incluye las opciones de la matriz de navegación y configuración en su orden', () => {
     const principales = NAVEGACION.flatMap((grupo) => grupo.elementos.map((elemento) => elemento.etiqueta));
     expect(principales).toEqual(OPCIONES_ANEXO_A);
     const html = renderizar();

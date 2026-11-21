@@ -214,7 +214,7 @@ function adaptarConsolidacionEstudiante(consolidacion) {
       && consolidacion.etapas.every((etapa) => etapa.estado === 'COMPLETA' && etapa.promedioEtapa !== null)
       && esDecimal(consolidacion.resultadoFinal.calificacion)
       && ['10.00', '20.00', '100.00'].includes(consolidacion.resultadoFinal.calificacionMaxima)
-      && consolidacion.resultadoFinal.redondeo === 'HALF_UP_A_DOS_DECIMALES');
+      && ['HALF_UP_A_DOS_DECIMALES','TRUNCAR_A_DOS_DECIMALES'].includes(consolidacion.resultadoFinal.redondeo));
     validarRacional(consolidacion.resultadoFinal.exacto);
   }
   return consolidacion;

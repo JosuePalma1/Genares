@@ -1,6 +1,5 @@
 import {
   Controller,
-  ForbiddenException,
   Get,
   Param,
   ParseUUIDPipe,
@@ -10,6 +9,7 @@ import {
 import { actorValidadoDe, puedeConsultarDemostracion, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { EvaluacionesService } from './evaluaciones.service';
+import { exigirConsultaGeneralLocal } from '../trabajos/trabajos.controller';
 
 @Controller({ path: 'evaluaciones', version: '1' })
 export class EvaluacionesController {
@@ -18,9 +18,8 @@ export class EvaluacionesController {
   @Get('trabajos')
   @RequiereCapacidades('evaluaciones:leer')
   listarTrabajos(@Req() solicitud: SolicitudConIdentidad) {
-    if (solicitud.identidadApi?.tipo !== 'DESARROLLO_LOCAL') {
-      throw new ForbiddenException('La consulta general de trabajos solo está disponible en el entorno local de desarrollo.');
-    }
+    // Local o usuario de demostración (este último, solo con su ámbito: filtroAlcance).
+    exigirConsultaGeneralLocal(solicitud);
     return this.evaluaciones.listarTrabajosDesarrolloLocal(actorValidadoDe(solicitud));
   }
 

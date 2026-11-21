@@ -51,6 +51,22 @@ it('consolida la escrita compartida y la oral propia solo cuando ambos evaluador
 });
 
 describe('sin porcentajes guardados, cada parte pesa según lo que vale', () => {
+  it('exige Producto y conserva su nota individual en una bina con partes de 2.5, 2.5 y 5', () => {
+    const etapas = [
+      { id: 'escrita', scope: 'TRABAJO_COMPARTIDO', calificacionMaxima: '2.5', porcentaje: '25' },
+      { id: 'oral', scope: 'ESTUDIANTE_INDIVIDUAL', calificacionMaxima: '2.5', porcentaje: '25' },
+      { id: 'producto', scope: 'ESTUDIANTE_INDIVIDUAL', calificacionMaxima: '5', porcentaje: '50' },
+    ];
+    const notas = ['a', 'b'].flatMap((idAsignacionTribunal) =>
+      etapas.flatMap((etapa) => (etapa.id === 'escrita' ? [null] : ['ana', 'luis']).map((idEstudiante) => ({
+        idEtapaRubrica: etapa.id, idAsignacionTribunal, idEstudiante, estado: 'CERRADA',
+        total: etapa.id === 'producto' && idEstudiante === 'ana' ? '1' : etapa.calificacionMaxima,
+      }))),
+    );
+    expect(calcularConsolidadoMer(etapas, ['a', 'b'], notas, 'ana')).toBe('6.00');
+    expect(calcularConsolidadoMer(etapas, ['a', 'b'], notas, 'luis')).toBe('10.00');
+    expect(calcularConsolidadoMer(etapas, ['a', 'b'], notas.slice(0, -1), 'luis')).toBeNull();
+  });
   const cerradas = (escrita: [string, string], oral: [string, string]) => [
     { idEtapaRubrica: 'escrita', idAsignacionTribunal: 'a', idEstudiante: null, estado: 'CERRADA', total: escrita[0] },
     { idEtapaRubrica: 'escrita', idAsignacionTribunal: 'b', idEstudiante: null, estado: 'CERRADA', total: escrita[1] },

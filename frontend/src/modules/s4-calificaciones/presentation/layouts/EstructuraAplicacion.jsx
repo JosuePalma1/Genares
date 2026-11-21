@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, Award, BookOpenCheck, CalendarDays, ClipboardCheck, FileClock, FilePen, FileSearch,
-  FileText, History, LayoutDashboard, ListChecks, Lock, PanelLeft, ShieldCheck, University,
+  FileText, History, LayoutDashboard, ListChecks, Lock, LogOut, Menu, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, Navigate, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { iniciales } from '../../domain/flujoTrabajo';
 import { registrarRutaInterna } from '../../domain/navegacionRetorno';
 import { EXIGENCIA, filtrarNavegacion, rutaActiva } from '../../domain/navegacion';
+import { filtrarNavegacionPorRol } from '../../domain/navegacionDemo';
 import { usarPermisosNavegacion } from '../hooks/usarPermisosNavegacion';
 import { avisoColaBorradores, usarSincronizacionBorradores } from '../hooks/usarSincronizacionBorradores';
+import { usarSesionDemo } from '../hooks/usarSesionDemo';
+import { salirDemo } from '../services/sesionDemo';
 import './estructuraAplicacion.css';
 
 // Las nueve opciones de la matriz de navegación (Paso 2, Anexo A.1).
@@ -56,13 +59,14 @@ export const NAVEGACION = [
   {
     etiqueta: 'Control',
     elementos: [
+      { to: '/configuracion', etiqueta: 'Configuración general', icon: ListChecks },
       {
         clave: 'auditoria', etiqueta: 'Auditoría', icon: History,
         // Cada subopción exige su propia autorización confirmada por el servidor.
         hijos: [
           { to: '/auditoria', etiqueta: 'Historial de cambios', icon: FileClock, end: true,
             permiso: 'auditoria', exigencia: EXIGENCIA.AUTORIZACION },
-          { to: '/auditoria/correcciones', etiqueta: 'Solicitudes de corrección', icon: FilePen,
+          { to: '/auditoria/correcciones', etiqueta: 'Solicitudes', icon: FilePen,
             permiso: 'correcciones', exigencia: EXIGENCIA.AUTORIZACION },
         ],
       },
@@ -99,8 +103,9 @@ function Opcion({ elemento, rutaActual, alNavegar, subopcion = false }) {
   );
 }
 
-export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false }) {
-  const grupos = filtrarNavegacion(NAVEGACION, permisos);
+export function Navegacion({ movil = false, alNavegar, permisos, rutaActual = '', identidadLocal = false, rol = null, permisosPersonalizados }) {
+  // Usuario de demostración: además de los permisos, solo las opciones de su rol (Paso 2, A.4).
+  const grupos = filtrarNavegacionPorRol(filtrarNavegacion(NAVEGACION, permisos), rol, permisosPersonalizados);
   return (
     <nav className={movil ? 'mobile-links' : 'side-nav'} aria-label={movil ? 'Navegación móvil' : 'Navegación principal'}>
       {grupos.map((grupo) => (
@@ -165,12 +170,43 @@ export function EstructuraAplicacion({ children }) {
   const referenciaNavegacionMovil = useRef(null);
   const [barraLateralContraida, establecerBarraLateralContraida] = useState(false);
   const permisos = usarPermisosNavegacion();
+  const [cabeceraOculta, ocultarCabecera] = useState(false);
   const avisoBorradores = avisoColaBorradores(usarSincronizacionBorradores());
+  const sesionDemo = usarSesionDemo();
   const esVistaEvaluacionesApi = ubicacion.pathname === '/mis-evaluaciones'
     || ubicacion.pathname.startsWith('/evaluaciones/') || ubicacion.pathname.startsWith('/resultados/');
 
   useEffect(() => {
+    ocultarCabecera(false);
+    const movil = window.matchMedia?.('(max-width: 1080px), (pointer: coarse) and (max-width: 1440px)');
+    let anterior = Math.max(0, window.scrollY);
+    const alDesplazar = () => {
+      if (!movil?.matches) return;
+      const actual = Math.max(0, window.scrollY);
+      if (actual > 0 && Math.abs(actual - anterior) < 6) return;
+      const cabecera = referenciaNavegacionMovil.current?.closest('header');
+      ocultarCabecera(actual > (cabecera?.offsetHeight ?? 0) && actual > anterior
+        && !cabecera?.querySelector('details[open]'));
+      anterior = actual;
+    };
+    const cerrarMenu = (evento) => {
+      const menu = referenciaNavegacionMovil.current;
+      if (!menu?.open) return;
+      if (evento.type === 'keydown') {
+        if (evento.key !== 'Escape') return;
+        menu.querySelector('summary')?.focus();
+      } else if (menu.contains(evento.target)) return;
+      menu.open = false;
+    };
+    window.addEventListener('scroll', alDesplazar, { passive: true });
+    document.addEventListener('pointerdown', cerrarMenu);
+    document.addEventListener('keydown', cerrarMenu);
     if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
+    return () => {
+      window.removeEventListener('scroll', alDesplazar);
+      document.removeEventListener('pointerdown', cerrarMenu);
+      document.removeEventListener('keydown', cerrarMenu);
+    };
   }, [ubicacion.pathname]);
 
   useEffect(() => {
@@ -179,6 +215,11 @@ export function EstructuraAplicacion({ children }) {
       `${ubicacion.pathname}${ubicacion.search}${ubicacion.hash}`,
     );
   }, [ubicacion.hash, ubicacion.pathname, ubicacion.search]);
+
+  // Demostración por roles: sin sesión se va a la entrada; mientras se comprueba no se muestran datos.
+  if (sesionDemo.fase === 'sin-sesion') return <Navigate replace to="/entrar" />;
+  const usuarioDemo = sesionDemo.fase === 'con-sesion' ? sesionDemo.usuario : null;
+  const identidadLocal = IDENTIDAD_LOCAL && !usuarioDemo;
 
   return (
     <div className={`app-shell react-app-shell ${barraLateralContraida ? 'sidebar-collapsed' : ''} ${esVistaEvaluacionesApi ? 'evaluaciones-api-shell' : ''}`}>
@@ -192,11 +233,17 @@ export function EstructuraAplicacion({ children }) {
             <small>Facultad de Ciencias de la Vida y Tecnologías</small>
           </div>
         </NavLink>
-        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={IDENTIDAD_LOCAL} />
+        <Navegacion permisos={permisos} rutaActual={ubicacion.pathname} identidadLocal={identidadLocal} rol={usuarioDemo?.rol ?? null} permisosPersonalizados={usuarioDemo?.permisosPersonalizados} />
       </aside>
 
-      <header className="topbar app-topbar">
+      <header className={`topbar app-topbar ${cabeceraOculta ? 'cabecera-oculta' : ''}`} onFocusCapture={() => ocultarCabecera(false)}>
         <div className="topbar-left">
+      <details className="movil-nav app-movil-nav" ref={referenciaNavegacionMovil}>
+            <summary aria-label="Menú del sistema" title="Menú del sistema"><Menu size={23} aria-hidden="true" /></summary>
+            <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} rol={usuarioDemo?.rol ?? null} permisosPersonalizados={usuarioDemo?.permisosPersonalizados} alNavegar={() => {
+              if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
+            }} />
+          </details>
           <button
             type="button"
             className="icon-button sidebar-toggle-btn"
@@ -215,29 +262,33 @@ export function EstructuraAplicacion({ children }) {
         <div className="topbar-actions">
           <IndicadorBorradores aviso={avisoBorradores} />
           {/* Fuera de .user-box: los estilos compartidos ocultan esa caja en pantallas de 360 px. */}
-          {IDENTIDAD_LOCAL && (
-            <span className="demo-mode-chip" title="Identidad local de desarrollo: los permisos no corresponden a un usuario institucional">
-              Accesos simulados
+          {(identidadLocal || usuarioDemo) && (
+            <span className="demo-mode-chip" title={usuarioDemo ? 'Usuario de demostración: no es una cuenta institucional' : 'Identidad local de desarrollo: los permisos no corresponden a un usuario institucional'}>
+              {usuarioDemo ? 'Demostración' : 'Accesos simulados'}
             </span>
           )}
           <div className="user-box" role="group" aria-label="Sesión activa">
             <div className="user-meta">
-              <strong>{IDENTIDAD_LOCAL ? 'Identidad local' : 'Sesión activa'}</strong>
+              <strong>{usuarioDemo ? usuarioDemo.nombre : identidadLocal ? 'Identidad local' : 'Sesión activa'}</strong>
+              {usuarioDemo && <small>{usuarioDemo.nombreRol}</small>}
             </div>
-            <span className="avatar" aria-hidden="true">{iniciales('Sistema local')}</span>
+            <span className="avatar" aria-hidden="true">{iniciales(usuarioDemo?.nombre ?? 'Sistema local')}</span>
           </div>
+          {usuarioDemo && (
+            <button type="button" className="icon-button" title="Salir" aria-label="Salir de la demostración"
+              onClick={async () => { await salirDemo(); window.location.assign('/entrar'); }}>
+              <LogOut size={18} aria-hidden="true" />
+            </button>
+          )}
         </div>
       </header>
 
-      <details className="movil-nav app-movil-nav" ref={referenciaNavegacionMovil}>
-        <summary>Menú del sistema</summary>
-        <Navegacion movil permisos={permisos} rutaActual={ubicacion.pathname} alNavegar={() => {
-          if (referenciaNavegacionMovil.current) referenciaNavegacionMovil.current.open = false;
-        }} />
-      </details>
+
 
       <main className="main-content" id="main-content" tabIndex="-1">
-        {children ?? <Outlet />}
+        {sesionDemo.fase === 'comprobando'
+          ? <p className="card" role="status">Comprobando la sesión…</p>
+          : children ?? <Outlet />}
       </main>
     </div>
   );

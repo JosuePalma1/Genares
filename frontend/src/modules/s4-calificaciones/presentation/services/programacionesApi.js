@@ -141,6 +141,8 @@ export function mapearCrearProgramacion(datos) {
     fechaProgramada: datos.fechaProgramada,
     horaProgramada: datos.horaProgramada,
     sala: datos.sala.trim(),
+    ...(datos.confirmarAdvertencia ? { confirmarAdvertencia: true } : {}),
+    ...(datos.motivoExcepcion ? { motivoExcepcion: datos.motivoExcepcion.trim() } : {}),
     ...(datos.duracionEstimadaMinutos === undefined ? {} : { duracionEstimadaMinutos: datos.duracionEstimadaMinutos }),
     ...(datos.idEstudiantes === undefined ? {} : { idEstudiantes: [...datos.idEstudiantes] }),
   };

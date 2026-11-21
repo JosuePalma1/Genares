@@ -1,8 +1,16 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { esUuidPostgres } from '../../../common/utils/uuid-postgres';
+import { accesoPorAlcance, conAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 
 const LIMITE_PAGINA = 100;
+
+// Compatibilidad con los eventos inmutables de la primera carga del piloto.
+const EVIDENCIA_PILOTO_ANTERIOR = new Map([
+  ['TRABAJO_REGISTRADO|S2|Asignación de tema vigente en el seeder piloto.', 'DIRECTA'],
+  ['TRIBUNAL_ASIGNADO|S3|Dos miembros de tribunal asignados por el seeder piloto.', 'DIRECTA'],
+  ['TRIBUNAL_CONFIRMADO|S3|S4 muestra como confirmado el tribunal asignado en el piloto.', 'RECONSTRUIDA'],
+]);
 
 export interface CursorTrazabilidad {
   ocurridoEnEpoch: string;
@@ -38,6 +46,15 @@ export class TrazabilidadTrabajosService {
       [trabajoId],
     );
     if (!trabajoExiste.length) throw new NotFoundException('No existe el trabajo solicitado.');
+    // Usuarios con ámbito (demostración): solo trabajos de sus carreras o de su tribunal.
+    if (hayRestriccionDeAlcance()) {
+      const [acceso] = await this.dataSource.query(...conAlcance(`
+        SELECT 1 FROM s2.asignacion_tema asig
+        JOIN gen.tema tema ON tema.id = asig.tema_id
+        LEFT JOIN gen.carrera c ON c.id = tema.carrera_id
+        WHERE asig.id = $1::uuid AND ${accesoPorAlcance('asig', 'c.codigo')}`, [trabajoId]));
+      if (!acceso) throw new NotFoundException('No existe el trabajo solicitado.');
+    }
 
     let posicion: CursorTrazabilidad | null = null;
     if (cursor) posicion = decodificarCursorTrazabilidad(cursor);
@@ -65,7 +82,7 @@ export class TrazabilidadTrabajosService {
         tipo: fila.tipo,
         actor: { disponible: Boolean(fila.actorId) },
         origen: fila.origen,
-        evidencia: fila.evidencia,
+        evidencia: EVIDENCIA_PILOTO_ANTERIOR.get(`${fila.tipo}|${fila.origen}|${fila.evidencia}`) ?? fila.evidencia,
       })),
       siguienteCursor: hayMas && ultimo
         ? codificarCursorTrazabilidad({ ocurridoEnEpoch: String(ultimo.cursorEpoch), id: String(ultimo.id) })

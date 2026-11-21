@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { IdentidadApi, SolicitudConIdentidad } from './identidad-api';
+import { LeerPermisosRol, crearFirmador, crearManejadorSesionDemo, crearMiddlewareIdentidadDemo } from './identidad-demo';
 
 export interface EntornoAccesoDesarrollo {
   NODE_ENV?: string;
@@ -170,7 +171,8 @@ export function opcionesCorsDesarrolloLocal(origenesPermitidos: string[]) {
     origin: (origen: string | undefined, responder: (error: Error | null, permitir?: boolean) => void) =>
       responder(null, Boolean(origen) && permitidos.has(origen as string)),
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Accept', 'Content-Type', 'X-Genares-Write-Intent', 'X-Correlation-Id'],
+    // Authorization: sesión de los usuarios de demostración (rama demo/accesos-por-rol).
+    allowedHeaders: ['Accept', 'Authorization', 'Content-Type', 'X-Genares-Write-Intent', 'X-Correlation-Id'],
     credentials: false,
     maxAge: 600,
   };
@@ -180,6 +182,7 @@ export async function instalarIdentidadDesarrolloLocal(
   aplicacion: INestApplication,
   entorno: EntornoAccesoDesarrollo = process.env,
   verificarBase?: () => Promise<VerificacionBaseDesarrollo>,
+  leerPermisos?: LeerPermisosRol,
 ): Promise<boolean> {
   const habilitado = entorno.NODE_ENV === 'development' && entorno.LOCAL_DEV_OPEN_ACCESS === 'true';
   if (!habilitado) return false;
@@ -201,6 +204,10 @@ export async function instalarIdentidadDesarrolloLocal(
   // Antes de la protección, para que también un rechazo 403 llegue con cabeceras CORS.
   aplicacion.enableCors(opcionesCorsDesarrolloLocal(origenes));
   aplicacion.use(crearMiddlewareAccesoDesarrolloLocal(capacidades));
+  // Usuarios de demostración: si la petición trae su sesión, sustituyen a la identidad técnica.
+  const firmador = crearFirmador();
+  aplicacion.use(crearMiddlewareIdentidadDemo(firmador,leerPermisos));
   aplicacion.use(crearMiddlewareProteccionEscrituraLocal(origenes));
+  aplicacion.use(crearManejadorSesionDemo(firmador));
   return true;
 }

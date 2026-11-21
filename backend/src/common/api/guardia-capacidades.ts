@@ -42,10 +42,13 @@ export class GuardiaCapacidades implements CanActivate {
     }
 
     if (identidad.tipo !== 'VERIFICADA') {
-      if (identidad.tipo === 'DESARROLLO_LOCAL' && ['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
+      // DEMOSTRACION: usuarios de prueba con rol (rama demo/accesos-por-rol); igual de restringidos al entorno local.
+      if (['DESARROLLO_LOCAL', 'DEMOSTRACION'].includes(identidad.tipo) && ['development', 'test'].includes(process.env.NODE_ENV ?? '')) {
         const capacidadesOtorgadas = new Set(identidad.capacidades);
         if (!capacidades.every((capacidad) => capacidadesOtorgadas.has(capacidad))) {
-          throw new ForbiddenException('La operación no está disponible en el entorno local.');
+          throw new ForbiddenException(identidad.tipo === 'DEMOSTRACION'
+            ? 'Su rol no tiene permiso para esta operación.'
+            : 'La operación no está disponible en el entorno local.');
         }
         return true;
       }

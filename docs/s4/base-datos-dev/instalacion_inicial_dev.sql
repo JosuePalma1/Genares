@@ -1601,3 +1601,144 @@ BEGIN
   WHERE asignacion_tema_id=p_asignacion_tema_id;
  RETURN v_id;
 END $$;
+
+-- Versiones inmutables del flujo. Cada proceso conserva la versión asignada al crearse.
+CREATE TABLE IF NOT EXISTS s4.version_flujo (
+  version integer PRIMARY KEY, pasos jsonb NOT NULL, publicado_por text NOT NULL,
+  publicado_en timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+INSERT INTO s4.version_flujo(version,pasos,publicado_por,publicado_en) VALUES (1,'[]','instalacion',now()) ON CONFLICT DO NOTHING;
+ALTER TABLE s4.version_flujo ADD COLUMN IF NOT EXISTS carrera uuid REFERENCES gen.carrera(id),
+  ADD COLUMN IF NOT EXISTS modalidad uuid REFERENCES gen.modalidad(id),
+  ADD COLUMN IF NOT EXISTS periodo uuid REFERENCES gen.periodo_academico(id),
+  ADD COLUMN IF NOT EXISTS umbral numeric(5,2) CHECK(umbral BETWEEN 0 AND 100),
+  ADD COLUMN IF NOT EXISTS redondeo text NOT NULL DEFAULT 'HALF_UP' CHECK(redondeo IN ('HALF_UP','TRUNCAR'));
+ALTER TABLE s4.procesos_evaluacion ADD COLUMN IF NOT EXISTS version_flujo integer NOT NULL DEFAULT 1 REFERENCES s4.version_flujo;
+ALTER TABLE s4.procesos_evaluacion ADD COLUMN IF NOT EXISTS redondeo_final text NOT NULL DEFAULT 'HALF_UP';
+ALTER TABLE s4.procesos_evaluacion ADD COLUMN IF NOT EXISTS porcentaje_aprobacion numeric(5,2) CHECK (porcentaje_aprobacion BETWEEN 0 AND 100);
+UPDATE s4.procesos_evaluacion SET porcentaje_aprobacion=(SELECT COALESCE((to_jsonb(c)->>'porcentaje')::numeric,10*(to_jsonb(c)->>'valor')::numeric) FROM s4.configuracion_nota_minima c WHERE id=1)
+WHERE porcentaje_aprobacion IS NULL AND EXISTS(SELECT 1 FROM s4.configuracion_nota_minima WHERE id=1);
+CREATE OR REPLACE FUNCTION s4.asignar_version_flujo() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  SELECT f.version INTO STRICT NEW.version_flujo FROM s4.version_flujo f
+  JOIN s2.asignacion_tema a ON a.id=NEW.asignacion_tema_id JOIN gen.tema t ON t.id=a.tema_id
+  WHERE (f.carrera IS NULL OR f.carrera=t.carrera_id) AND (f.modalidad IS NULL OR f.modalidad=t.modalidad_id)
+    AND (f.periodo IS NULL OR f.periodo=t.periodo_academico_id)
+  ORDER BY num_nonnulls(f.carrera,f.modalidad,f.periodo) DESC,f.version DESC LIMIT 1;
+  SELECT COALESCE((to_jsonb(c)->>'porcentaje')::numeric,10*(to_jsonb(c)->>'valor')::numeric) INTO NEW.porcentaje_aprobacion FROM s4.configuracion_nota_minima c WHERE id=1;
+  SELECT f.redondeo,COALESCE(f.umbral,NEW.porcentaje_aprobacion) INTO NEW.redondeo_final,NEW.porcentaje_aprobacion FROM s4.version_flujo f WHERE f.version=NEW.version_flujo;
+  RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS asignar_version_flujo ON s4.procesos_evaluacion;
+CREATE TRIGGER asignar_version_flujo BEFORE INSERT ON s4.procesos_evaluacion
+FOR EACH ROW EXECUTE FUNCTION s4.asignar_version_flujo();
+CREATE TABLE IF NOT EXISTS s4.historial_paso (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  proceso uuid NOT NULL REFERENCES s4.procesos_evaluacion(id),
+  paso text NOT NULL, accion text NOT NULL CHECK (accion IN ('SOLICITADO','CUMPLIDO','RECHAZADO')),
+  actor text NOT NULL, fecha timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS historial_paso_proceso ON s4.historial_paso(proceso,paso,id DESC);
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='genares') THEN GRANT SELECT,INSERT ON s4.version_flujo,s4.historial_paso TO genares; END IF; END $$;
+CREATE TABLE IF NOT EXISTS s4.continuidad_estudiante (
+  proceso uuid NOT NULL REFERENCES s4.procesos_evaluacion(id),
+  estudiante uuid NOT NULL REFERENCES gen.estudiante(id),
+  periodo_destino uuid NOT NULL REFERENCES gen.periodo_academico(id),
+  nota numeric NOT NULL, minimo numeric NOT NULL, escala numeric NOT NULL,
+  actor text NOT NULL, registrado_en timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY(proceso,estudiante)
+);
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='genares') THEN GRANT SELECT,INSERT ON s4.continuidad_estudiante TO genares; END IF; END $$;
+CREATE TABLE IF NOT EXISTS s4.permisos_rol_version (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, rol text NOT NULL,
+  permisos text[] NOT NULL, actor text NOT NULL, cambiado_en timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+CREATE INDEX IF NOT EXISTS permisos_rol_ultima ON s4.permisos_rol_version(rol,id DESC);
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='genares') THEN
+  GRANT SELECT, INSERT ON s4.permisos_rol_version TO genares;
+END IF; END $$;
+
+
+-- ===== convocatorias-individuales.sql =====
+CREATE TABLE IF NOT EXISTS s4.politica_convocatoria (
+  revision integer PRIMARY KEY,
+  reglas jsonb NOT NULL,
+  actor text NOT NULL,
+  registrada_en timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+INSERT INTO s4.politica_convocatoria(revision,reglas,actor)
+VALUES (1,'{"mismoPeriodo":true,"otroPeriodo":true,"revisar":true,"escrita":"ELEGIR","dias":null,"inicio":"APERTURA"}','instalacion')
+ON CONFLICT DO NOTHING;
+CREATE TABLE IF NOT EXISTS s4.convocatoria_individual (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  proceso uuid NOT NULL REFERENCES s4.procesos_evaluacion,
+  estudiante uuid NOT NULL REFERENCES gen.estudiante,
+  periodo uuid NOT NULL REFERENCES gen.periodo_academico,
+  numero integer NOT NULL CHECK(numero >= 2),
+  politica integer NOT NULL REFERENCES s4.politica_convocatoria,
+  estado text NOT NULL CHECK(estado IN ('ABIERTA','APROBADA','REPROBADA')),
+  rubrica jsonb NOT NULL, evaluadores jsonb NOT NULL, conservar uuid[] NOT NULL,
+  minimo numeric NOT NULL, escala numeric NOT NULL, redondeo text NOT NULL,
+  nota numeric, abierta_por text NOT NULL, abierta_en timestamptz NOT NULL DEFAULT clock_timestamp(),
+  vence date, cerrada_en timestamptz,
+  UNIQUE(proceso,estudiante,numero)
+);
+CREATE TABLE IF NOT EXISTS s4.nota_convocatoria (
+  convocatoria uuid NOT NULL REFERENCES s4.convocatoria_individual,
+  etapa uuid NOT NULL, evaluador uuid NOT NULL, valores jsonb NOT NULL, total numeric NOT NULL,
+  origen uuid, actor text NOT NULL, cerrada_en timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY(convocatoria,etapa,evaluador)
+);
+CREATE TABLE IF NOT EXISTS s4.revision_convocatoria (
+  proceso uuid NOT NULL REFERENCES s4.procesos_evaluacion,
+  estudiante uuid NOT NULL REFERENCES gen.estudiante, numero integer NOT NULL,
+  motivo text NOT NULL, actor text NOT NULL, fecha timestamptz NOT NULL DEFAULT clock_timestamp(),
+  PRIMARY KEY(proceso,estudiante,numero)
+);
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='genares') THEN
+  GRANT SELECT,INSERT ON s4.politica_convocatoria,s4.convocatoria_individual,s4.nota_convocatoria,s4.revision_convocatoria TO genares;
+  GRANT UPDATE(estado,nota,cerrada_en) ON s4.convocatoria_individual TO genares;
+END IF; END $$;
+
+
+-- ===== excepciones-programacion.sql =====
+CREATE TABLE IF NOT EXISTS s4.excepcion_programacion (
+  programacion uuid PRIMARY KEY REFERENCES s4.programaciones_sustentacion(id),
+  version_flujo integer NOT NULL REFERENCES s4.version_flujo(version),
+  actor text NOT NULL, rol text NOT NULL, fecha timestamptz NOT NULL DEFAULT clock_timestamp(),
+  advertencias text[] NOT NULL, excepciones text[] NOT NULL, motivo text,
+  CHECK (cardinality(advertencias) + cardinality(excepciones) > 0),
+  CHECK (cardinality(excepciones) = 0 OR (motivo IS NOT NULL AND length(trim(motivo)) > 0))
+);
+DO $$ BEGIN IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='genares') THEN GRANT SELECT,INSERT ON s4.excepcion_programacion TO genares; END IF; END $$;
+
+
+-- ===== reemplazos-correcciones.sql =====
+ALTER TABLE s4.version_flujo
+  ADD COLUMN IF NOT EXISTS evidencia_correccion boolean NOT NULL DEFAULT true,
+  ADD COLUMN IF NOT EXISTS dias_correccion integer CHECK (dias_correccion BETWEEN 0 AND 36500);
+ALTER TABLE IF EXISTS s4.solicitudes_correccion_evaluacion
+  ALTER COLUMN justificativo_ruta DROP NOT NULL, ALTER COLUMN justificativo_sha256 DROP NOT NULL,
+  ALTER COLUMN justificativo_nombre DROP NOT NULL, ALTER COLUMN justificativo_bytes DROP NOT NULL;
+
+CREATE TABLE IF NOT EXISTS s4.reemplazos_etapa (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  proceso uuid NOT NULL REFERENCES s4.procesos_evaluacion(id),
+  etapa uuid NOT NULL REFERENCES s4.etapas_rubrica(id),
+  puesto uuid NOT NULL REFERENCES s3.asignacion_tribunal(asignacion_tribunal_id),
+  anterior uuid NOT NULL REFERENCES gen.docente(id),
+  docente uuid NOT NULL REFERENCES gen.docente(id),
+  motivo text NOT NULL CHECK(length(trim(motivo)) BETWEEN 1 AND 1000),
+  actor text NOT NULL, fecha timestamptz NOT NULL DEFAULT now(),
+  CHECK(docente <> anterior)
+);
+CREATE INDEX IF NOT EXISTS reemplazos_etapa_puesto ON s4.reemplazos_etapa(proceso,etapa,puesto,id DESC);
+CREATE OR REPLACE VIEW s4.reemplazos_etapa_actuales AS
+ SELECT DISTINCT ON (proceso,etapa,puesto) proceso,etapa,puesto,docente FROM s4.reemplazos_etapa ORDER BY proceso,etapa,puesto,id DESC;
+DO $$ BEGIN
+ IF EXISTS (SELECT FROM pg_roles WHERE rolname='genares') THEN
+   GRANT SELECT,INSERT ON s4.reemplazos_etapa TO genares;
+   GRANT SELECT ON s4.reemplazos_etapa_actuales TO genares;
+   GRANT USAGE ON SEQUENCE s4.reemplazos_etapa_id_seq TO genares;
+ END IF;
+END $$;

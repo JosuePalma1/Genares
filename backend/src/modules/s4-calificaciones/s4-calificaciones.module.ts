@@ -1,3 +1,4 @@
+import { ConfiguracionGeneralModule } from './configuracion/configuracion.module';
 import { Module } from '@nestjs/common';
 import { AuditoriaModule } from './auditoria/auditoria.module';
 import { CarrerasModule } from './carreras/carreras.module';
@@ -13,6 +14,7 @@ import { TrabajosModule } from './trabajos/trabajos.module';
 
 @Module({
   imports: [
+    ConfiguracionGeneralModule,
     AuditoriaModule,
     CarrerasModule,
     CorreccionesModule,

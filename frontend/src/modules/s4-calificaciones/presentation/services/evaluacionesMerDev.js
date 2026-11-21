@@ -35,8 +35,8 @@ export function validarPuntajesOrales(indicadores, puntajes) {
     const max = Number(indicadores[i].calificacionMaxima);
     const puntaje = puntajes[i]?.score;
     if (!Number.isFinite(max) || max < 0 || (puntaje !== null &&
-      (typeof puntaje !== 'number' || !Number.isFinite(puntaje) || puntaje < 0 || puntaje > max))) {
-      throw new Error(`Revisa el indicador ${i + 1}: su puntaje debe estar entre 0 y ${max}.`);
+      (typeof puntaje !== 'number' || !Number.isFinite(puntaje) || puntaje < 0 || puntaje > max || Number(puntaje.toFixed(4)) !== puntaje))) {
+      throw new Error(`Revisa el indicador ${i + 1}: su puntaje debe estar entre 0 y ${max}, con hasta cuatro decimales.`);
     }
   }
 }

@@ -95,7 +95,7 @@ describe('API de programaciones de sustentación', () => {
     expect(servicio.crear).not.toHaveBeenCalled();
 
     expect((await solicitar('/api/v1/programaciones-sustentacion', 'administrador', 'POST', dto)).status).toBe(201);
-    expect(servicio.crear).toHaveBeenCalledWith(dto, 'sujeto-administrador', false);
+    expect(servicio.crear).toHaveBeenCalledWith(dto, 'sujeto-administrador', false, expect.any(String));
   });
 
   it('pasa al servicio el actor técnico del acceso local, sin exigir una cuenta institucional', async () => {
@@ -107,7 +107,7 @@ describe('API de programaciones de sustentación', () => {
 
     const respuesta = await solicitar('/api/v1/programaciones-sustentacion', 'desarrollo-local', 'POST', dto);
     expect(respuesta.status).toBe(201);
-    expect(servicio.crear).toHaveBeenCalledWith(dto, 'GENARES:LOCAL_DEVELOPMENT', true);
+    expect(servicio.crear).toHaveBeenCalledWith(dto, 'GENARES:LOCAL_DEVELOPMENT', true, expect.any(String));
   });
 
   it('rechaza propiedades adicionales, formatos inválidos y UUID inválidos antes del servicio', async () => {
