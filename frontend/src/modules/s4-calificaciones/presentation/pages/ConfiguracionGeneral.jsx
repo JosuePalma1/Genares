@@ -4,6 +4,7 @@ import PoliticaConvocatorias from '../components/PoliticaConvocatorias';
 import { useEffect, useState } from 'react';
 import { getJsonApi, postJsonApi, putJsonApi } from '../services/clienteHttp';
 import { EncabezadoPagina } from '../components/interfaz';
+import { DialogoGenares } from '../components/dialogos';
 
 const legible = (v) => v.replaceAll('_', ' ').toLowerCase();
 function Seleccion({ opciones, valor, cambiar, titulo }) {
@@ -133,6 +134,7 @@ export default function ConfiguracionGeneral() {
       redondeo: v.redondeo,
       umbral: v.umbral,
       diasCorreccion: v.diasCorreccion ?? null,
+      oralSinSesion: v.oralSinSesion ?? false,
       evidenciaCorreccion: v.evidenciaCorreccion ?? true,
     });
   }
@@ -156,15 +158,48 @@ export default function ConfiguracionGeneral() {
     });
   async function publicar(e) {
     e.preventDefault();
+    if (ocupado) return;
     setOcupado(true);
+    setAviso('');
     try {
-      await postJsonApi('/configuracion-general', { version: config.version, pasos, ...ambito });
-      await cargar();
-      setAviso('Versión publicada para procesos nuevos.');
+      const nombre = (opciones, id, general) => opciones.find((opcion) => opcion.id === id)?.nombre ?? general;
+      const alcance = [
+        nombre(config.carreras, ambito.carrera, 'Todas las carreras'),
+        nombre(config.modalidades, ambito.modalidad, 'Todas las modalidades'),
+        nombre(config.periodos, ambito.periodo, 'Todos los períodos'),
+      ].join(' · ');
+      const confirmacion = await DialogoGenares.fire({
+        icon: 'question',
+        title: '¿Guardar reglas?',
+        text: `La opción de calificar oral sin sesión se aplicará a los trabajos nuevos y existentes. ${alcance}. Los demás cambios del flujo se aplicarán a evaluaciones nuevas.`,
+        showCancelButton: true,
+        confirmButtonText: 'Guardar reglas',
+        cancelButtonText: 'Seguir editando',
+        focusCancel: true,
+      });
+      if (!confirmacion.isConfirmed) return;
+      const { version } = await postJsonApi('/configuracion-general', { version: config.version, pasos, ...ambito });
+      setConfig((anterior) => ({ ...anterior, version }));
+      await cargar().catch(() => {
+        setAviso('Las reglas se guardaron. Recarga la página para actualizar la lista de versiones.');
+      });
+      await DialogoGenares.fire({
+        icon: 'success',
+        title: 'Reglas guardadas',
+        text: `La opción de oral sin sesión ya se aplica a trabajos nuevos y existentes. ${alcance}. Las reglas más específicas tienen prioridad.`,
+        confirmButtonText: 'Entendido',
+      });
     } catch (err) {
       setAviso(err.message);
+      await DialogoGenares.fire({ icon: 'error', title: 'No se pudieron guardar las reglas', text: err.message });
     } finally {
       setOcupado(false);
+    }
+  }
+  const pasosPosterioresAlCierre = new Set(['FINALIZADO']);
+  for (const paso of pasos) {
+    if (paso.condiciones.some((condicion) => pasosPosterioresAlCierre.has(condicion))) {
+      pasosPosterioresAlCierre.add('paso:' + paso.id);
     }
   }
   return (
@@ -244,6 +279,8 @@ export default function ConfiguracionGeneral() {
               />
             </label>
             </div>
+            <label><input type="checkbox" checked={ambito.oralSinSesion ?? false}
+              onChange={(e) => setAmbito({ ...ambito, oralSinSesion: e.target.checked })} /> Permitir calificar oral sin sustentación programada</label>
             <fieldset>
               <legend>Solicitudes de corrección</legend>
               <label><input type="checkbox" checked={ambito.evidenciaCorreccion ?? true} onChange={e => setAmbito({...ambito,evidenciaCorreccion:e.target.checked})}/> Requerir evidencia adjunta</label>
@@ -331,10 +368,14 @@ export default function ConfiguracionGeneral() {
                   <input
                     type="checkbox"
                     checked={p.obligatorio}
+                    disabled={!p.obligatorio && pasosPosterioresAlCierre.has('paso:' + p.id)}
                     onChange={(e) => editar(i, { obligatorio: e.target.checked })}
                   />{' '}
                   Exigir para finalizar el trabajo
                 </label>
+                {pasosPosterioresAlCierre.has('paso:' + p.id) && (
+                  <p>Este paso se cumple después de finalizar el trabajo. {p.obligatorio && 'Desmarca el requisito para guardar.'}</p>
+                )}
                 <div className="config-acciones">
                   <button type="button" disabled={!i} onClick={() => mover(i, -1)}>
                     Subir
@@ -370,7 +411,7 @@ export default function ConfiguracionGeneral() {
               Añadir paso
             </button>
             <button type="submit" className="button button-primary">
-              Publicar nueva versión
+              Guardar reglas
             </button>
             </div>
           </fieldset>

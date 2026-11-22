@@ -14,6 +14,8 @@ Abre **Control → Configuración general** con una cuenta autorizada. Desde est
 
 ## Qué información conserva el sistema
 
+**Permitir calificar oral sin sustentación programada** viene desactivada. Si se activa en una versión del flujo, el tribunal puede calificar sin programar la defensa y el historial registra la excepción. La política de escrita completa se aplica por separado. Esta opción se consulta en las reglas vigentes para trabajos nuevos y existentes, según su carrera, modalidad y período.
+
 Cada proceso conserva la versión de flujo, el mínimo y el redondeo asignados. En una bina, la evaluación compartida corresponde al trabajo y las etapas individuales corresponden a cada estudiante. Una nueva convocatoria conserva su propio estado, nota y fechas. Cuando se reutiliza la escrita, queda registrada la evaluación de origen.
 
 Los reemplazos se registran por etapa desde la evaluación. El historial conserva el evaluador anterior, el reemplazo, el motivo, quién hizo el cambio y la fecha. Los pasos manuales también conservan el historial de solicitudes y decisiones.

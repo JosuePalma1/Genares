@@ -103,10 +103,17 @@ export function PaginaMisEvaluacionesApi() {
             </div>
             <p>Estudiantes: {trabajo.estudiantes.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Sin estudiantes registrados'}</p>
             <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignación'}</p>
+            {trabajo.programacion?.estado === 'PROGRAMADA' && <p>Sustentación ? {trabajo.programacion.fechaProgramada} ? {trabajo.programacion.horaProgramada}</p>}
+            {trabajo.programacion === null && !trabajo.oralSinSesion && <p>Sustentación sin programar</p>}
             <div className="form-actions">
-              {trabajo.miembrosTribunal.length > 0 && <Link className="button button-primary" to={'/evaluaciones/' + trabajo.id + '/escrita'}><ClipboardCheck size={16} /> Consultar y evaluar</Link>}
-              {trabajo.estudiantes.length === 2 ? <Link className="button button-outline" to={`/evaluaciones/${trabajo.id}`}>Calificar sustentación de la bina</Link> : trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={`oral-${estudiante.id}`} to={`/evaluaciones/${trabajo.id}/oral/${estudiante.id}`}><BookOpenCheck size={16} /> Evaluar oral | {estudiante.nombres} {estudiante.apellidos}</Link>)}
-              {trabajo.estudiantes.map((estudiante) => <Link className="button button-outline" key={estudiante.id} to={'/resultados/' + trabajo.id + '/' + estudiante.id}><BookOpenCheck size={16} /> Resultado | {estudiante.nombres} {estudiante.apellidos}</Link>)}
+              {trabajo.miembrosTribunal.length > 0 && ((trabajo.oralSinSesion || (trabajo.programacion !== null && trabajo.programacion?.estado !== 'CANCELADA')) && trabajo.estudiantes.length > 0
+                ? <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}`}><BookOpenCheck size={16} /> {trabajo.estudiantes.length === 2 ? 'Calificar bina' : 'Calificar sustentación'}</Link>
+                : <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}><ClipboardCheck size={16} /> Evaluar escrita</Link>)}
+              <details className="em-opciones">
+                <summary>Otras acciones</summary>
+                {trabajo.miembrosTribunal.length > 0 && <Link to={`/evaluaciones/${trabajo.id}/escrita`}>Evaluar escrita</Link>}
+                {trabajo.estudiantes.map((estudiante) => <Link key={estudiante.id} to={`/resultados/${trabajo.id}/${estudiante.id}`}>Resultado de {estudiante.nombres} {estudiante.apellidos}</Link>)}
+              </details>
             </div>
           </article>
         ))}

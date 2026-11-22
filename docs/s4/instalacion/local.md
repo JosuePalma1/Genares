@@ -25,6 +25,7 @@ En una base existente, ejecuta además estos scripts en pgAdmin como propietario
 1. [convocatorias-individuales.sql](../../../backend/fixtures/convocatorias-individuales.sql)
 2. [excepciones-programacion.sql](../../../backend/fixtures/excepciones-programacion.sql)
 3. [reemplazos-correcciones.sql](../../../backend/fixtures/reemplazos-correcciones.sql)
+4. [oral-sin-sustentacion.sql](../../../backend/fixtures/oral-sin-sustentacion.sql), después de instalar el vínculo de evaluaciones orales con el cronograma.
 
 Cada proceso conserva la versión de flujo, el umbral y el redondeo asignados. La publicación puede limitarse por carrera, modalidad y período. Los permisos por rol se aplican a las siguientes peticiones de la demo dentro del ámbito del usuario. En **Solicitudes**, quien puede autorizar correcciones puede consultar resultados reprobados y registrar la continuidad individual en un período posterior. El registro de continuidad conserva la nota y el umbral del intento.
 

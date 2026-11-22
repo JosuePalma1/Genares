@@ -125,3 +125,50 @@
 @media (prefers-reduced-motion: no-preference) {
   .rueda-valor { transition: transform 110ms ease-out; }
 }
+
+.em-opciones {
+  align-self: start;
+  max-width: min(22rem, 100%);
+}
+.em-opciones > summary {
+  cursor: pointer;
+  color: #174861;
+  font-weight: 650;
+  padding: .65rem .5rem;
+}
+.em-opciones > a,
+.em-opciones > button {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: .4rem .5rem;
+}
+.em-revision {
+  position: sticky;
+  bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .6rem;
+  margin-top: 1rem;
+  padding: .65rem;
+  border: 1px solid var(--border, #d8e3e9);
+  border-radius: .7rem;
+  background: #fff;
+  box-shadow: 0 -4px 18px #14334219;
+}
+.em-revision-avance {
+  flex: 1 1 18rem;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr));
+  gap: .45rem;
+}
+.em-revision-avance > div { display: grid; overflow-wrap: anywhere; }
+.em-revision-avance span { font-size: .8rem; }
+.em-revision .button { min-height: 44px; }
+@media (max-width: 560px) {
+  .em-revision .button { width: 100%; justify-content: center; }
+}

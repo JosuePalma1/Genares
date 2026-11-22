@@ -21,6 +21,16 @@ const render = () => renderToStaticMarkup(<MemoryRouter><PaginaMisEvaluacionesAp
 describe('Mis evaluaciones paginadas en el servidor', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it.each([false, true])('habilita la oral sin sesión únicamente con la excepción (%s)', (oralSinSesion) => {
+    usarPaginaTrabajosApi.mockReturnValue({
+      estado: 'listo', trabajos: [{ ...trabajo, oralSinSesion, programacion: null }],
+      filtros, paginacion: { pagina: 1, limite: EVALUACIONES_POR_PAGINA, total: 1, paginas: 1 },
+    });
+    const html = render();
+    expect(html.includes('Calificar sustentación')).toBe(oralSinSesion);
+    expect(html.includes('Sustentación sin programar')).toBe(!oralSinSesion);
+  });
+
   it('pide la primera página del período actual con el adaptador de evaluaciones', () => {
     usarPaginaTrabajosApi.mockReturnValue({
       estado: 'listo', actualizando: false, trabajos: [trabajo], error: null, recargar: vi.fn(), filtros,
@@ -29,7 +39,8 @@ describe('Mis evaluaciones paginadas en el servidor', () => {
     const html = render();
     expect(usarPaginaTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: EVALUACIONES_POR_PAGINA }, adaptarListaTrabajosEvaluacionApi);
     expect(html).toContain('Sistema de prueba');
-    expect(html).toContain('Evaluar oral | Andrea Vera');
+    expect(html).toContain('Calificar sustentación');
+    expect(html).toContain('Otras acciones');
     expect(html).toContain('1 trabajo(s)');
     expect(html).toContain('2026-2 (actual)');
     expect(html).not.toContain('Páginas de evaluaciones');
