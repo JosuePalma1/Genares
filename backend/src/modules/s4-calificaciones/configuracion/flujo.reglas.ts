@@ -79,6 +79,7 @@ export class PasoDto {
 export class PublicarFlujoDto {
   @IsOptional() @IsIn(['HALF_UP', 'TRUNCAR']) redondeo?: string;
   @IsOptional() @Matches(/^(?:100(?:\.0{1,2})?|[1-9]?\d(?:\.\d{1,2})?)$/) umbral?: string;
+  @IsOptional() @IsBoolean() oralSinSesion?: boolean;
   @IsOptional() @IsBoolean() evidenciaCorreccion?: boolean;
   @IsOptional() @IsInt() @Min(0) @Max(36500) diasCorreccion?: number;
   @IsOptional() @IsUUID('loose') carrera?: string;
@@ -156,7 +157,9 @@ export function validarFlujo(pasos: PasoDto[]) {
     causas.set('paso:' + p.id, hechos);
     for (const accion of [...(p.exigirPara ?? []), ...(p.obligatorio ? ['FINALIZAR'] : [])]) {
       if (hechos.some((h) => posteriores[accion].includes(h)))
-        throw new BadRequestException('El paso ' + p.nombre + ' depende de la acción que intenta autorizar.');
+        throw new BadRequestException([
+          `El paso «${p.nombre}» depende de la acción que intenta autorizar. Quita ese requisito o cambia las condiciones del paso.`,
+        ]);
     }
     previos.add('paso:' + p.id);
   }

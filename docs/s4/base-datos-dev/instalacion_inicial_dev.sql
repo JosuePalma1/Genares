@@ -1742,3 +1742,16 @@ DO $$ BEGIN
    GRANT USAGE ON SEQUENCE s4.reemplazos_etapa_id_seq TO genares;
  END IF;
 END $$;
+
+-- ===== oral-sin-sustentacion.sql =====
+ALTER TABLE s4.evaluaciones ADD COLUMN IF NOT EXISTS id_programacion_sustentacion uuid;
+ALTER TABLE s4.version_flujo
+  ADD COLUMN IF NOT EXISTS oral_sin_sesion boolean NOT NULL DEFAULT false;
+
+ALTER TABLE s4.evaluaciones DROP CONSTRAINT IF EXISTS ck_s4_evaluaciones_sesion_oral;
+ALTER TABLE s4.evaluaciones ADD CONSTRAINT ck_s4_evaluaciones_sesion_oral CHECK (
+  CASE WHEN etapa = 'ORAL' THEN id_estudiante IS NOT NULL AND (
+    id_programacion_sustentacion IS NOT NULL OR
+    COALESCE(instantanea_rubrica -> 'oralSinSesion' = 'true'::jsonb, false)
+  ) ELSE id_programacion_sustentacion IS NULL END
+) NOT VALID;

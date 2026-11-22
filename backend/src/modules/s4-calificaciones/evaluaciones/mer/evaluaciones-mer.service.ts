@@ -1,3 +1,4 @@
+import { ORAL_SIN_SESION_VIGENTE_SQL } from '../../configuracion/oral-sin-sesion.sql';
 import { registrarReemplazo, ReemplazarDto } from './reemplazos';
 import { notaAprobada, notaMinimaEnEscala } from '../../documentos/reglas-acta';
 import { requisitosAccion, trabajoEn } from '../../configuracion/flujo-proceso';
@@ -14,6 +15,8 @@ import { accesoPorAlcance, alcanceActual, conAlcance, hayRestriccionDeAlcance, i
 interface IdentidadProceso {
   porcentajeAprobacion?: string;
   redondeoFinal?: 'HALF_UP'|'TRUNCAR';
+  oralSinSesion?: boolean;
+  estudiantesConSesion?: string[];
   procesoId: string;
   asignacionId: string;
   tema: string;
@@ -45,6 +48,11 @@ export interface ParticipanteMer {
 /** Proceso evaluable del trabajo con su versión de rúbrica visible ($1 = asignación). */
 export const CONSULTA_PROCESO_EXPEDIENTE = `
   SELECT COALESCE(to_jsonb(p)->>'porcentaje_aprobacion',(SELECT porcentaje::text FROM s4.configuracion_nota_minima WHERE id=1)) AS "porcentajeAprobacion",
+    ${ORAL_SIN_SESION_VIGENTE_SQL} AS "oralSinSesion",
+    ARRAY(SELECT pe.id_estudiante FROM s4.programacion_estudiante pe
+      JOIN s4.programaciones_sustentacion ps ON ps.id=pe.programacion_sustentacion_id
+      WHERE ps.id_proceso_evaluacion=p.id AND pe.estado_registro=1 AND ps.estado_registro=1 AND ps.estado<>'CANCELADA'
+      GROUP BY pe.id_estudiante HAVING count(*)=1) AS "estudiantesConSesion",
     COALESCE(to_jsonb(p)->>'redondeo_final','HALF_UP') AS "redondeoFinal", p.id AS "procesoId", a.id AS "asignacionId", t.titulo AS "tema",
          p.id_version_rubrica AS "idVersionRubrica", vr.version AS "versionRubrica", vr.escala_final AS "escalaFinal",
          -- Paso 1 §3.1: el estado del trabajo se calcula desde los datos, como en Trabajos e Inicio.
@@ -314,6 +322,8 @@ export class EvaluacionesMerService {
         };
       }),
       modo: identidad?.tipo === 'DEMOSTRACION' ? 'DEMOSTRACION' : 'DESARROLLO_LOCAL',
+      oralSinSesion: proceso.oralSinSesion ?? false,
+      estudiantesConSesion: proceso.estudiantesConSesion ?? [],
       puedeGuardarBorradores,
       puedeCerrarEvaluaciones: puedeGuardarBorradores && puedeCerrarPorRol && proceso.permisoCierre,
     };
@@ -332,9 +342,11 @@ export class EvaluacionesMerService {
       // Una sola transacción guarda contexto, evaluación, notas y auditoría.
       // Bloquear el proceso evita dos creaciones simultáneas del mismo borrador.
       const [proceso] = await manager.query(`
-        SELECT p.id, p.id_version_rubrica AS "versionId", (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo"
+        SELECT p.id, p.id_version_rubrica AS "versionId", (to_jsonb(p)->>'version_flujo')::integer AS "versionFlujo",
+          ${ORAL_SIN_SESION_VIGENTE_SQL} AS "oralSinSesion"
         FROM s4.procesos_evaluacion p
         JOIN s2.asignacion_tema a ON a.id = p.asignacion_tema_id AND a.estado = 'VIGENTE'
+        JOIN gen.tema t ON t.id = a.tema_id
         JOIN s4.versiones_rubrica vr ON vr.id = p.id_version_rubrica AND vr.estado_registro = 1
         JOIN s4.rubricas r ON r.id = vr.id_rubrica AND r.estado_registro = 1
         WHERE a.id = $1 AND p.estado_registro = 1 FOR UPDATE OF p
@@ -384,11 +396,11 @@ export class EvaluacionesMerService {
           AND ps.estado NOT IN ('CANCELADA')
         LIMIT 2
         `, [proceso.id, idEstudiante]) as Array<{ id: string }>;
-        if (!sesiones.length) throw new ConflictException('El estudiante no tiene sustentación programada en S4.');
+        if (!sesiones.length && !proceso.oralSinSesion) throw new ConflictException('El estudiante no tiene sustentación programada en S4.');
         if (sesiones.length > 1) {
           throw new ConflictException('El estudiante tiene más de una sustentación vigente. Cancele la que no corresponda.');
         }
-        idSesion = sesiones[0].id;
+        idSesion = sesiones[0]?.id ?? null;
       }
 
       const indicadores = await manager.query(`
@@ -429,7 +441,8 @@ export class EvaluacionesMerService {
 
       let [evaluacion] = await manager.query(`
         SELECT id, estado, COALESCE(revision,0) AS revision,
-          id_programacion_sustentacion AS "idSesion"
+          id_programacion_sustentacion AS "idSesion",
+          instantanea_rubrica->'oralSinSesion' = 'true'::jsonb AS "sinSesionAutorizada"
         FROM s4.evaluaciones
         WHERE id_proceso_evaluacion = $1 AND id_etapa_rubrica = $2
           AND id_asignacion_tribunal = $3 AND id_estudiante IS NOT DISTINCT FROM $4::uuid
@@ -439,6 +452,7 @@ export class EvaluacionesMerService {
       if (evaluacion && evaluacion.estado !== 'BORRADOR') {
         throw new ConflictException('La evaluación ya está cerrada. No se modificó ninguna nota.');
       }
+      if (evaluacion?.sinSesionAutorizada && proceso.oralSinSesion) idSesion = null;
       if (evaluacion && (evaluacion.idSesion ?? null) !== idSesion) {
         throw new ConflictException('La evaluación oral pertenece a otra sesión de sustentación. No se modificó ninguna nota.');
       }
@@ -474,6 +488,7 @@ export class EvaluacionesMerService {
         const instantanea = JSON.stringify({
           versionRubricaId: proceso.versionId,
           etapaRubricaId: dto.idEtapaRubrica,
+          ...(etapa.kind === 'ORAL' && !idSesion && { oralSinSesion: true }),
           indicadores: indicadores.map((i: { id: string; calificacionMaxima: string }) => i),
         });
         [evaluacion] = await manager.query(`
@@ -543,6 +558,7 @@ export class EvaluacionesMerService {
         actorCierre ? `EVALUACION_${tipo}_CERRADA` : `BORRADOR_${tipo}_GUARDADO`, JSON.stringify({
         revision: guardada.revision, etapa: etapa.kind, modo: 'DESARROLLO_LOCAL',
         ...(idSesion && { idProgramacionSustentacion: idSesion }),
+        ...(etapa.kind === 'ORAL' && !idSesion && { oralSinSesion: true }),
         ...(!actorCierre && dto.idOperacion && { idOperacion: dto.idOperacion }),
         ...(actorCierre && {
           idDocente: asignacionTribunal.idDocente,

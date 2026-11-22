@@ -52,7 +52,7 @@ export class ConfiguracionGeneralController {
         umbral: string | null;
       }>
     >(
-      'SELECT version,pasos,carrera,modalidad,periodo,redondeo,umbral::text,publicado_en,publicado_por,COALESCE((to_jsonb(f)->>\'evidencia_correccion\')::boolean,true) AS "evidenciaCorreccion",(to_jsonb(f)->>\'dias_correccion\')::int AS "diasCorreccion" FROM s4.version_flujo f ORDER BY version DESC',
+      'SELECT COALESCE((to_jsonb(f)->>\'oral_sin_sesion\')::boolean,false) AS "oralSinSesion",version,pasos,carrera,modalidad,periodo,redondeo,umbral::text,publicado_en,publicado_por,COALESCE((to_jsonb(f)->>\'evidencia_correccion\')::boolean,true) AS "evidenciaCorreccion",(to_jsonb(f)->>\'dias_correccion\')::int AS "diasCorreccion" FROM s4.version_flujo f ORDER BY version DESC',
     );
     const actual = versiones[0];
     const [carreras, modalidades, periodos] = await Promise.all([
@@ -156,7 +156,7 @@ export class ConfiguracionGeneralController {
       if (actual.version !== dto.version)
         throw new ConflictException('Hay otra versión publicada. Vuelve a consultar antes de publicar.');
       await m.query(
-        'INSERT INTO s4.version_flujo(version,pasos,publicado_por,carrera,modalidad,periodo,redondeo,umbral,evidencia_correccion,dias_correccion) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10)',
+        'INSERT INTO s4.version_flujo(version,pasos,publicado_por,carrera,modalidad,periodo,redondeo,umbral,evidencia_correccion,dias_correccion,oral_sin_sesion) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
         [
           dto.version + 1,
           JSON.stringify(dto.pasos),
@@ -166,7 +166,7 @@ export class ConfiguracionGeneralController {
           dto.periodo ?? null,
           dto.redondeo ?? 'HALF_UP',
           dto.umbral ?? null,
-          dto.evidenciaCorreccion ?? true, dto.diasCorreccion ?? null,
+          dto.evidenciaCorreccion ?? true, dto.diasCorreccion ?? null, dto.oralSinSesion ?? false,
         ],
       );
       return { version: dto.version + 1 };

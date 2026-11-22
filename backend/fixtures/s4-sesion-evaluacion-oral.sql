@@ -76,6 +76,7 @@ WITH candidatas AS (
    AND pe.estado_registro = 1
   WHERE ev.etapa = 'ORAL' AND ev.id_estudiante IS NOT NULL
     AND ev.id_programacion_sustentacion IS NULL
+    AND NOT COALESCE(ev.instantanea_rubrica->'oralSinSesion' = 'true'::jsonb,false)
 ), elegidas AS (
   SELECT id_evaluacion,
     CASE

@@ -1,3 +1,4 @@
+import { ORAL_SIN_SESION_VIGENTE_SQL } from '../configuracion/oral-sin-sesion.sql';
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
@@ -100,6 +101,7 @@ SELECT
   CASE WHEN a.grupo_id IS NOT NULL THEN 'Bina o grupo' ELSE 'Individual' END AS "tipoTrabajo",
   a.estado AS "estadoAsignacion",
   p.id AS "procesoId",
+  ${ORAL_SIN_SESION_VIGENTE_SQL} AS "oralSinSesion",
   COALESCE((to_jsonb(p)->>'version_flujo')::int,1) AS "versionFlujo",
   p.estado AS "estadoProceso",
   vr.version AS "versionRubrica",
