@@ -1,5 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
 
+export const periodoValidoParaActa = (codigo: string) => /^\d{4}-[12]$/.test(codigo);
+export const carreraValidaParaActa = (codigo: string) => ['TI', 'SOFT'].includes(codigo);
+
+export function numeroActa(consecutivo: number, periodo: string, carrera: string): string {
+  return `${String(consecutivo).padStart(3, '0')}-${periodo}-${carrera}`;
+}
+
 /** Convierte un decimal académico no negativo a centésimas sin Number. */
 export function centesimasActa(valor: string, campo = 'La calificación', escala = 10): bigint {
   if (typeof valor !== 'string' || !/^(?:0|[1-9]\d{0,2})(?:\.\d{1,2})?$/.test(valor)) {

@@ -96,9 +96,13 @@ export default function PaginaNuevaRubrica() {
   const [guardando, setGuardando] = useState(false);
   const [conflicto, setConflicto] = useState(false);
   const [anuncio, setAnuncio] = useState('');
+  const [importando, setImportando] = useState(false);
+  const [importacion, setImportacion] = useState(null);
+  const lecturaEnCurso = useRef(null);
   const envioEnCurso = useRef(false);
   const versionPrecargada = useRef(null);
   usarAdvertenciaCambiosSinGuardar(tieneCambios, () => setTieneCambios(false));
+  useEffect(() => () => lecturaEnCurso.current?.abort(), []);
 
   const cargarContexto = useCallback(async (signal) => {
     if (!esApi) return;
@@ -159,7 +163,7 @@ export default function PaginaNuevaRubrica() {
   const carrerasDto = carrerasElegidas.map((carrera) => ({
     carreraId: carrera.id,
     revision: carrera.revision,
-    vigente: seleccionCarreras[carrera.id].vigente,
+    vigente: !importacion && seleccionCarreras[carrera.id].vigente,
     vigenciaEsperada: { versionId: vigenteActual(contexto?.rubricas ?? [], datos.modalidadId, datos.periodoId, carrera.id) },
   }));
   const formulario = {
@@ -191,6 +195,44 @@ export default function PaginaNuevaRubrica() {
   function cambiarEtapas(etapas) {
     setDatos((actual) => ({ ...actual, etapas }));
     setTieneCambios(true);
+  }
+
+  async function importarArchivo(evento) {
+    const archivo = evento.currentTarget.files?.[0];
+    evento.currentTarget.value = '';
+    if (!archivo || !puedeCrear || clonandoVersion || lecturaEnCurso.current || envioEnCurso.current) return;
+    const controlador = new AbortController();
+    const { signal } = controlador;
+    lecturaEnCurso.current = controlador;
+    setImportando(true);
+    try {
+      const { importarRubricaArchivo } = await import('../../infrastructure/repositories/importarRubricaArchivo');
+      const { etapas, esquema, escalaFinal, avisos } = await importarRubricaArchivo(archivo, { signal });
+      const confirmacion = await Swal.fire({
+        icon: 'question',
+        title: '¿Cargar la estructura en el editor?',
+        text: `Se cargarán ${etapas.length} ${etapas.length === 1 ? 'etapa' : 'etapas'} de ${archivo.name}. La estructura del formulario se reemplazará y podrás revisarla antes de guardar el borrador.`,
+        showCancelButton: true,
+        confirmButtonText: 'Cargar y revisar',
+        cancelButtonText: 'Conservar el editor',
+      });
+      if (signal.aborted || !confirmacion.isConfirmed) return;
+      setDatos((actual) => ({ ...actual, etapas, esquema, escalaFinal: escalaFinal ?? actual.escalaFinal }));
+      setSeleccionCarreras((actual) => Object.fromEntries(Object.keys(actual).map((carreraId) => [carreraId, { vigente: false }])));
+      setImportacion({ nombre: archivo.name, avisos: escalaFinal ? avisos : [...avisos, 'Confirma la escala final de la rúbrica.'] });
+      setIntentoGuardar(false);
+      setTieneCambios(true);
+      requestAnimationFrame(() => document.getElementById('rubrica-importacion-revision')?.focus());
+    } catch (error) {
+      if (!signal.aborted) await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo importar la rúbrica',
+        text: error?.message ?? 'No se pudo leer el archivo seleccionado.',
+      });
+    } finally {
+      lecturaEnCurso.current = null;
+      if (!signal.aborted) setImportando(false);
+    }
   }
 
   function actualizarCarrera(carreraId, seleccionado) {
@@ -261,7 +303,7 @@ export default function PaginaNuevaRubrica() {
 
   async function guardar(evento) {
     evento.preventDefault();
-    if (!puedeCrear || guardando || envioEnCurso.current || conflicto || actualizando || (clonandoVersion && !versionBase)) return;
+    if (!puedeCrear || guardando || envioEnCurso.current || lecturaEnCurso.current || conflicto || actualizando || (clonandoVersion && !versionBase)) return;
     envioEnCurso.current = true;
     setIntentoGuardar(true);
     const problemas = validarRubricaCompleta(formulario);
@@ -275,12 +317,12 @@ export default function PaginaNuevaRubrica() {
     )).filter(Boolean);
     const confirmacion = await Swal.fire({
       icon: 'question',
-      title: clonandoVersion ? 'Crear nueva versión completa' : 'Guardar rúbrica completa',
+      title: importacion ? 'Guardar rúbrica como borrador' : clonandoVersion ? 'Crear nueva versión completa' : 'Guardar rúbrica completa',
       text: clonandoVersion
         ? `Basada en ${versionBase.version} · el número de versión se asignará al guardar · ${carrerasDto.length} ${carrerasDto.length === 1 ? 'carrera' : 'carreras'}${vigencias.length ? ` · vigencia explícita para: ${vigencias.join(', ')}` : ' · sin establecer vigencia'}.`
         : `${datos.nombre.trim()} · versión ${datos.version.trim()} · ${carrerasDto.length} ${carrerasDto.length === 1 ? 'carrera' : 'carreras'}${vigencias.length ? ` · vigencia explícita para: ${vigencias.join(', ')}` : ' · sin establecer vigencia'}.`,
       showCancelButton: true,
-      confirmButtonText: clonandoVersion ? 'Crear versión' : 'Guardar rúbrica',
+      confirmButtonText: importacion ? 'Guardar borrador' : clonandoVersion ? 'Crear versión' : 'Guardar rúbrica',
       cancelButtonText: 'Volver al editor',
       reverseButtons: true,
     });
@@ -371,6 +413,20 @@ export default function PaginaNuevaRubrica() {
     </AlertaInstitucional>}
 
     {contexto && categoriasDisponibles && (!clonandoVersion || versionBase) && <form className="rubrica-completa-form" onSubmit={guardar} noValidate>
+      {puedeCrear && !clonandoVersion && <section className="rubrica-completa-section" aria-labelledby="rubrica-importar-titulo">
+        <h2 id="rubrica-importar-titulo">Importar desde Word o PDF</h2>
+        <p id="rubrica-importar-ayuda">Elige un .docx o un PDF con texto y tablas de indicadores y valoración. Tamaño máximo de 10 MB.</p>
+        <div className="field">
+          <label htmlFor="rubrica-importar-archivo">Archivo de la rúbrica</label>
+          <input id="rubrica-importar-archivo" type="file" accept=".docx,.pdf" aria-describedby="rubrica-importar-ayuda"
+            onChange={importarArchivo} disabled={importando || guardando || actualizando} />
+        </div>
+        {importando && <p role="status">Leyendo archivo…</p>}
+        {importacion && <div className="rubrica-importacion-revision">
+          <p id="rubrica-importacion-revision" tabIndex={-1}><strong>{importacion.nombre}</strong> cargado. Revisa la estructura y completa los datos académicos para guardar el borrador.</p>
+          {importacion.avisos.length > 0 && <ul>{importacion.avisos.map((aviso) => <li key={aviso}>{aviso}</li>)}</ul>}
+        </div>}
+      </section>}
       <section className="rubrica-completa-section" aria-labelledby="rubrica-completa-general">
         <div className="rubrica-completa-section-heading"><span className="section-kicker">A. Configuración general</span><h2 id="rubrica-completa-general">Identificación y alcance académico</h2></div>
         <div className="rubrica-completa-metadata">
@@ -395,7 +451,7 @@ export default function PaginaNuevaRubrica() {
             const versionActual = contexto.rubricas.find((version) => version.id === idActual)?.version;
             return <div className="rubrica-completa-career" key={carrera.id}>
               <label className="rubrica-completa-career-select"><input type="checkbox" checked={seleccionada} onChange={(e) => actualizarCarrera(carrera.id, e.target.checked)} /><span><strong>{carrera.codigo}</strong> · {carrera.nombre}</span></label>
-              {seleccionada && <div className="rubrica-completa-career-vigencia">
+              {seleccionada && !importacion && <div className="rubrica-completa-career-vigencia">
                 <label><input type="checkbox" checked={seleccionCarreras[carrera.id].vigente} disabled={!datos.modalidadId || !datos.periodoId} onChange={(e) => cambiarVigencia(carrera.id, e.target.checked)} /> Establecer esta versión como vigente para esta carrera</label>
                 <small>{idActual ? `Vigencia actual: versión ${versionActual ?? 'registrada'}.` : 'No existe una vigencia actual para esta modalidad, período y carrera.'}</small>
               </div>}
@@ -523,7 +579,7 @@ export default function PaginaNuevaRubrica() {
       <footer className="rubrica-completa-footer">
         {conflicto && <span role="status">Los cambios escritos se conservan; actualice el contexto antes de reintentar.</span>}
         <button className="button button-outline" type="button" disabled={guardando} onClick={cancelar}>Cancelar</button>
-        {puedeCrear && <button className="button button-primary" type="submit" disabled={guardando || actualizando || conflicto || (clonandoVersion && !versionBase)}><Save size={17} /> {guardando ? 'Guardando…' : clonandoVersion ? 'Crear nueva versión' : 'Guardar rúbrica'}</button>}
+        {puedeCrear && <button className="button button-primary" type="submit" disabled={guardando || importando || actualizando || conflicto || (clonandoVersion && !versionBase)}><Save size={17} /> {guardando ? 'Guardando…' : importacion ? 'Guardar borrador' : clonandoVersion ? 'Crear nueva versión' : 'Guardar rúbrica'}</button>}
       </footer>
     </form>}
 

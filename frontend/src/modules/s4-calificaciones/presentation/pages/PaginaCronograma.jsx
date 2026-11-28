@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Ban, CalendarDays, Clock3, FilePlus2, MapPin, Pencil, Printer, RefreshCw, Save, Search, UsersRound, X } from 'lucide-react';
+import { Ban, CalendarDays, Clock3, FilePlus2, MapPin, Pencil, Printer, RefreshCw, Search, UsersRound } from 'lucide-react';
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstadoRegistro } from '../components/interfaz';
 import { Paginador } from '../components/Paginador';
-import { fechaHoyInstitucional, HORARIO_PROGRAMACION_PREDETERMINADO } from '../../domain/horarioProgramacion';
+import { ModalFormularioCatalogo } from '../components/ModalFormularioCatalogo';
+import { fechaHoyInstitucional, HORARIO_PROGRAMACION_PREDETERMINADO, rangoRapidoCronograma } from '../../domain/horarioProgramacion';
 import { codigoVisibleTrabajo, referenciaTrabajo } from '../../domain/etiquetasAcademicas';
 import {
   actualizarProgramacionApi,
@@ -21,6 +22,15 @@ import './cronograma.css';
 const FILTROS_VACIOS = { carreras: [], periodos: [] };
 export const CRONOGRAMA_POR_PAGINA = 25;
 const TODOS_LOS_PERIODOS = 'TODOS';
+const FILTROS_DE_FECHA = [
+  { valor: '', etiqueta: 'Todas las fechas' },
+  { valor: 'HOY', etiqueta: 'Hoy' },
+  { valor: 'MANANA', etiqueta: 'Mañana' },
+  { valor: 'SEMANA', etiqueta: 'Esta semana' },
+];
+const MAXIMO_RESULTADOS_TRABAJO = 8;
+
+const textoBusquedaTrabajo = (texto) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').trim();
 
 /**
  * Periodo que se envía a impresión y a trabajos disponibles: el elegido o el que aplicó el listado.
@@ -76,7 +86,7 @@ function codigoPeriodo(filtros, id) {
 }
 
 export default function PaginaCronograma() {
-  const [parametrosUrl] = useSearchParams();
+  const [parametrosUrl, establecerParametrosUrl] = useSearchParams();
   const trabajoIdUrl = parametrosUrl.get('trabajoId') || '';
   const buscarUrl = parametrosUrl.get('buscar') || '';
   const nuevaUrl = parametrosUrl.get('nueva') === '1';
@@ -91,6 +101,8 @@ export default function PaginaCronograma() {
   const consultaActual = useRef(0);
   const [buscar, establecerBuscar] = useState(buscarUrl);
   const [buscarServidor, establecerBuscarServidor] = useState(buscarUrl);
+  const [rango, establecerRango] = useState({ tipo: '' });
+  const [orden, establecerOrden] = useState('ASC');
   const [elementos, establecerElementos] = useState([]);
   const [catalogos, establecerCatalogos] = useState(FILTROS_VACIOS);
   const [capacidad, establecerCapacidad] = useState(null);
@@ -98,6 +110,7 @@ export default function PaginaCronograma() {
   const [errorCarga, establecerErrorCarga] = useState(null);
   const [mostrarFormulario, establecerMostrarFormulario] = useState(Boolean(trabajoIdUrl || nuevaUrl));
   const [trabajosDisponibles, establecerTrabajosDisponibles] = useState([]);
+  const [buscarTrabajo, establecerBuscarTrabajo] = useState('');
   const [cargandoTrabajos, establecerCargandoTrabajos] = useState(false);
   const [idTrabajo, establecerIdTrabajo] = useState(trabajoIdUrl);
   const [idEdicion, establecerIdEdicion] = useState(null);
@@ -108,16 +121,28 @@ export default function PaginaCronograma() {
   const [disponibilidadSala, establecerDisponibilidadSala] = useState(null);
   const [actualizandoEstadoId, establecerActualizandoEstadoId] = useState(null);
   const [impresion, establecerImpresion] = useState(null);
+  const buscadorTrabajoRef = useRef(null);
+  const cambiarTrabajoRef = useRef(null);
 
   const periodoEfectivo = periodoEfectivoCronograma(periodoId, periodoAplicado);
-  const filtros = useMemo(() => ({ carreraId, periodoId: periodoEfectivo, estado, buscar: buscarServidor }), [carreraId, periodoEfectivo, estado, buscarServidor]);
+  const { desde, hasta } = rango;
+  const filtros = useMemo(() => ({
+    carreraId, periodoId: periodoEfectivo, estado, buscar: buscarServidor, desde, hasta, orden,
+  }), [carreraId, periodoEfectivo, estado, buscarServidor, desde, hasta, orden]);
   const filtrosCandidatos = useMemo(() => {
-    if (idTrabajo) {
+    if (trabajoIdUrl) {
       return {};
     }
     return { carreraId, periodoId: periodoEfectivo };
-  }, [idTrabajo, carreraId, periodoEfectivo]);
+  }, [trabajoIdUrl, carreraId, periodoEfectivo]);
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
+  const idElegido = trabajoSeleccionado?.idTrabajo;
+  const candidatosEncontrados = useMemo(() => {
+    const termino = textoBusquedaTrabajo(buscarTrabajo);
+    return trabajosDisponibles.filter((candidato) => textoBusquedaTrabajo([
+      candidato.trabajo.codigo, candidato.trabajo.titulo, candidato.carrera.nombre, ...candidato.estudiantes.map(nombre),
+    ].join(' ')).includes(termino));
+  }, [trabajosDisponibles, buscarTrabajo]);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
   const horarioProgramacion = (idEdicion ? programacionEnEdicion : trabajoSeleccionado)?.horarioProgramacion
     ?? HORARIO_PROGRAMACION_PREDETERMINADO;
@@ -125,20 +150,26 @@ export default function PaginaCronograma() {
   const { fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos } = formulario;
   const consultaSala = useMemo(() => {
     const duracion = Number(duracionEstimadaMinutos);
-    if (!mostrarFormulario || !puedeEditar || (!idTrabajo && !idEdicion)
+    if (!mostrarFormulario || !puedeEditar || (!idElegido && !idEdicion)
       || !fechaProgramada || !horaProgramada || !sala.trim()
       || !Number.isInteger(duracion) || duracion < 1 || duracion > 240) return null;
     return {
       fechaProgramada, horaProgramada, sala: sala.trim(), duracionEstimadaMinutos: duracion,
       idProgramacion: idEdicion, idTrabajo,
     };
-  }, [mostrarFormulario, puedeEditar, idTrabajo, idEdicion, fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos]);
+  }, [mostrarFormulario, puedeEditar, idTrabajo, idElegido, idEdicion, fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos]);
   const resultadoSala = disponibilidadSala?.consulta === consultaSala ? disponibilidadSala : null;
   const comprobandoSala = Boolean(consultaSala && !resultadoSala);
   const horarioOcupado = resultadoSala?.disponible === false;
   const salaOcupada = horarioOcupado && resultadoSala.motivo !== 'LIMITE_SIMULTANEAS';
   const pendientesSeleccionado = trabajoSeleccionado?.estudiantesPendientes ?? [];
   const idsPendientesSeleccionado = pendientesSeleccionado.map(({ id }) => id).join(',');
+  const hayFiltros = Boolean(buscar || carreraId || periodoId || estado || rango.tipo || orden !== 'ASC');
+
+  useEffect(() => {
+    if (!mostrarFormulario || idEdicion) return;
+    (idElegido ? cambiarTrabajoRef.current : buscadorTrabajoRef.current)?.focus({ preventScroll: true });
+  }, [mostrarFormulario, idEdicion, idElegido]);
 
   useEffect(() => {
     if (!consultaSala) return undefined;
@@ -213,7 +244,8 @@ export default function PaginaCronograma() {
     try {
       const [respuesta, capacidades] = await Promise.all([
         listarPaginaProgramacionesApi({
-          carreraId, periodoId: periodoId ?? '', estado, buscar: buscarServidor, pagina, limite: CRONOGRAMA_POR_PAGINA,
+          carreraId, periodoId: periodoId ?? '', estado, buscar: buscarServidor, desde, hasta, orden,
+          pagina, limite: CRONOGRAMA_POR_PAGINA,
         }),
         capacidadesProgramacionesApi(),
       ]);
@@ -237,26 +269,26 @@ export default function PaginaCronograma() {
     void cargarListado();
     // Se vuelve a consultar al cambiar filtros o página para que la API sea la fuente de verdad.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [carreraId, periodoId, estado, buscarServidor, pagina]);
+  }, [carreraId, periodoId, estado, buscarServidor, desde, hasta, orden, pagina]);
 
   useEffect(() => {
-    if (!mostrarFormulario || idEdicion) return undefined;
-    let vigente = true;
+    if (!mostrarFormulario || !puedeEditar || idEdicion) return undefined;
+    const controlador = new AbortController();
+    const { signal } = controlador;
     establecerCargandoTrabajos(true);
-    listarTrabajosDisponiblesApi(filtrosCandidatos)
+    establecerTrabajosDisponibles([]);
+    listarTrabajosDisponiblesApi(filtrosCandidatos, { signal })
       .then((respuesta) => {
-        if (!vigente) return;
+        if (signal.aborted) return;
         establecerTrabajosDisponibles(respuesta.elementos);
-        establecerCatalogos(respuesta.filtros);
       })
       .catch(async (error) => {
-        if (!vigente) return;
-        establecerTrabajosDisponibles([]);
+        if (signal.aborted) return;
         await Swal.fire({ icon: 'error', title: 'No se pudieron cargar los trabajos', text: error.message });
       })
-      .finally(() => { if (vigente) establecerCargandoTrabajos(false); });
-    return () => { vigente = false; };
-  }, [mostrarFormulario, idEdicion, filtrosCandidatos]);
+      .finally(() => { if (!signal.aborted) establecerCargandoTrabajos(false); });
+    return () => controlador.abort();
+  }, [mostrarFormulario, puedeEditar, idEdicion, filtrosCandidatos]);
 
   useEffect(() => {
     const finalizarImpresion = () => establecerImpresion(null);
@@ -267,6 +299,7 @@ export default function PaginaCronograma() {
   function abrirNuevaProgramacion() {
     establecerIdEdicion(null);
     establecerIdTrabajo('');
+    establecerBuscarTrabajo('');
     establecerFormulario({ fechaProgramada: fechaHoyInstitucional(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
     establecerMostrarFormulario(true);
   }
@@ -288,6 +321,33 @@ export default function PaginaCronograma() {
     establecerMostrarFormulario(false);
     establecerIdEdicion(null);
     establecerIdTrabajo('');
+    establecerBuscarTrabajo('');
+    if (trabajoIdUrl || nuevaUrl) {
+      const parametros = new URLSearchParams(parametrosUrl);
+      parametros.delete('trabajoId');
+      parametros.delete('nueva');
+      establecerParametrosUrl(parametros, { replace: true });
+    }
+  }
+
+  function cambiarRango(tipo) {
+    establecerRango({ tipo, ...rangoRapidoCronograma(tipo) });
+    establecerPagina(1);
+  }
+
+  function borrarFiltros() {
+    establecerBuscar('');
+    establecerBuscarServidor('');
+    establecerCarreraId('');
+    establecerPeriodoId(null);
+    establecerEstado('');
+    establecerOrden('ASC');
+    cambiarRango('');
+    if (parametrosUrl.has('buscar')) {
+      const parametros = new URLSearchParams(parametrosUrl);
+      parametros.delete('buscar');
+      establecerParametrosUrl(parametros, { replace: true });
+    }
   }
 
   function avisarCampoInvalido(evento) {
@@ -302,7 +362,7 @@ export default function PaginaCronograma() {
     evento.preventDefault();
     const campos = new FormData(evento.currentTarget);
     if (!puedeEditar || guardando || comprobandoSala || horarioOcupado) return;
-    if (!formulario.fechaProgramada || !formulario.horaProgramada || !formulario.sala.trim() || (!idEdicion && !idTrabajo)
+    if (!formulario.fechaProgramada || !formulario.horaProgramada || !formulario.sala.trim() || (!idEdicion && !trabajoSeleccionado)
       || !Number.isInteger(Number(formulario.duracionEstimadaMinutos))
       || Number(formulario.duracionEstimadaMinutos) < 1 || Number(formulario.duracionEstimadaMinutos) > 240) {
       await Swal.fire({ icon: 'warning', title: 'Complete la programación', text: 'Seleccione el trabajo, ingrese fecha, hora y sala, y defina una duración estimada entera entre 1 y 240 minutos.' });
@@ -436,146 +496,156 @@ export default function PaginaCronograma() {
           </AlertaInstitucional>
         )}
 
-        {mostrarFormulario && (
-          <section className="card cronograma-form-card" aria-labelledby="cronograma-form-title">
-            <header className="cronograma-form-header">
-              <div>
-                <span className="section-kicker">Programación vigente</span>
-                <h2 id="cronograma-form-title">{idEdicion ? 'Editar sustentación' : 'Agregar una sustentación'}</h2>
-                <p>Una sesión puede reunir a toda la bina o a un solo estudiante. Los estudiantes y el tribunal se consultan de sus registros existentes.</p>
-              </div>
-              <button className="icon-button" type="button" aria-label="Cerrar formulario" onClick={cerrarFormulario}><X size={19} /></button>
-            </header>
-
-            <form onSubmit={guardar} onInvalid={avisarCampoInvalido} className="cronograma-form">
-              {!idEdicion ? (
-                <div className="field">
-                  <label htmlFor="cronograma-trabajo">Trabajo habilitado</label>
-                  <select id="cronograma-trabajo" className="input" value={idTrabajo} onChange={(evento) => establecerIdTrabajo(evento.target.value)} disabled={cargandoTrabajos} required>
-                    <option value="">{cargandoTrabajos ? 'Cargando trabajos…' : 'Seleccione un trabajo'}</option>
-                    {trabajosDisponibles.map((trabajo) => (
-                      <option key={trabajo.idTrabajo} value={trabajo.idTrabajo}>
-                        {referenciaTrabajo(trabajo.trabajo)} — {trabajo.carrera.nombre}
-                      </option>
+        <ModalFormularioCatalogo
+          abierto={mostrarFormulario && puedeEditar}
+          className="cronograma-modal"
+          etiquetaSeccion={null}
+          titulo={idEdicion ? 'Editar sustentación' : 'Agregar una sustentación'}
+          alCerrar={cerrarFormulario}
+          alEnviar={guardar}
+          alInvalidar={avisarCampoInvalido}
+          guardando={guardando}
+          deshabilitarGuardar={comprobandoSala || horarioOcupado || (!idEdicion && !trabajoSeleccionado)}
+          textoGuardar="Guardar programación"
+        >
+          {idEdicion ? (
+            <div className="cronograma-selected-work">
+              <strong>{referenciaTrabajo(programacionEnEdicion?.trabajo)}</strong>
+              <span>{programacionEnEdicion?.carrera.nombre} · período {programacionEnEdicion?.periodo.codigo}</span>
+            </div>
+          ) : trabajoSeleccionado ? (
+            <div className="cronograma-selected-work">
+              <strong>{referenciaTrabajo(trabajoSeleccionado.trabajo)}</strong>
+              <button ref={cambiarTrabajoRef} className="button button-outline" type="button" onClick={() => establecerIdTrabajo('')}>Cambiar trabajo</button>
+            </div>
+          ) : (
+            <div className="field">
+              <label htmlFor="cronograma-buscar-trabajo">Buscar trabajo habilitado</label>
+              <input id="cronograma-buscar-trabajo" ref={buscadorTrabajoRef} data-enfoque-inicial type="search"
+                value={buscarTrabajo} onChange={(evento) => establecerBuscarTrabajo(evento.target.value)}
+                placeholder="Código, título, carrera o estudiante" />
+              {cargandoTrabajos ? <small role="status">Cargando trabajos…</small> : <>
+                {candidatosEncontrados.length > 0 && (
+                  <ul className="cronograma-trabajos-encontrados" aria-label="Trabajos habilitados">
+                    {candidatosEncontrados.slice(0, MAXIMO_RESULTADOS_TRABAJO).map((trabajo) => (
+                      <li key={trabajo.idTrabajo}>
+                        <button type="button" onClick={() => establecerIdTrabajo(trabajo.idTrabajo)}>
+                          <strong>{referenciaTrabajo(trabajo.trabajo)}</strong>
+                          <span>{trabajo.carrera.nombre} · {personaLista(trabajo.estudiantesPendientes)}</span>
+                        </button>
+                      </li>
                     ))}
-                  </select>
-                  {trabajosDisponibles.length === 0 && !cargandoTrabajos && <small>No hay trabajos elegibles con estudiantes sin programación. Revisa los requisitos de programación del flujo asignado.</small>}
-                </div>
-              ) : (
-                <div className="cronograma-selected-work">
-                  <strong>{referenciaTrabajo(programacionEnEdicion?.trabajo)}</strong>
-                  <span>{programacionEnEdicion?.carrera.nombre} · período {programacionEnEdicion?.periodo.codigo}</span>
-                </div>
-              )}
+                  </ul>
+                )}
+                {candidatosEncontrados.length > MAXIMO_RESULTADOS_TRABAJO && <small>Mostrando {MAXIMO_RESULTADOS_TRABAJO} de {candidatosEncontrados.length}. Afina la búsqueda para encontrar el trabajo.</small>}
+                {candidatosEncontrados.length === 0 && <small role="status">
+                  {trabajosDisponibles.length === 0 ? 'No hay trabajos habilitados con estudiantes pendientes de programar.' : 'No se encontraron trabajos para esa búsqueda.'}
+                </small>}
+              </>}
+            </div>
+          )}
 
-              {!idEdicion && trabajoSeleccionado?.politicaProgramacion && (
-                <div key={idTrabajo}>
-                  {trabajoSeleccionado.politicaProgramacion.advertencias.length > 0 && (
-                    <label><input type="checkbox" name="confirmarAdvertencia" required /> Confirmo que deseo programar con estos requisitos pendientes: {trabajoSeleccionado.politicaProgramacion.advertencias.join(', ')}</label>
-                  )}
-                  {trabajoSeleccionado.politicaProgramacion.excepciones.length > 0 && (
-                    <label className="field">Motivo de excepción para {trabajoSeleccionado.politicaProgramacion.excepciones.join(', ')}
-                      <textarea name="motivoExcepcion" required maxLength={1000} className="input" />
-                    </label>
-                  )}
-                </div>
+          {!idEdicion && trabajoSeleccionado?.politicaProgramacion && (
+            <div key={idTrabajo}>
+              {trabajoSeleccionado.politicaProgramacion.advertencias.length > 0 && (
+                <label className="cronograma-participante"><input type="checkbox" name="confirmarAdvertencia" required /> Confirmo que deseo programar con estos requisitos pendientes: {trabajoSeleccionado.politicaProgramacion.advertencias.join(', ')}</label>
               )}
-              {trabajoSeleccionado && (
-                <div className="cronograma-context-grid">
-                  <div><strong>Estudiante(s)</strong><span>{personaLista(trabajoSeleccionado.estudiantes)}</span></div>
-                  <div><strong>Tribunal confirmado</strong><span>{personaLista(trabajoSeleccionado.tribunal)}</span></div>
-                  <div><strong>Carrera y período</strong><span>{trabajoSeleccionado.carrera.nombre} · {trabajoSeleccionado.periodo.codigo}</span></div>
-                </div>
+              {trabajoSeleccionado.politicaProgramacion.excepciones.length > 0 && (
+                <label className="field">Motivo de excepción para {trabajoSeleccionado.politicaProgramacion.excepciones.join(', ')}
+                  <textarea name="motivoExcepcion" required maxLength={1000} className="input" />
+                </label>
               )}
+            </div>
+          )}
+          {trabajoSeleccionado && (
+            <div className="cronograma-context-grid">
+              <div><strong>Estudiante(s)</strong><span>{personaLista(trabajoSeleccionado.estudiantes)}</span></div>
+              <div><strong>Tribunal confirmado</strong><span>{personaLista(trabajoSeleccionado.tribunal)}</span></div>
+              <div><strong>Carrera y período</strong><span>{trabajoSeleccionado.carrera.nombre} · {trabajoSeleccionado.periodo.codigo}</span></div>
+            </div>
+          )}
 
-              {!idEdicion && trabajoSeleccionado && (
-                <fieldset className="field cronograma-participantes">
-                  <legend>Participantes de esta sesión</legend>
-                  {pendientesSeleccionado.map((estudiante) => (
-                    <label key={estudiante.id} className="cronograma-participante">
-                      <input
-                        type="checkbox"
-                        checked={participantes.includes(estudiante.id)}
-                        onChange={() => alternarParticipante(estudiante.id)}
-                        disabled={pendientesSeleccionado.length === 1}
-                      />
-                      <span>{nombre(estudiante)}</span>
-                    </label>
-                  ))}
-                  <small>
-                    {pendientesSeleccionado.length < trabajoSeleccionado.estudiantes.length
-                      ? 'El otro estudiante del trabajo ya tiene su propia programación.'
-                      : pendientesSeleccionado.length > 1
-                        ? 'Desmarque a un estudiante para que sustente en otra sesión; podrá programarlo después.'
-                        : 'Sesión individual.'}
-                  </small>
-                </fieldset>
-              )}
-
-              <div className="cronograma-form-fields">
-                <div className="field">
-                  <label htmlFor="cronograma-fecha"><CalendarDays size={16} /> Fecha</label>
-                  <input id="cronograma-fecha" className="input" type="date"
-                    min={horarioProgramacion.bloquearFechasPasadas ? fechaHoyInstitucional() : undefined}
-                    aria-describedby={horarioProgramacion.bloquearFechasPasadas ? 'cronograma-fecha-ayuda' : undefined}
-                    value={formulario.fechaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, fechaProgramada: evento.target.value }))} required />
-                  {horarioProgramacion.bloquearFechasPasadas && <small id="cronograma-fecha-ayuda">Desde hoy, hora de Ecuador continental.</small>}
-                </div>
-                <div className="field">
-                  <label htmlFor="cronograma-hora"><Clock3 size={16} /> Hora</label>
-                  <input id="cronograma-hora" className="input" type="time"
-                    min={horarioProgramacion.horaMinima} max={horarioProgramacion.horaMaxima}
-                    aria-describedby="cronograma-hora-ayuda"
-                    value={formulario.horaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, horaProgramada: evento.target.value }))} required />
-                  <small id="cronograma-hora-ayuda">Inicio entre {horarioProgramacion.horaMinima} y {horarioProgramacion.horaMaxima}.</small>
-                </div>
-                <div className="field">
-                  <label htmlFor="cronograma-sala"><MapPin size={16} /> Sala</label>
-                  <input id="cronograma-sala" className="input" maxLength={160} value={formulario.sala}
-                    aria-invalid={salaOcupada} aria-describedby="cronograma-disponibilidad-sala"
-                    onChange={(evento) => establecerFormulario((actual) => ({ ...actual, sala: evento.target.value }))} placeholder="Ej. Sala 2" required />
-                </div>
-                <div className="field">
-                  <label htmlFor="cronograma-duracion"><Clock3 size={16} /> Duración estimada (minutos)</label>
-                  <input id="cronograma-duracion" className="input" type="number" min="1" max="240" step="1" value={formulario.duracionEstimadaMinutos} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, duracionEstimadaMinutos: evento.target.value }))} required />
-                  <small>Predeterminada: 60 minutos. Puede definir entre 1 y 240.</small>
-                </div>
-              </div>
-              {idEdicion && (
-                <div className="field">
-                  <label htmlFor="cronograma-motivo">Motivo de la reprogramación</label>
-                  <textarea
-                    id="cronograma-motivo"
-                    className="input"
-                    rows={2}
-                    maxLength={500}
-                    value={formulario.motivo}
-                    onChange={(evento) => establecerFormulario((actual) => ({ ...actual, motivo: evento.target.value }))}
-                    required
+          {!idEdicion && trabajoSeleccionado && (
+            <fieldset className="field cronograma-participantes">
+              <legend>Participantes de esta sesión</legend>
+              {pendientesSeleccionado.map((estudiante) => (
+                <label key={estudiante.id} className="cronograma-participante">
+                  <input
+                    type="checkbox"
+                    checked={participantes.includes(estudiante.id)}
+                    onChange={() => alternarParticipante(estudiante.id)}
+                    disabled={pendientesSeleccionado.length === 1}
                   />
-                  <small>Queda en el historial del trabajo junto con la fecha, hora y sala anteriores.</small>
-                </div>
-              )}
-              <div id="cronograma-disponibilidad-sala" role="status" hidden={!consultaSala}>
-                {comprobandoSala && <small>Comprobando disponibilidad de la sala…</small>}
-                {horarioOcupado && <AlertaInstitucional tono="warning" titulo={resultadoSala.titulo}>
-                  {resultadoSala.mensaje}
-                </AlertaInstitucional>}
-                {resultadoSala?.disponible === true && <small>Sala disponible para el horario indicado.</small>}
-                {resultadoSala?.error && <AlertaInstitucional tono="warning" titulo="Disponibilidad sin confirmar">
-                  {resultadoSala.error}
-                </AlertaInstitucional>}
-              </div>
-              <p className="cronograma-conflict-note">Se permiten horarios consecutivos. Si se solapan, cada sustentación necesita su propia sala y debe haber cupo simultáneo.</p>
-              <div className="cronograma-form-actions">
-                <button className="button button-outline" type="button" onClick={cerrarFormulario} disabled={guardando}>Cancelar</button>
-                <button className="button button-primary" type="submit" disabled={guardando || !puedeEditar || comprobandoSala || horarioOcupado || (!idEdicion && (cargandoTrabajos || trabajosDisponibles.length === 0))}>
-                  <Save size={17} aria-hidden="true" /> {guardando ? 'Guardando…' : 'Guardar programación'}
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
+                  <span>{nombre(estudiante)}</span>
+                </label>
+              ))}
+              <small>
+                {pendientesSeleccionado.length < trabajoSeleccionado.estudiantes.length
+                  ? 'El otro estudiante del trabajo ya tiene su propia programación.'
+                  : pendientesSeleccionado.length > 1
+                    ? 'Desmarque a un estudiante para que sustente en otra sesión; podrá programarlo después.'
+                    : 'Sesión individual.'}
+              </small>
+            </fieldset>
+          )}
+
+          <div className="cronograma-form-fields">
+            <div className="field">
+              <label htmlFor="cronograma-fecha"><CalendarDays size={16} /> Fecha</label>
+              <input id="cronograma-fecha" className="input" type="date"
+                data-enfoque-inicial={idEdicion ? '' : undefined}
+                min={horarioProgramacion.bloquearFechasPasadas ? fechaHoyInstitucional() : undefined}
+                aria-describedby={horarioProgramacion.bloquearFechasPasadas ? 'cronograma-fecha-ayuda' : undefined}
+                value={formulario.fechaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, fechaProgramada: evento.target.value }))} required />
+              {horarioProgramacion.bloquearFechasPasadas && <small id="cronograma-fecha-ayuda">Desde hoy, hora de Ecuador continental.</small>}
+            </div>
+            <div className="field">
+              <label htmlFor="cronograma-hora"><Clock3 size={16} /> Hora</label>
+              <input id="cronograma-hora" className="input" type="time"
+                min={horarioProgramacion.horaMinima} max={horarioProgramacion.horaMaxima}
+                aria-describedby="cronograma-hora-ayuda"
+                value={formulario.horaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, horaProgramada: evento.target.value }))} required />
+              <small id="cronograma-hora-ayuda">Inicio entre {horarioProgramacion.horaMinima} y {horarioProgramacion.horaMaxima}.</small>
+            </div>
+            <div className="field">
+              <label htmlFor="cronograma-sala"><MapPin size={16} /> Sala</label>
+              <input id="cronograma-sala" className="input" maxLength={160} value={formulario.sala}
+                aria-invalid={salaOcupada} aria-describedby="cronograma-disponibilidad-sala"
+                onChange={(evento) => establecerFormulario((actual) => ({ ...actual, sala: evento.target.value }))} placeholder="Ej. Sala 2" required />
+            </div>
+            <div className="field">
+              <label htmlFor="cronograma-duracion"><Clock3 size={16} /> Duración estimada (minutos)</label>
+              <input id="cronograma-duracion" className="input" type="number" min="1" max="240" step="1" value={formulario.duracionEstimadaMinutos} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, duracionEstimadaMinutos: evento.target.value }))} required />
+              <small>Predeterminada: 60 minutos. Puede definir entre 1 y 240.</small>
+            </div>
+          </div>
+          {idEdicion && (
+            <div className="field">
+              <label htmlFor="cronograma-motivo">Motivo de la reprogramación</label>
+              <textarea
+                id="cronograma-motivo"
+                className="input"
+                rows={2}
+                maxLength={500}
+                value={formulario.motivo}
+                onChange={(evento) => establecerFormulario((actual) => ({ ...actual, motivo: evento.target.value }))}
+                required
+              />
+              <small>Queda en el historial del trabajo junto con la fecha, hora y sala anteriores.</small>
+            </div>
+          )}
+          <div id="cronograma-disponibilidad-sala" role="status" hidden={!consultaSala}>
+            {comprobandoSala && <small>Comprobando disponibilidad de la sala…</small>}
+            {horarioOcupado && <AlertaInstitucional tono="warning" titulo={resultadoSala.titulo}>
+              {resultadoSala.mensaje}
+            </AlertaInstitucional>}
+            {resultadoSala?.disponible === true && <small>Sala disponible para el horario indicado.</small>}
+            {resultadoSala?.error && <AlertaInstitucional tono="warning" titulo="Disponibilidad sin confirmar">
+              {resultadoSala.error}
+            </AlertaInstitucional>}
+          </div>
+          <p className="cronograma-conflict-note">Se permiten horarios consecutivos. Si se solapan, cada sustentación necesita su propia sala y debe haber cupo simultáneo.</p>
+        </ModalFormularioCatalogo>
 
         <section className="card cronograma-list-card" aria-labelledby="cronograma-list-title">
           <header className="cronograma-list-header">
@@ -608,6 +678,26 @@ export default function PaginaCronograma() {
                 <option value="CANCELADA">Canceladas</option>
               </select>
             </label>
+          </div>
+
+          <div className="cronograma-filter-actions">
+            <div className="cronograma-date-filters" role="group" aria-label="Rango de fechas">
+              {FILTROS_DE_FECHA.map(({ valor, etiqueta }) => (
+                <button key={valor} className="button button-outline" type="button" aria-pressed={rango.tipo === valor}
+                  onClick={() => cambiarRango(valor)}>{etiqueta}</button>
+              ))}
+            </div>
+            <label className="cronograma-order" htmlFor="cronograma-orden">
+              Orden por fecha y hora
+              <select id="cronograma-orden" className="input" value={orden} onChange={(evento) => {
+                establecerOrden(evento.target.value);
+                establecerPagina(1);
+              }}>
+                <option value="ASC">Ascendente</option>
+                <option value="DESC">Descendente</option>
+              </select>
+            </label>
+            {hayFiltros && <button className="button button-outline" type="button" onClick={borrarFiltros}>Borrar filtros</button>}
           </div>
 
           {cargando && elementos.length === 0 ? <p className="cronograma-loading" role="status">Cargando cronograma…</p> : null}
@@ -659,6 +749,7 @@ export default function PaginaCronograma() {
             <p>Facultad de Ciencias de la Vida y Tecnologías</p>
             <p>Carrera: {nombreCarrera(impresion.filtros, impresion.consulta.carreraId)} · Período: {codigoPeriodo(impresion.filtros, impresion.consulta.periodoId)}</p>
             <p>Estado: {etiquetaEstado(impresion.consulta.estado) || 'Todos los estados'}{impresion.consulta.buscar && ` · Búsqueda: ${impresion.consulta.buscar}`}</p>
+            <p>Fechas: {impresion.consulta.desde ? `${mostrarFecha(impresion.consulta.desde)} – ${mostrarFecha(impresion.consulta.hasta)}` : 'Todas'} · Orden: {impresion.consulta.orden === 'DESC' ? 'Descendente' : 'Ascendente'}</p>
             <p>Generado: {new Date(impresion.generadoEn).toLocaleString('es-EC')}</p>
           </header>
           <table className="cronograma-print-table">

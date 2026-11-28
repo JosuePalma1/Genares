@@ -25,6 +25,18 @@ export class ConsultarProgramacionesDto {
   @MaxLength(160)
   buscar?: string;
 
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  desde?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  hasta?: string;
+
+  @IsOptional()
+  @IsIn(['ASC', 'DESC'])
+  orden?: 'ASC' | 'DESC';
+
   /** Con `limite` el listado se pagina; sin él se devuelve completo, como antes. */
   @IsOptional()
   @Matches(/^\d{1,3}$/)

@@ -175,7 +175,7 @@ export function mapearActualizacionProgramacion(datos) {
 
 export function crearQueryProgramacion(filtros = {}) {
   const parametros = new URLSearchParams();
-  for (const campo of ['carreraId', 'periodoId', 'estado', 'buscar', 'limite', 'pagina']) {
+  for (const campo of ['carreraId', 'periodoId', 'estado', 'buscar', 'limite', 'pagina', 'desde', 'hasta', 'orden']) {
     const valor = typeof filtros[campo] === 'number' ? String(filtros[campo]) : filtros[campo];
     if (typeof valor === 'string' && valor.trim()) parametros.set(campo, valor.trim());
   }

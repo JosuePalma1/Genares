@@ -123,7 +123,7 @@ describe('listado de programaciones', () => {
     const resultado = await service.listar({ estado: 'COMPLETADA' });
     expect(resultado).not.toHaveProperty('paginacion');
     expect((resultado.elementos as Array<{ id: string }>).map(({ id }) => id)).toEqual([filas[0].id]);
-    expect(parametros(CONSULTA_PROGRAMACIONES)).toEqual([null, null, null, 'FINALIZADA', null, 0]);
+    expect(parametros(CONSULTA_PROGRAMACIONES)).toEqual([null, null, null, 'FINALIZADA', null, 0, null, null, 'ASC']);
     expect(consultar).toHaveBeenCalledWith(null, [trabajo.id]);
   });
 
@@ -131,7 +131,7 @@ describe('listado de programaciones', () => {
     const { service, parametros } = preparar({ filas, total: 30, trabajos: [conSesion] });
     const resultado = await service.listar({ limite: '10', pagina: '3' });
     expect(resultado).toMatchObject({ periodoAplicado: PERIODO_ACTIVO, paginacion: { pagina: 3, limite: 10, total: 30, paginas: 3 } });
-    expect(parametros(CONSULTA_PROGRAMACIONES)).toEqual([null, PERIODO_ACTIVO, null, null, 10, 20]);
+    expect(parametros(CONSULTA_PROGRAMACIONES)).toEqual([null, PERIODO_ACTIVO, null, null, 10, 20, null, null, 'ASC']);
 
     const todos = await service.listar({ limite: '10', periodoId: 'TODOS' });
     expect(todos).toMatchObject({ periodoAplicado: null });
@@ -139,10 +139,19 @@ describe('listado de programaciones', () => {
 
   it('la impresión incluye todas las programaciones filtradas aunque se pida un límite', async () => {
     const { service, parametros } = preparar({ filas, trabajos: [conSesion] });
-    const resultado = await service.listarParaImpresion({ limite: '10', periodoId: 'TODOS' });
-    expect(resultado).toMatchObject({ criterios: { periodoId: null } });
+    const resultado = await service.listarParaImpresion({
+      limite: '10', periodoId: 'TODOS', desde: '2026-11-23', hasta: '2026-11-29', orden: 'DESC',
+    });
+    expect(resultado).toMatchObject({ criterios: { periodoId: null, desde: '2026-11-23', hasta: '2026-11-29', orden: 'DESC' } });
     expect(resultado).not.toHaveProperty('paginacion');
-    expect(parametros(CONSULTA_PROGRAMACIONES)?.slice(4)).toEqual([null, 0]);
+    expect(parametros(CONSULTA_PROGRAMACIONES)?.slice(4)).toEqual([null, 0, '2026-11-23', '2026-11-29', 'DESC']);
+  });
+
+  it('rechaza fechas que no existen e intervalos invertidos antes de consultar', async () => {
+    const { service, parametros } = preparar({ filas, trabajos: [conSesion] });
+    await expect(service.listar({ desde: '2026-02-30' })).rejects.toThrow('no existe');
+    await expect(service.listar({ desde: '2026-11-30', hasta: '2026-11-29' })).rejects.toThrow('posterior');
+    expect(parametros(CONSULTA_PROGRAMACIONES)).toBeUndefined();
   });
 
   it('mantiene en SQL la vigencia y la visibilidad de procesos y programaciones', () => {

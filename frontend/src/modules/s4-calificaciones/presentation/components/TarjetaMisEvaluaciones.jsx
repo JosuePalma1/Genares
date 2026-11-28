@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { formatearFecha } from '../../domain/flujoTrabajo';
-import { InsigniaEstado, InsigniaEstadoRegistro } from './interfaz';
+import { EnlaceConsulta, InsigniaEstado, InsigniaEstadoRegistro } from './interfaz';
+import { RubricasPdfEstudiante } from './RubricasPdfEstudiante';
 
 const ESTADOS = {
   PENDIENTE: ['Pendiente', 'info'],
@@ -78,14 +79,19 @@ export function TarjetaMisEvaluaciones({ trabajo, etapaEvaluacion, estadoEvaluac
         const sesiones = (trabajo.sesiones ?? []).filter((sesion) =>
           sesion.estado !== 'CANCELADA' && Number(sesion.estadoRegistro ?? 1) === 1
           && sesion.participantes.includes(estudiante.id));
+        const puestos = new Set((resumen?.etapas ?? [])
+          .filter((etapa) => etapa.idEstudiante === null || etapa.idEstudiante === estudiante.id)
+          .map((etapa) => etapa.idEvaluador));
+        const miembros = trabajo.miembrosTribunal.filter((miembro) => puestos.has(miembro.idMiembroTribunal));
         return (
           <section className="mis-evaluaciones-grupo" key={estudiante.id} aria-label={nombre(estudiante)}>
             <header className="mis-evaluaciones-fila">
               <h3>{nombre(estudiante)}</h3>
               {resumen?.conResultado.includes(estudiante.id) && (
-                <Link to={`/resultados/${trabajo.id}/${estudiante.id}`}>Ver resultado</Link>
+                <EnlaceConsulta to={`/resultados/${trabajo.id}/${estudiante.id}`}>Ver resultado</EnlaceConsulta>
               )}
             </header>
+            <RubricasPdfEstudiante trabajo={trabajo} estudiante={estudiante} miembros={miembros} />
             {sesiones.length === 1 && <small className="mis-evaluaciones-sesion">
               Sustentación · {formatearFecha(sesiones[0].fecha)} · {sesiones[0].inicio}
             </small>}

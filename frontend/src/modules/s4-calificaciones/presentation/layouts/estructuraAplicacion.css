@@ -61,6 +61,26 @@
 
 .sidebar-foot.aviso-identidad-local strong { display: block; color: var(--color-shell-text); }
 
+.app-topbar .topbar-inicio {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: .4rem .6rem;
+  border-radius: .5rem;
+  color: var(--color-text-primary, #17324d);
+  text-decoration: none;
+  font-weight: 700;
+}
+.app-topbar .topbar-inicio:hover,
+.app-topbar .topbar-inicio.active { background: #e7f0fa; color: #184b75; }
+@media (max-width: 420px) {
+  .app-topbar .topbar-inicio span { display: none; }
+}
+
 /* Menú móvil: el encabezado de una opción con subopciones ocupa la fila completa. */
 .app-movil-nav .mobile-links .nav-parent {
   grid-column: 1 / -1;

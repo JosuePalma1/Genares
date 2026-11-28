@@ -21,9 +21,11 @@ import {
 } from '../sustentaciones/reglas-programacion-sustentacion';
 import { DataSource } from 'typeorm';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
+import { alcanceActual, ejecutarConIdentidad } from '../../../common/api/contexto-alcance';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
 import { TrabajosService } from '../trabajos/trabajos.service';
 import { exigirConsultaGeneralLocal } from '../trabajos/trabajos.controller';
+import { consultarNumeracionActas } from '../documentos/numeracion-actas';
 import {
   condicionesFlujo,
   SimularFlujoDto, resolverPasos, evaluarProgramacion,
@@ -68,14 +70,17 @@ export class ConfiguracionGeneralController {
     );
     const actual = versiones[0];
     const [carreras, modalidades, periodos] = await Promise.all([
-      this.db.query('SELECT id,nombre FROM gen.carrera ORDER BY nombre'),
+      this.db.query<Array<{ id: string; codigo: string; nombre: string }>>('SELECT id,codigo,nombre FROM gen.carrera ORDER BY nombre'),
       this.db.query('SELECT id,nombre FROM gen.modalidad ORDER BY nombre'),
-      this.db.query('SELECT id,codigo AS nombre FROM gen.periodo_academico ORDER BY fecha_inicio DESC'),
+      this.db.query('SELECT id,codigo AS nombre,activo FROM gen.periodo_academico ORDER BY fecha_inicio DESC NULLS LAST,codigo DESC'),
     ]);
+    const alcance = ejecutarConIdentidad(r.identidadApi, alcanceActual);
     return {
       ...actual,
       versiones: versiones.map((v) => ({ ...v, pasos: v.version === 1 ? pasosIniciales : v.pasos })),
       carreras,
+      carrerasActas: alcance.tribunalDe ? [] : carreras.filter((carrera) =>
+        alcance.carreras === null || alcance.carreras.includes(carrera.codigo)),
       modalidades,
       periodos,
       puedePublicar:
@@ -87,6 +92,19 @@ export class ConfiguracionGeneralController {
       roles: rolesFlujo,
       condiciones: condicionesFlujo,
     };
+  }
+  @Get('numeracion-actas/:carreraId/:periodoId')
+  @RequiereCapacidades('configuracion-academica:administrar')
+  async numeracionActas(
+    @Param('carreraId', ParseUUIDPipe) carreraId: string,
+    @Param('periodoId', ParseUUIDPipe) periodoId: string,
+    @Req() r: SolicitudConIdentidad,
+  ) {
+    const alcance = ejecutarConIdentidad(r.identidadApi, alcanceActual);
+    if (alcance.tribunalDe || alcance.carreras?.length === 0) {
+      throw new ForbiddenException('Su perfil no tiene acceso a la numeración de actas por carrera.');
+    }
+    return consultarNumeracionActas(this.db, carreraId, periodoId, alcance.carreras);
   }
   private exigirAdministrador(r: SolicitudConIdentidad) {
     if (r.identidadApi?.rol !== 'SUPERUSUARIO' && r.identidadApi?.tipo !== 'DESARROLLO_LOCAL')

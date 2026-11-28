@@ -1,9 +1,9 @@
 import React from 'react';
 import { ArrowLeft, CheckCircle2, ChevronRight, CircleX, Inbox, Info, TriangleAlert } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { tonoEstado } from '../../domain/flujoTrabajo';
 import { confirmarDescarteCambiosConDialogo } from '../../domain/cambiosSinGuardar';
-import { obtenerRutaAnteriorInterna, resolverNavegacionRetorno } from '../../domain/navegacionRetorno';
+import { obtenerRutaAnteriorInterna, origenConsultaValido, resolverNavegacionRetorno } from '../../domain/navegacionRetorno';
 import { usarPrototipo } from '../../../../shared/infrastructure/ContextoPrototipo';
 
 const ETIQUETAS_ESTADO = {
@@ -86,15 +86,25 @@ export function InsigniaEstadoRegistro({ estadoRegistro = 1, className = '' }) {
   return <InsigniaEstado estado="visible" tono="neutral" className={className}>Estado: 1 · visible</InsigniaEstado>;
 }
 
+export function EnlaceConsulta({ to, children, ...props }) {
+  const { pathname, search, hash } = useLocation();
+  const origen = origenConsultaValido(`${pathname}${search}${hash}`);
+  const destino = origen ? `${to}?${new URLSearchParams({ volver: origen })}` : to;
+  return <Link {...props} to={destino} target="_blank" rel="noopener noreferrer">
+    {children}<span className="sr-only"> (abre en otra pestaña)</span>
+  </Link>;
+}
+
 export function BotonVolver({ respaldo = '/dashboard', children = 'Volver', className = '', ...props }) {
   const navegar = useNavigate();
+  const { search } = useLocation();
 
   const volver = async () => {
     const indice = window.history.state?.idx;
     const rutaAnterior = obtenerRutaAnteriorInterna(indice);
     const decision = resolverNavegacionRetorno({
       rutaAnterior,
-      rutaRespaldo: respaldo,
+      rutaRespaldo: origenConsultaValido(new URLSearchParams(search).get('volver')) ?? respaldo,
     });
     if (!(await confirmarDescarteCambiosConDialogo())) return;
     navegar(decision.usarHistorial ? -1 : decision.destino);

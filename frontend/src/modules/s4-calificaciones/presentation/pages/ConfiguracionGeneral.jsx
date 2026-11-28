@@ -1,6 +1,7 @@
 import './configuracionGeneral.css';
 import VistaPreviaFlujo from '../components/VistaPreviaFlujo';
 import PoliticaConvocatorias from '../components/PoliticaConvocatorias';
+import NumeracionActas from '../components/NumeracionActas';
 import { useEffect, useState } from 'react';
 import { getJsonApi, postJsonApi, putJsonApi } from '../services/clienteHttp';
 import { EncabezadoPagina } from '../components/interfaz';
@@ -244,6 +245,7 @@ export default function ConfiguracionGeneral() {
         description="Define el flujo que recibirán los nuevos procesos de evaluación."
       />
       {aviso && <p role="status">{aviso}</p>}
+      {config?.carrerasActas && <NumeracionActas carreras={config.carrerasActas} periodos={config.periodos} />}
       {config?.puedePublicar && <Umbral />}
       {config?.puedePublicar && <PoliticaConvocatorias />}
       {config?.puedeCambiarRoles && <PermisosRoles />}

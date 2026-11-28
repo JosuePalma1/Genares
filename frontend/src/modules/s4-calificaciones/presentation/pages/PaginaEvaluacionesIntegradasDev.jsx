@@ -3,10 +3,11 @@ import ReemplazoEtapa from '../components/ReemplazoEtapa';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { BookOpenCheck, CheckCircle2, CloudUpload, RefreshCw, ShieldAlert, UserRound } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio } from '../components/interfaz';
 import { FormularioRubricaComparativa } from '../components/FormularioRubricaComparativa';
 import { FormularioRubrica } from '../components/FormularioRubrica';
 import { DialogoGenares } from '../components/dialogos';
+import { ResumenCierreEvaluacion } from '../components/ResumenCierreEvaluacion';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
 import { etiquetaEstadoTrabajo } from '../../domain/seguimientoAcademico';
 import { estadoAcademicoLegible } from '../../domain/etiquetasAcademicas';
@@ -51,17 +52,20 @@ function usarEvaluacionIndividual({ activo = true, asignacionId, tipo, etapa, in
   const [estadoLocal, setEstadoLocal] = useState(null);
   const [guardadoServidor, setGuardadoServidor] = useState(false);
   const [contextoCargado, setContextoCargado] = useState(null);
+  const [cierreConfirmado, setCierreConfirmado] = useState(null);
   const operacion = useRef(false);
   const revisionBaseLocal = useRef(0);
   const calificaciones = useMemo(() => obtenerCalificacionesEditables(notas), [notas]);
   const observaciones = useMemo(() => obtenerObservacionesEditables(notas), [notas]);
   const idTitular = tipo === 'ORAL' ? estudiante?.id : null;
   const etiqueta = tipo === 'ORAL' ? 'oral' : 'escrita';
-  const evaluacion = datos?.evaluaciones.find((e) => e.idEtapaRubrica === etapa?.id
+  const evaluacionServidor = datos?.evaluaciones.find((e) => e.idEtapaRubrica === etapa?.id
     && e.idAsignacionTribunal === evaluador?.id && e.idEstudiante === idTitular);
   const claveRespaldo = !activo ? null : claveBorrador({
     asignacionId, tipo, idEtapa: etapa?.id, idTitular, idEvaluador: evaluador?.id,
   });
+  const evaluacion = cierreConfirmado?.clave === claveRespaldo && evaluacionServidor?.estado !== 'CERRADA'
+    ? cierreConfirmado.evaluacion : evaluacionServidor;
   // RF-31: esta página sincroniza su propio borrador; la sincronización global lo omite mientras está abierta.
   useEffect(() => marcarEnEdicion(claveRespaldo), [claveRespaldo]);
   const cerrado = evaluacion && evaluacion.estado !== 'BORRADOR';
@@ -173,8 +177,13 @@ function usarEvaluacionIndividual({ activo = true, asignacionId, tipo, etapa, in
         revisionEsperada: revisionBase, puntajes,
         ...(!cerrar && registro?.idOperacion && { idOperacion: registro.idOperacion }),
       }, tipo);
+      let guardada;
       if (cerrar) {
-        await enviarPuntajes();
+        guardada = await enviarPuntajes();
+        if (guardada?.estado !== 'CERRADA' || guardada.total == null) {
+          throw new Error('No se pudo confirmar la nota de cierre en el servidor.');
+        }
+        setCierreConfirmado({ clave: claveRespaldo, evaluacion: { ...guardada, puntajes } });
       } else {
         const resultado = await sincronizarBorrador({
           registro: { revisionBase, notas, idOperacion: registro?.idOperacion },
@@ -209,11 +218,12 @@ function usarEvaluacionIndividual({ activo = true, asignacionId, tipo, etapa, in
         setAvisoRespaldo('');
       }
       setAviso({ tipo: 'exito', texto: cerrar
-        ? 'Evaluación cerrada en PostgreSQL.' : 'Borrador guardado en PostgreSQL.' });
+        ? 'Evaluación cerrada.' : 'Borrador guardado en PostgreSQL.' });
       setRecarga((actual) => actual + 1);
+      return guardada;
     } catch (error) {
       registrarResultado(error);
-      setAviso({ tipo: 'error', texto: error?.message ?? 'No fue posible guardar el borrador.' });
+      setAviso({ tipo: 'error', texto: error?.message ?? (cerrar ? 'No fue posible confirmar el cierre.' : 'No fue posible guardar el borrador.') });
     } finally { operacion.current = false; setGuardando(false); }
   }
 
@@ -269,6 +279,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
   const [etapaId, setEtapaId] = useState(etapaInicial);
   const [estudianteId, setEstudianteId] = useState('');
   const [evaluadorId, setEvaluadorId] = useState(evaluadorInicial);
+  const [resumenCierre, setResumenCierre] = useState(null);
   const { sinConexion, redDisponible, registrarResultado } = usarConexion();
 
   useEffect(() => {
@@ -318,43 +329,72 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
     if (modelo.aviso?.tipo === 'error') return 'Envío pendiente';
     return modelo.estadoLocal ? 'Guardado en este dispositivo' : modelo.evaluacion ? 'Borrador' : 'Sin enviar';
   };
+  function enfocarIndicador(modelo, formulario) {
+    const indicador = indicadores.find(({ id }) => !tieneNota(modelo, id)) ?? indicadores[0];
+    if (!indicador) return;
+    const control = bina
+      ? document.getElementById(`comparativa-${modelo.estudiante.id}-${indicador.id}`)
+      : formulario?.elements.namedItem(indicador.id);
+    control?.focus({ preventScroll: true });
+    control?.scrollIntoView({ block: 'center' });
+  }
+
+  function abrirResumen(cierres, fallos = []) {
+    const siguiente = modelos.find((m) => m.editable && m.estadoLocal !== ESTADO_LOCAL.CONFLICTO
+      && !cierres.some(({ estudiante }) => estudiante.id === m.estudiante?.id));
+    setResumenCierre({
+      cierres, fallos, datos, evaluador, siguienteId: siguiente?.estudiante.id,
+      etapa: { ...etapa, calificacionMaxima: etapa.calificacionMaxima ?? maximoEtapa(rubricaFormulario, etapa.id) },
+    });
+  }
+
+  function continuarConSiguiente() {
+    const siguiente = porEstudiante[resumenCierre.siguienteId];
+    setResumenCierre(null);
+    if (siguiente?.editable && siguiente.estadoLocal !== ESTADO_LOCAL.CONFLICTO) {
+      requestAnimationFrame(() => enfocarIndicador(siguiente));
+    }
+  }
+
   async function revisar(formulario) {
     const restantes = modelos.filter((m) => !m.cerrado);
     const listos = restantes.filter((m) => m.editable && m.completo && m.estadoLocal !== ESTADO_LOCAL.CONFLICTO);
     const buscarPendiente = () => {
       const pendiente = restantes.find((m) => !m.completo && m.editable);
-      const indicador = pendiente && indicadores.find(({ id }) => !tieneNota(pendiente, id));
-      if (!indicador) return;
-      const control = bina
-        ? document.getElementById(`comparativa-${pendiente.estudiante.id}-${indicador.id}`)
-        : formulario?.elements.namedItem(indicador.id);
-      control?.focus();
-      control?.scrollIntoView({ block: 'center' });
+      if (pendiente) enfocarIndicador(pendiente, formulario);
     };
     if (!listos.length && restantes.some((m) => m.editable && !m.completo)) return buscarPendiente();
     const conectado = redDisponible && !sinConexion && !estado.desdeCopia;
     const respuesta = await DialogoGenares.fire({
       title: 'Revisar calificaciones',
-      text: modelos.map((m) => `${m.estudiante?.nombre}: ${sumarCalificaciones(m.calificaciones, indicadores).toFixed(2)} / ${maximoEtapa(rubricaFormulario, etapa.id).toFixed(2)} ? ${estadoNota(m)}`).join(' | '),
+      text: modelos.map((m) => `${m.estudiante?.nombre}: ${sumarCalificaciones(m.calificaciones, indicadores).toFixed(2)} / ${maximoEtapa(rubricaFormulario, etapa.id).toFixed(2)} · ${estadoNota(m)}`).join(' | '),
       showConfirmButton: conectado && listos.length > 0,
       confirmButtonText: listos.length === 1 ? `Enviar nota de ${listos[0].estudiante.nombre}` : 'Enviar ambas notas',
       showCancelButton: true,
       cancelButtonText: conectado ? 'Seguir calificando' : 'Volver al borrador',
       footer: conectado ? undefined : 'Conéctate para enviar las notas definitivas.',
     });
-    if (respuesta.isConfirmed) {
-      for (const modelo of listos) await modelo.guardar(true, true);
-    } else buscarPendiente();
+    if (!respuesta.isConfirmed) return buscarPendiente();
+    const cierres = [];
+    const fallos = [];
+    for (const modelo of listos) {
+      const guardada = await modelo.guardar(true, true);
+      if (guardada) cierres.push({ estudiante: modelo.estudiante, total: guardada.total });
+      else fallos.push(modelo.estudiante.nombre);
+    }
+    if (cierres.length) abrirResumen(cierres, fallos);
+    else if (fallos.length) await DialogoGenares.fire({ icon: 'error', title: 'Cierre sin confirmar',
+      text: 'Revisa el estado de las evaluaciones y recarga la información antes de reintentar.' });
   }
 
   const escritas = (datos?.evaluaciones ?? []).filter((e) =>
     datos.etapas.some((etapaActual) => etapaActual.id === e.idEtapaRubrica && etapaActual.kind === 'ESCRITA'));
 
   return <div className="evaluaciones-mer-page">
-    <EncabezadoPagina eyebrow="MER unificado · S2 + S3 + S4" title="Rúbrica y evaluación"
-      description={datos?.tema ?? 'Información de la evaluación desde PostgreSQL'}
+    <EncabezadoPagina title="Rúbrica y evaluación"
+      description={datos?.tema}
       breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Expediente', to: `/trabajos/${asignacionId}` }, 'Rúbrica y evaluación']}
-      actions={<details className="em-opciones">
+      actions={<><BotonVolver respaldo="/mis-evaluaciones" /><details className="em-opciones">
         <summary>Opciones</summary>
         <Link to={`/trabajos/${asignacionId}`}>Ver expediente</Link>
         <Link to={tipo === 'ORAL' ? `/evaluaciones/${asignacionId}/escrita` : `/evaluaciones/${asignacionId}`}>
@@ -365,19 +405,22 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
         }}><RefreshCw size={16}/> Recargar</button>
         {datos?.puedeGuardarBorradores && etapa && evaluador?.docente && <ReemplazoEtapa key={etapa.id + evaluador.docente}
           asignacion={asignacionId} puesto={evaluador} etapa={etapa} confirmarCambio={confirmarCambio} actualizar={() => setRecarga(n => n + 1)} />}
-      </details>} />
+      </details></>} />
     {estado.desdeCopia && <p role="status">Expediente recuperado de este dispositivo. El cierre estará disponible al volver a consultar el servidor.</p>}
     {estado.status === 'cargando' && <div className="card" role="status">Consultando rúbrica y evaluaciones…</div>}
     {estado.status === 'error' && <AlertaInstitucional tono="danger" titulo="No se pudo cargar la rúbrica">{estado.error?.message ?? 'Error de consulta.'}</AlertaInstitucional>}
+    {resumenCierre && <ResumenCierreEvaluacion asignacionId={asignacionId} datos={datos ?? resumenCierre.datos}
+      resumen={resumenCierre} redDisponible={redDisponible} alCerrar={() => setResumenCierre(null)}
+      alSiguiente={porEstudiante[resumenCierre.siguienteId]?.editable ? continuarConSiguiente : undefined} />}
     {estado.status === 'listo' && datos && <>
       <section className="card em-seccion">
         <h2><UserRound size={20}/> {etapa?.kind === 'PERSONALIZADA' ? etapa.nombre : `Evaluación ${etiqueta}`}</h2>
         <div className="em-selectores">
-          {tipo === 'ORAL' && !bina && <div className="field"><label htmlFor="em-estudiante">Estudiante de S2</label>
+          {tipo === 'ORAL' && !bina && <div className="field"><label htmlFor="em-estudiante">Estudiante</label>
             <select className="select" id="em-estudiante" value={estudiante?.id ?? ''} onChange={(e) => {
               if (confirmarCambio()) { setEstudianteId(e.target.value); }
             }}>{datos.estudiantes.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
-          {evaluadoresEtapa.length === 1 ? <p className="em-ayuda">Evalúa {evaluador?.nombre}</p> : <div className="field"><label htmlFor="em-evaluador">Evaluador de S3</label>
+          {evaluadoresEtapa.length === 1 ? <p className="em-ayuda">Evalúa {evaluador?.nombre}</p> : <div className="field"><label htmlFor="em-evaluador">Evaluador</label>
             <select className="select" id="em-evaluador" value={evaluador?.id ?? ''} onChange={(e) => {
               if (confirmarCambio()) { setEvaluadorId(e.target.value); }
             }}>{evaluadoresEtapa.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}</select></div>}
@@ -429,6 +472,12 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
                   <p key={i.id}><strong>{i.label || i.descripcion}</strong> · {modelo.observaciones[i.id]}</p>)}
               </details>}
               <AccionesEvaluacion {...contexto} modelo={modelo} etiqueta={etiqueta} cierreSecundario={tipo === 'ORAL'} />
+              {tipo === 'ORAL' && modelo.evaluacion?.estado === 'CERRADA' && modelo.evaluacion.total != null && !estado.desdeCopia && (
+                <button className="button button-outline" type="button"
+                  onClick={() => abrirResumen([{ estudiante: modelo.estudiante, total: modelo.evaluacion.total }])}>
+                  Ver resumen de cierre de {modelo.estudiante.nombre}
+                </button>
+              )}
             </section>)}
             {tipo === 'ORAL' && datos.puedeCerrarEvaluaciones && <section className="em-revision" aria-label="Avance de calificaci?n">
               <div className="em-revision-avance">

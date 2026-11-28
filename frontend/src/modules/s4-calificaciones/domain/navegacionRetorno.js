@@ -6,10 +6,18 @@ export function esRutaInternaGenares(ruta) {
     const destino = new URL(ruta, 'https://genares.local');
     return destino.origin === 'https://genares.local'
       && destino.pathname !== '/'
+      && destino.pathname !== '/entrar'
       && destino.pathname !== '/login';
   } catch {
     return false;
   }
+}
+
+export function origenConsultaValido(ruta) {
+  if (!esRutaInternaGenares(ruta)) return null;
+  const { pathname, search, hash } = new URL(ruta, 'https://genares.local');
+  if (!/^\/(dashboard|mis-evaluaciones|coordinacion|secretaria|consulta|trabajos(?:\/[a-z\d-]+)?)$/i.test(pathname)) return null;
+  return `${pathname}${search}${hash}`;
 }
 
 export function puedeAccederRutaInterna(ruta) {

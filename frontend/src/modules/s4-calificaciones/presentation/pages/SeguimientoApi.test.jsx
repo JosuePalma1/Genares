@@ -5,7 +5,7 @@ import { usarActasPaginadasApi, usarResumenSeguimientoApi, usarSeguimientoTrabaj
 import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarAuditoriaApi } from '../hooks/usarAuditoriaApi';
 import {
-  CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi, periodoParaActas,
+  AuditoriaCambios, CoordinacionSeguimientoApi, ConsultaSeguimientoApi, DashboardSeguimientoApi, SecretariaSeguimientoApi, periodoParaActas,
 } from './SeguimientoApi';
 
 vi.mock('../hooks/usarSeguimientoApi', () => ({
@@ -118,9 +118,11 @@ describe('pantallas de seguimiento integradas con la API', () => {
 
   it('Dashboard usa el catálogo API y representa vacíos de agenda sin confundirlos con error', () => {
     const html = renderizar(<DashboardSeguimientoApi />);
+    expect(html).toContain('>Inicio</h1>');
+    expect(html).not.toContain('>Dashboard<');
     expect(html).toContain('DEV-TI-001');
     expect(html).toContain('DEV-SOFT-001');
-    expect(html).toContain('Sin programaciones registradas');
+    expect(html).toContain('No hay programaciones registradas');
     expect(html).toContain('1 acta(s) archivada(s).');
     expect(html).not.toContain('No fue posible consultar programaciones');
     expect(html).toContain(`/trabajos/${ids.ti}`);
@@ -137,6 +139,8 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('Ana Pérez');
     expect(html).toContain('28/10/2026');
     expect(html).toContain('001-2026-2-TI');
+    expect(html).toContain('Abrir acta PDF 001-2026-2-TI');
+    expect(html).toContain('Ver rúbrica PDF de Andrea Mendoza · María López');
     expect(html).toContain(`/trabajos/${ids.ti}`);
     expect(html).toContain('href="/documentos"');
     expect(html).toContain(`trabajoId=${ids.ti}`);
@@ -161,6 +165,9 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('2 trabajo(s)');
     expect(usarSeguimientoTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 25 });
     expect(html).toContain('coordinacion-api-carrera');
+    expect(html).toContain('Ver rúbrica PDF de Mateo Alcívar · José Mora');
+    expect(html).toContain('Abrir acta PDF 001-2026-2-TI');
+    expect(html).not.toContain('Ver rúbrica PDF de Sofía Vera');
   });
 
   it('Consulta distingue resultados completos e incompletos y enlaza al UUID real del expediente', () => {
@@ -171,9 +178,10 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).toContain('Sofía Vera');
     expect(html).toContain(`/trabajos/${ids.ti}`);
     expect(html).toContain(`/resultados/${ids.ti}/${ids.andrea}`);
-    expect(html).toContain('001-2026-2-TI');
+    expect(html).not.toContain('001-2026-2-TI');
     expect(html).toContain('href="/documentos"');
-    expect(html).toContain('Auditoría de cambios');
+    expect(html).not.toContain('Auditoría de cambios');
+    expect(usarActasPaginadasApi).not.toHaveBeenCalled();
     expect(html).toContain('2 trabajo(s) · 3 estudiante(s) en esta página');
   });
 
@@ -190,7 +198,7 @@ describe('pantallas de seguimiento integradas con la API', () => {
       cargarMas: vi.fn(),
       recargar: vi.fn(),
     });
-    const html = renderizar(<ConsultaSeguimientoApi />);
+    const html = renderizar(<AuditoriaCambios />);
     expect(html).toContain('GENARES:LOCAL_DEVELOPMENT');
     expect(html).toContain('Antes');
     expect(html).toContain('Después');
@@ -216,6 +224,7 @@ describe('pantallas de seguimiento integradas con la API', () => {
     expect(html).not.toContain('No hay trabajos disponibles.');
     expect(html).not.toContain('No hay trabajos registrados');
     expect(html).not.toContain('Sin estados para mostrar');
+    expect(html).not.toContain('Resumen del período');
   });
 
   it('filtra las actas por el periodo elegido o el aplicado; Todos no filtra', () => {

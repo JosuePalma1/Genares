@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
+import { DialogoGenares } from './dialogos';
 import './maestros.css';
 
 const SELECTOR_ENFOCABLE = [
@@ -21,10 +22,14 @@ export function ModalFormularioCatalogo({
   alRecargar,
   alCerrar,
   alEnviar,
+  alInvalidar,
+  className = '',
+  etiquetaSeccion = 'Rúbricas',
   guardando = false,
   deshabilitarGuardar = false,
   textoGuardar = 'Guardar',
   textoGuardando = 'Guardando…',
+  acciones,
   children,
 }) {
   const fondoRef = useRef(null);
@@ -52,6 +57,7 @@ export function ModalFormularioCatalogo({
     (primerControl ?? contenedor)?.focus({ preventScroll: true });
 
     function alPresionarTecla(evento) {
+      if (DialogoGenares.isVisible() && DialogoGenares.getPopup()?.classList.contains('swal2-modal')) return;
       if (evento.key === 'Escape') {
         evento.preventDefault();
         if (!guardandoRef.current) cierreRef.current?.();
@@ -93,7 +99,7 @@ export function ModalFormularioCatalogo({
     }}>
       <section
         ref={contenidoRef}
-        className="modal-catalogo"
+        className={`modal-catalogo ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${id}-titulo`}
@@ -102,7 +108,7 @@ export function ModalFormularioCatalogo({
       >
         <header className="modal-catalogo-cabecera">
           <div>
-            <span className="section-kicker">Rúbricas</span>
+            {etiquetaSeccion && <span className="section-kicker">{etiquetaSeccion}</span>}
             <h2 id={`${id}-titulo`}>{titulo}</h2>
             {descripcion && <p id={`${id}-descripcion`}>{descripcion}</p>}
           </div>
@@ -118,7 +124,10 @@ export function ModalFormularioCatalogo({
           </button>}
         </div>}
 
-        <form onSubmit={alEnviar}>
+        {acciones ? <>
+          <div className="modal-catalogo-campos">{children}</div>
+          <footer className="modal-catalogo-acciones">{acciones}</footer>
+        </> : <form onSubmit={alEnviar} onInvalid={alInvalidar}>
           <div className="modal-catalogo-campos">{children}</div>
           <footer className="modal-catalogo-acciones">
             <button className="button button-outline" type="button" onClick={alCerrar} disabled={guardando}>Cancelar</button>
@@ -126,7 +135,7 @@ export function ModalFormularioCatalogo({
               {guardando ? textoGuardando : textoGuardar}
             </button>
           </footer>
-        </form>
+        </form>}
       </section>
     </div>,
     document.body,

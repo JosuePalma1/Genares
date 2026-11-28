@@ -1,36 +1,35 @@
 # Lo que falta en Genares S4
 
-**Actualizado el 27/11/2026.** El orden de trabajo refleja lo que se puede avanzar en el sistema local.
+**Actualizado el 28/11/2026.** El orden de trabajo refleja lo que se puede avanzar en el sistema local.
 Para poner el proyecto en marcha, ver [PRIMEROS-PASOS.md](PRIMEROS-PASOS.md). El detalle de cada requisito está en [estado-paso-1.md](estado-paso-1.md). Los Pasos 3, 4 y 5 se actualizaron a la versión 1.1, con los nombres reales de las tablas y el estado de la estructura y de las tareas.
 
 ## Por dónde empezar
 
-**Siguiente tarea.** Mejorar la edición, los filtros y el PDF del Cronograma.
+**Siguiente tarea.** Confirmar con Coordinación qué eventos requieren correo automático.
 
 | N.º | Tarea | Descripción |
 | --- | --- | --- |
-| 1 | Mejorar la edición, los filtros y el PDF del Cronograma | Editar desde la lista, buscar trabajos habilitados, añadir filtros rápidos y mantener el mismo orden y los mismos filtros en el PDF. |
-| 2 | Mostrar la numeración de actas en Configuración general | Añadir «Nombre de las actas». Mostrar el último número emitido y el siguiente previsto por carrera y período, usando el contador existente. Consultar el siguiente número no lo reserva, y las actas emitidas conservan su número. |
-| 3 | Dar acceso directo a los PDF | Facilitar la apertura de rúbricas y otros documentos desde el expediente, Mis evaluaciones, Coordinación y Secretaría. |
-| 4 | Mejorar la pantalla al terminar de calificar | Mostrar la nota del miembro y facilitar las acciones «Ver rúbrica» y «Siguiente estudiante». Presentar la nota consolidada y el acceso al acta cuando estén disponibles. |
-| 5 | Mejorar Inicio, navegación y filtros generales | Facilitar volver al listado, dar jerarquía a Inicio, reducir avisos repetidos y simplificar los filtros de Trabajos. |
-| 6 | Incorporar correos automáticos si se aprueban | Acordar con Coordinación qué eventos requieren un correo antes de implementarlos. |
-| 7 | Importar rúbricas desde Word si queda tiempo | Leer categorías, indicadores y puntos, abrir el formulario existente con esos datos y guardar el resultado revisado como borrador. |
-| 8 | Automatizar la reportería de cohortes, deserción y permanencia | Añadir al panel de Secretaría y Coordinación una vista con filtros por período de ingreso y tipo de estudiante (regular u homologado). Calcular los indicadores desde la base de estudiantes de 2018-1 a 2026 y usar el Excel local de matrículas como referencia. <br>**Cohorte buena (tasa de graduación):** 8 semestres para la malla actual y 9 para la malla antigua vigente hasta 2022, con hasta 3 semestres de tolerancia para graduarse. Solo cuentan los estudiantes que ingresaron a primer nivel con cupo regular. Se excluyen homologaciones externas y cambios de carrera. <br>**Deserción:** un estudiante regular se considera desertor tras 3 semestres consecutivos sin matrícula. <br>**Permanencia y reingreso:** si vuelve a matricularse, pasa a permanencia y se conserva el historial de deserción. El reingreso queda fuera de la cohorte buena. |
-| 9 | Actualizar el MER y los Pasos 1 a 5 | Alinear el MER con el esquema de S4 y sus dependencias en la base compartida. Actualizar el [Paso 1](planificacion-integracion-s4/Paso_1.md) para requisitos y reglas, el [Paso 2](planificacion-integracion-s4/Paso_2.md) para responsabilidades e integración, el [Paso 3](planificacion-integracion-s4/Paso_3.md) para arquitectura y base de datos, el [Paso 4](planificacion-integracion-s4/Paso_4.md) para estructura y componentes, y el [Paso 5](planificacion-integracion-s4/Paso_5.md) para tareas y entregas. En el Paso 5, registrar el orden de las migraciones y los datos iniciales autorizados para producción. |
+| 1 | Incorporar correos automáticos si se aprueban | Acordar con Coordinación qué eventos requieren un correo antes de implementarlos. |
+| 2 | Automatizar la reportería de cohortes, deserción y permanencia | Añadir al panel de Secretaría y Coordinación una vista con filtros por período de ingreso y tipo de estudiante (regular u homologado). Calcular los indicadores desde la base de estudiantes de 2018-1 a 2026 y usar el Excel local de matrículas como referencia. <br>**Cohorte buena (tasa de graduación):** 8 semestres para la malla actual y 9 para la malla antigua vigente hasta 2022, con hasta 3 semestres de tolerancia para graduarse. Solo cuentan los estudiantes que ingresaron a primer nivel con cupo regular. Se excluyen homologaciones externas y cambios de carrera. <br>**Deserción:** un estudiante regular se considera desertor tras 3 semestres consecutivos sin matrícula. <br>**Permanencia y reingreso:** si vuelve a matricularse, pasa a permanencia y se conserva el historial de deserción. El reingreso queda fuera de la cohorte buena. |
+| 3 | Actualizar el MER y los Pasos 1 a 5 | Alinear el MER con el esquema de S4 y sus dependencias en la base compartida. Actualizar el [Paso 1](planificacion-integracion-s4/Paso_1.md) para requisitos y reglas, el [Paso 2](planificacion-integracion-s4/Paso_2.md) para responsabilidades e integración, el [Paso 3](planificacion-integracion-s4/Paso_3.md) para arquitectura y base de datos, el [Paso 4](planificacion-integracion-s4/Paso_4.md) para estructura y componentes, y el [Paso 5](planificacion-integracion-s4/Paso_5.md) para tareas y entregas. En el Paso 5, registrar el orden de las migraciones y los datos iniciales autorizados para producción. |
 
 ## Qué ya existe y qué queda para después
 
 - **Detalle de Modalidad.** La pantalla admite cualquier UUID válido de PostgreSQL, incluidos los identificadores de la base de pruebas que no son v4.
 - **Nombres y estados en pantalla.** Trabajos, Cronograma y Seguimiento muestran el título en lugar del UUID. Evaluaciones y Resultados muestran los nombres de estudiantes, miembros del tribunal y rúbricas cuando están registrados, con estados en lenguaje claro.
 - **Mis evaluaciones.** La lista muestra la escrita compartida, la oral y los resultados por estudiante, y el motivo de los bloqueos. Los filtros de etapa y estado consultan todas las páginas en el servidor.
+- **Edición, filtros y PDF del Cronograma.** Se puede crear o editar en una ventana modal desde la lista. Para crear, se puede buscar por código, título, carrera o estudiante entre los trabajos habilitados. La agenda ofrece filtros para hoy, mañana y esta semana, permite restablecerlos y ordenar por fecha y hora. El PDF contiene todos los resultados de los filtros activos, en el mismo orden.
 - **Estados y búsqueda del Cronograma.** La tabla y el PDF muestran «Programada» antes de la hora prevista y «En curso o pendiente» desde esa hora. Se conserva «Cancelada» y el estado de los registros históricos finalizados. La búsqueda admite el nombre de la sala y se aplica junto con los filtros del Cronograma.
 - **Horarios de sustentación.** El formulario y el servidor aplican los límites al crear o reprogramar. El formulario avisa si la sala está ocupada antes de guardar. Al reprogramar, excluye la propia sesión. El servidor vuelve a comprobar los cruces al guardar. En Configuración general se puede decidir si se bloquean fechas pasadas y fijar el horario de inicio por carrera, modalidad y período. Los valores por defecto bloquean fechas pasadas y admiten inicios de 06:00 a 23:00, hora de Ecuador continental. El [script de horario](../../backend/fixtures/s4-horario-programacion.sql) ya se ejecutó en la base local, según confirmó Josué.
+- **Importación de rúbricas desde Word y PDF.** En Rúbricas → Nueva rúbrica, el editor carga las etapas, categorías e indicadores con sus máximos desde tablas de valoración en un archivo .docx o PDF con texto seleccionable. El archivo se procesa en el navegador. Después de la revisión, la estructura se guarda como borrador desde el editor. El lector de PDF usa PDF.js y el de Word usa fflate como dependencias del frontend.
 - **Rúbricas.** El sistema admite varias rúbricas y versiones configurables. La aplicación conserva la versión usada en cada evaluación. La asignación automática ya resuelve los casos con una candidata y pide una elección si encuentra varias aplicables. Los ejemplos de 5 + 5 y 10 + 10 son referencias para configurar, no tareas para elegir una rúbrica única.
 - **Sustentaciones simultáneas.** El cupo compartido inicia en 2. Configuración general permite cambiarlo y dar cupos independientes a las carreras que los necesiten. El Cronograma avisa con SweetAlert2 si hay un cruce de sala o se alcanza el cupo. La validación se aplica al crear y reprogramar.
 - **Redondeo.** Configuración general ya permite redondear o truncar a dos decimales y comparar el resultado publicado con el umbral. Las pruebas confirman que 6,995 aprueba al publicarse como 7,00 y reprueba al truncarse a 6,99 con mínimo de 7. El cálculo conserva precisión exacta antes de publicar. La regla histórica de los pasos 4 → 3 → 2 queda como antecedente de la discusión.
 - **Cambio de una nota cerrada.** El flujo de solicitud, aprobación y rechazo ya está implementado. Las pruebas del backend cubren permisos, plazos, evidencia configurable, auditoría, aplicación de la corrección y bloqueo si el trabajo finalizó o tiene acta archivada.
-- **Numeración de actas.** Las actas archivadas ya usan un consecutivo compartido por los dos formatos PAT, por carrera y período. El código actual genera, por ejemplo, `001-2026-2-SOFT`. La vista previa se muestra sin número. La tarea 2 añade la consulta en Configuración general.
+- **Inicio, navegación y filtros de Trabajos.** Inicio destaca los trabajos, las sustentaciones programadas y los resultados completos, con un acceso visible en la cabecera para los perfiles que pueden consultarlo. Trabajos deja a la vista búsqueda, período y estado. «Más filtros» reúne los demás campos. Los expedientes y resultados se abren en otra pestaña. En Trabajos, «Volver» recupera los filtros y la página de origen.
+- **Resumen al cerrar la evaluación oral.** Muestra la nota confirmada de cada estudiante, el estado de los demás evaluadores y la rúbrica PDF. «Siguiente estudiante» enfoca el indicador pendiente en una bina. Mientras el resumen está abierto, consulta las notas y habilita el enlace al acta en Documentos cuando llega el consolidado de ese estudiante.
+- **Acceso a los PDF.** El expediente, Mis evaluaciones, Coordinación y Secretaría abren la rúbrica PDF de cada estudiante y miembro aplicable desde el registro. Coordinación y Secretaría abren el PDF de las actas archivadas. La consulta de resultados enlaza con Documentos y el historial de cambios se consulta desde Auditoría.
+- **Numeración de actas.** Las actas archivadas ya usan un consecutivo compartido por los dos formatos PAT, por carrera y período. El código actual genera, por ejemplo, `001-2026-2-SOFT`. La vista previa se muestra sin número. En «Nombre de las actas», dentro de Configuración general, se consulta el último código emitido tal como está en el archivo y el siguiente previsto por carrera y período. El contador se incrementa al emitir el acta.
 - **Acuerdos con S2 y S3.** El Paso 2 confirma que S3 administra los tribunales y S4 administra el calendario. Los puntos D-05 a D-08 siguen como asuntos de integración en esa documentación. Incluyen identidad, propiedad de los datos del trabajo y acceso de S3 al historial y a resultados.
 - **Acceso institucional, revisión de seguridad y despliegue.** Se retoman más adelante. La integración con el repositorio común queda para cuando el sistema llegue al 70 % de avance. Los asuntos de GitHub de la lista anterior son gestión del trabajo y automatización de comprobaciones de los PR.
 - **Seguimiento de la entrega.** Mantener actualizada la demostración, preparar el manual y completar el README, y actualizar la evaluación ISO/IEC 25010. El detalle de cada punto sigue en la lista de referencia.
@@ -76,7 +75,7 @@ La lista anterior y las revisiones fechadas se conservan como referencia. Para e
 | 23 | Dar acceso directo a rúbricas y documentos | Facilitar el acceso al PDF desde el expediente, Mis evaluaciones, Coordinación y Secretaría. Confirmar qué se muestra en Resultados y en Documentos, retirar bloques duplicados y revisar los nombres de descarga al usar el visor. | El nombre al guardar desde el visor depende del navegador y del acceso institucional. |
 | 24 | Mejorar Inicio, navegación y filtros generales | Dar jerarquía a Inicio, facilitar «Volver» y el acceso a consultas, reducir avisos repetidos, simplificar los filtros de Trabajos y ajustar detalles visuales de formularios y listados. | Probar a 360, 768 y 1440 px. Acordar cualquier cambio de la insignia de visibilidad. |
 | 25 | Organizar las entregas y automatizar las comprobaciones | Fijar la fecha de entrega o de la primera sustentación. Crear o actualizar las tareas S4-01 a S4-17, organizar el tablero y configurar GitHub para compilar y probar cada PR. | Paso 5, sección 4.1. |
-| 26 | Mantener la demostración al día | Verificar que la rama `demo/accesos-por-rol` incluya los avances que se mostrarán y que los usuarios de prueba puedan recorrer el flujo previsto. | Instrucciones en `docs/s4/demo-usuarios.md` de la rama `demo/accesos-por-rol`. |
+| 26 | Mantener la demostración al día | Verificar que la rama `demo/accesos-por-rol` incluya los avances que se mostrarán y que los usuarios de prueba puedan recorrer el flujo previsto. | [Usuarios de prueba](demo-usuarios.md). |
 | 27 | Actualizar la documentación de uso e instalación | Preparar un manual breve para docentes y coordinación sobre calificación, cierre, modo sin conexión y PDF. Añadir `s4-asignacion-rubrica-proceso.sql` a la tabla de scripts del README y documentar el cálculo con ejemplos. | Para el redondeo, usar la regla institucional confirmada. |
 | 28 | Actualizar la evaluación de calidad | Registrar los resultados de seguridad, pruebas con usuarios y mediciones en aceptación y actualizar [calidad-iso-25010.md](calidad-iso-25010.md). | Resultados de las pruebas y revisión de seguridad. |
 | 29 | Confirmar si se requieren correos automáticos | Acordar si los avisos por correo entran en el alcance y en qué eventos se enviarían. | Coordinación. |
@@ -373,15 +372,14 @@ Observaciones de Josué al probar el sistema el 16/11/2026. Las notas fechadas d
      - los enlaces antiguos `/rubrica/…` (`PaginaImpresionRubrica.jsx`) siguen yendo a la URL del PDF y en la APK no funcionan. Ningún botón actual lleva ahí.
    - **Nombre al descargar desde el visor:** el servidor ya envía el nombre del estudiante, pero el visor puede proponer otro (ver «Aviso» en el plan del núcleo).
    - **Documentos:** un enlace con trabajo, estudiante y miembro ya no abre la rúbrica solo (el navegador lo bloquearía); deja todo seleccionado para pulsar «Visualizar rúbrica».
-   - Lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…».
+   - Coordinación y Secretaría mantienen el enlace a Documentos para emitir actas y consultar vistas previas. Las rúbricas y las actas archivadas se abren directamente desde sus propios botones.
 
-   **Falta:** lo mismo en Coordinación y Secretaría con «Documentos de Estudiante…», que deben generar y mostrar el PDF directamente.
-2. **La rúbrica en PDF debe poder verse siempre:** vacía si aún no hay notas, y con las notas que existan cuando las haya. Hoy, sin evaluaciones, solo aparece «Sin evaluaciones · SIN_EVALUACION».
-3. **Ver la rúbrica de cada estudiante es lo más importante** y hoy cuesta llegar a ella. Debe estar a un clic desde el expediente y desde Mis evaluaciones.
+2. **Rúbrica PDF antes de calificar.** Al haber una versión de rúbrica fijada y un tribunal confirmado, el PDF muestra la estructura de la rúbrica y los puntajes de las etapas cerradas. Las casillas de las demás etapas aparecen vacías.
+3. **Rúbrica de cada estudiante.** El PDF se abre desde el expediente y desde Mis evaluaciones. Mis evaluaciones muestra el acceso para los puestos devueltos por la asignación de cada estudiante.
 4. **Diferencia entre Resultados y Documentos.** Propuesta, por confirmar:
    - Resultados = notas;
    - Documentos = consulta de los PDF de **un estudiante concreto**.
-5. **Quitar de Resultados (pantalla Consulta) los bloques «Auditoría de cambios» y «Documentos archivados».** Se repiten con Auditoría › Historial de cambios y con Documentos.
+5. **Resultados (pantalla Consulta).** Los bloques de auditoría y documentos archivados se retiraron de esta pantalla. Se consultan desde Auditoría y Documentos.
 6. **Textos de estado** como `SIN_EVALUACION`: mostrarlos legibles («Sin evaluación»).
 
 ### Rúbricas
@@ -461,7 +459,7 @@ Así un cambio de año es solo una versión nueva de la rúbrica. Ver «Si la no
   1. se promedian las notas de los miembros en cada etapa;
   2. cada etapa pesa según su porcentaje;
   3. el resultado se presenta redondeado a 2 decimales.
-- Al cerrar la oral, hoy solo aparece el texto «Evaluación cerrada en PostgreSQL». No se muestra la nota ni se ofrece el PDF.
+- Antes, al cerrar la oral solo aparecía el texto «Evaluación cerrada en PostgreSQL». Ahora se abre el resumen con la nota confirmada, el estado del tribunal y la rúbrica PDF.
 - Todos los PDF se descargan con el nombre `documento.pdf`.
 
 **Propuesta para agilizar** (aprobada por Josué el 16/11/2026, junto con el nombre de los PDF por cédula):
@@ -471,8 +469,8 @@ Así un cambio de año es solo una versión nueva de la rúbrica. Ver «Si la no
    - los botones **Generar mi rúbrica PDF**, **Siguiente estudiante** y **Volver**.
 
    La rúbrica de cada miembro **ya se puede generar en cuanto él cierra**, porque no depende de los demás.
-2. **Cuando cierra el último miembro**, la misma ventana muestra la **nota final** del estudiante y el botón **Generar acta PDF**.
-3. **Estado casi en tiempo real** del otro miembro: la pantalla consulta cada pocos segundos mientras se espera, igual que ya hace la sincronización de borradores cada 20 s. No hace falta tecnología nueva.
+2. **Cuando el servidor confirma el resultado consolidado**, la ventana muestra la **nota final** y abre la sección de Documentos del estudiante. Allí se elige el formato y se genera o reimprime el acta con el permiso correspondiente.
+3. **Actualización del tribunal.** El resumen consulta el expediente cada cinco segundos mientras está abierto y falta el resultado. El usuario puede seguir con el resto de la evaluación.
 4. **Cerrar la escrita antes del día de la defensa.** Es la revisión del documento. Si ya está cerrada, el día de la sustentación solo queda la oral y la nota final sale en cuanto el último miembro termina.
 5. **Lista de lo que falta** para el presidente del tribunal o Secretaría, por ejemplo «Falta: Miembro 2 · oral de Juan Pérez», con avisos dentro del sistema. Los avisos por correo están por confirmar (ver AGENTS.md).
 

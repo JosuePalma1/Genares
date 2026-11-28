@@ -517,3 +517,13 @@
 .rubrica-esquema-resumen.is-completa { color: #1f6b3a; }
 .rubrica-esquema-resumen.is-faltante, .rubrica-esquema-resumen.is-excedida { color: #9a3412; }
 .rubrica-esquema-resumen.is-incompleta { color: var(--text-muted, #617067); font-weight: 400; }
+.rubrica-importacion-revision {
+  margin-block-start: 1rem;
+  padding: .75rem 1rem;
+  border: 1px solid var(--color-border-subtle, #d7e1e7);
+  border-radius: .6rem;
+  overflow-wrap: anywhere;
+}
+.rubrica-importacion-revision p { margin: 0; }
+.rubrica-importacion-revision ul { margin-block: .5rem 0; padding-inline-start: 1.2rem; }
+#rubrica-importar-archivo { max-width: 100%; }

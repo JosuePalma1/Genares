@@ -69,6 +69,32 @@
   color: var(--text-muted, #5f7185);
 }
 
+.dashboard-api-page .inicio-indicador-principal,
+.dashboard-api-page .inicio-indicador-agenda,
+.dashboard-api-page .inicio-indicador-resultados {
+  min-width: 0;
+  border-inline-start: .25rem solid var(--inicio-acento);
+  background: var(--inicio-fondo);
+  color: var(--inicio-acento);
+}
+.inicio-indicador-principal { --inicio-acento: #164775; --inicio-fondo: #e9f2fb; }
+.inicio-indicador-agenda { --inicio-acento: #85470d; --inicio-fondo: #fff4e2; }
+.inicio-indicador-resultados { --inicio-acento: #176453; --inicio-fondo: #e8f6ef; }
+.dashboard-api-page .inicio-indicador-principal strong { font-size: clamp(1.8rem, 3vw, 2.4rem); }
+.inicio-carreras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin: .85rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.inicio-carreras li {
+  padding: .35rem .65rem;
+  border: 1px solid var(--color-border-subtle, #d7e1e7);
+  border-radius: .5rem;
+}
+
 .seguimiento-api-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -100,6 +126,16 @@
 .seguimiento-api-links .button {
   white-space: normal;
 }
+
+.seguimiento-api-estudiante-acciones {
+  display: grid;
+  gap: .4rem;
+  flex-basis: 100%;
+  min-width: 0;
+  padding-top: .5rem;
+  border-top: 1px solid var(--color-border-subtle, #e1e8ee);
+}
+.seguimiento-api-estudiante-acciones .seguimiento-api-links { margin-top: 0; }
 
 .seguimiento-api-table td > strong,
 .seguimiento-api-table td > span,

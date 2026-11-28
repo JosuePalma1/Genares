@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   esRutaInternaGenares,
   obtenerRutaAnteriorInterna,
+  origenConsultaValido,
   puedeAccederRutaInterna,
   registrarRutaInterna,
   resolverNavegacionRetorno,
@@ -16,6 +17,13 @@ function crearAlmacenamiento() {
 }
 
 describe('navegacion de retorno', () => {
+  it('mantiene los filtros del listado y restringe los orígenes de consulta', () => {
+    expect(origenConsultaValido('/trabajos?buscar=Andrea&pagina=2')).toBe('/trabajos?buscar=Andrea&pagina=2');
+    expect(origenConsultaValido('/trabajos/trabajo-184')).toBe('/trabajos/trabajo-184');
+    expect(origenConsultaValido('//example.com/trabajos')).toBeNull();
+    expect(origenConsultaValido('/entrar')).toBeNull();
+    expect(origenConsultaValido('/trabajos/trabajo-184/tribunal')).toBeNull();
+  });
   it('rechaza destinos externos, login y rutas sin formato interno', () => {
     expect(esRutaInternaGenares('/trabajos/trabajo-184')).toBe(true);
     expect(esRutaInternaGenares('/login')).toBe(false);

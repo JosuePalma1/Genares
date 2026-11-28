@@ -7,6 +7,7 @@ const escenario = vi.hoisted(() => ({}));
 
 vi.mock('react-router-dom', () => ({
   Link: ({ to, children, ...props }) => <a href={to} {...props}>{children}</a>,
+  useLocation: () => ({ search: '' }),
   useNavigate: () => vi.fn(),
   useParams: () => ({ idRubrica: 'version-utf8' }),
 }));

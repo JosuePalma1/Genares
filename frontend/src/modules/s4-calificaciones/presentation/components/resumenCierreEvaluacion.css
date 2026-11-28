@@ -1,0 +1,22 @@
+.resumen-cierre-modal .modal-catalogo-campos,
+.resumen-cierre-lista {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: .75rem;
+}
+body:has(.resumen-cierre-modal) > .swal2-container { z-index: 10001; }
+.resumen-cierre-estudiante {
+  min-width: 0;
+  padding: .9rem;
+  border: 1px solid var(--color-border-subtle, #d7e1e7);
+  border-radius: .65rem;
+  overflow-wrap: anywhere;
+}
+.resumen-cierre-estudiante h3,
+.resumen-cierre-estudiante dl { margin: 0 0 .65rem; }
+.resumen-cierre-estudiante dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .65rem; }
+.resumen-cierre-estudiante dt { font-size: .88rem; }
+.resumen-cierre-estudiante dd { margin: .25rem 0 0; font-weight: 700; }
+.resumen-cierre-estudiante ul { margin: 0 0 .75rem; padding-inline-start: 1.25rem; }
+.resumen-cierre-documentos { display: flex; gap: .5rem; flex-wrap: wrap; }
+.resumen-cierre-modal .button { white-space: normal; }

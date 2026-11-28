@@ -48,6 +48,22 @@
   gap: .25rem 1rem;
   margin-block: .75rem 1.25rem;
 }
+.config-numeracion-actas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: .75rem;
+  margin: 0;
+}
+.config-numeracion-actas > div {
+  padding: .85rem 1rem;
+  border: 1px solid var(--border, #d7e1e7);
+  border-radius: .6rem;
+  background: #f6f9fc;
+  overflow-wrap: anywhere;
+}
+.config-numeracion-actas dt { font-weight: 600; }
+.config-numeracion-actas dd { margin: .35rem 0 0; }
+.config-numeracion-actas code { font-size: 1rem; color: #174861; }
 .configuracion-general details {
   margin-block: .5rem;
   padding-inline: .875rem;

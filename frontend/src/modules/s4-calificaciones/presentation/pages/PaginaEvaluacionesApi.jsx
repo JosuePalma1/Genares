@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowRight, Database, FilePen, FileSearch, FileText, LockKeyhole } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../components/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EnlaceConsulta, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../components/interfaz';
 import { adaptarListaTrabajosEvaluacionApi } from '../../infrastructure/repositories/evaluacionesApi';
 import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarValorDiferido } from '../hooks/usarValorDiferido';
@@ -289,11 +289,11 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion, miemb
         <h2 id="evaluaciones-students-title">Resultados individuales</h2>
         <div className="evaluaciones-api-result-links">
           {consolidacion.estudiantes.map(({ estudiante, trabajoId, estado }) => (
-            <Link className="evaluaciones-api-result-link" key={estudiante.id} to={`/resultados/${trabajoId}/${estudiante.id}`}>
+            <EnlaceConsulta className="evaluaciones-api-result-link" key={estudiante.id} to={`/resultados/${trabajoId}/${estudiante.id}`}>
               <span>{nombrePersona(estudiante, 'Estudiante sin nombre registrado')}</span>
               <InsigniaEstado estado={estadoLegible(estado)} />
               <ArrowRight size={16} aria-hidden="true" />
-            </Link>
+            </EnlaceConsulta>
           ))}
         </div>
       </section>
@@ -307,7 +307,6 @@ export function PanelResultadoIndividualApi({ resultado }) {
   const miembros = [...miembrosPorId.values()].sort((a, b) => a.posicion - b.posicion);
   return (
     <>
-      <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación usa la escala de la versión de rúbrica. Esta consulta no modifica el expediente ni crea una nota oficial.</p></AlertaInstitucional>
       <section className="evaluaciones-api-card" aria-labelledby="resultado-estudiante-title">
         <div className="evaluaciones-api-result-header">
           <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{nombrePersona(resultado.estudiante, 'Estudiante sin nombre registrado')}</h2></div>
@@ -330,6 +329,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
         </div>
         <div className="evaluaciones-api-final">
           <span>Resultado consultivo individual · sobre {Number(resultado.resultadoFinal?.calificacionMaxima ?? resultado.versionRubrica.escalaFinal ?? 10)}</span>
+          <small>Calificación de consulta. La nota oficial se registra por el procedimiento institucional.</small>
           {resultado.resultadoFinal ? <strong>{resultado.resultadoFinal.calificacion}</strong> : <strong className="evaluaciones-api-no-final">No disponible · {estadoLegible(resultado.estado)}</strong>}
         </div>
         <p className="evaluaciones-api-exact">Versión {resultado.versionRubrica.version} · {resultado.cantidadEtapasEsperadas} etapas esperadas · {resultado.cantidadEvaluadoresEsperados} evaluadores esperados. La suma de máximos por etapa describe la rúbrica; no es la nota final.</p>
@@ -391,20 +391,21 @@ export function PaginaEvaluacionTrabajoApi() {
 export function PaginaResultadoApi() {
   const { idTrabajo, idEstudiante } = useParams();
   const consulta = usarEvaluacionesTrabajoApi(idTrabajo, { incluirEvaluaciones: false });
+  const volver = <BotonVolver respaldo="/consulta" />;
   if (consulta.estado !== 'listo') return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Resultado individual" description="Resultado consolidado según las evaluaciones registradas." breadcrumbs={['Resultados']} />
+      <EncabezadoPagina title="Resultado individual" breadcrumbs={['Resultados']} actions={volver} />
       <EstadoConsultaEvaluacionesApi estado={consulta.estado} error={consulta.error} alReintentar={() => window.location.reload()} />
     </div>
   );
 
   const { consolidacion } = consulta;
   const resultado = consolidacion.estudiantes.find(({ estudiante }) => estudiante.id.toLowerCase() === idEstudiante?.toLowerCase());
-  if (!resultado) return <div className="evaluaciones-api-page"><EstadoVacio title="Resultado no disponible" description="No existe un resultado para este estudiante en el trabajo seleccionado o su perfil no tiene permiso para consultarlo." /></div>;
+  if (!resultado) return <div className="evaluaciones-api-page"><EstadoVacio title="Resultado no disponible" description="No existe un resultado para este estudiante en el trabajo seleccionado o su perfil no tiene permiso para consultarlo." accion={volver} /></div>;
 
   return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Resultado individual" description={referenciaTrabajo(consolidacion.trabajo)} breadcrumbs={[{ etiqueta: 'Evaluaciones del trabajo', to: `/evaluaciones/${idTrabajo}/escrita` }, 'Resultado individual']} meta={<InsigniaEstado estado={estadoLegible(resultado.estado)} />} />
+      <EncabezadoPagina title="Resultado individual" description={referenciaTrabajo(consolidacion.trabajo)} breadcrumbs={[{ etiqueta: 'Resultados', to: '/consulta' }, 'Resultado individual']} meta={<InsigniaEstado estado={estadoLegible(resultado.estado)} />} actions={volver} />
       <PanelResultadoIndividualApi resultado={resultado} />
     </div>
   );

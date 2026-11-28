@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Activity, Award, BookOpenCheck, CalendarDays, ClipboardCheck, FileClock, FilePen, FileSearch,
-  FileText, History, LayoutDashboard, ListChecks, Lock, Menu, PanelLeft, ShieldCheck, University,
+  FileText, History, House, ListChecks, Lock, Menu, PanelLeft, ShieldCheck, University,
 } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import { iniciales } from '../../domain/flujoTrabajo';
@@ -20,7 +20,7 @@ export const NAVEGACION = [
   {
     etiqueta: 'Operación',
     elementos: [
-      { to: '/dashboard', etiqueta: 'Inicio', icon: LayoutDashboard, end: true },
+      { to: '/dashboard', etiqueta: 'Inicio', icon: House, end: true },
       { to: '/trabajos', etiqueta: 'Trabajos de titulación', icon: FileText },
       { to: '/cronograma', etiqueta: 'Cronograma', icon: CalendarDays, permiso: 'programaciones' },
       { to: '/mis-evaluaciones', etiqueta: 'Mis evaluaciones', icon: ClipboardCheck, activaEn: ['/evaluaciones'] },
@@ -248,6 +248,9 @@ export function EstructuraAplicacion({ children }) {
           >
             <PanelLeft size={20} aria-hidden="true" />
           </button>
+          <NavLink className="topbar-inicio" to="/dashboard" end aria-label="Inicio" title="Inicio">
+            <House size={20} aria-hidden="true" /><span>Inicio</span>
+          </NavLink>
           <div className="topbar-institution">
             <span className="topbar-eyebrow">Portal académico</span>
             <span className="topbar-title">Facultad de Ciencias de la Vida y Tecnologías</span>

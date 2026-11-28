@@ -2,6 +2,7 @@ import { evaluarProgramacion } from '../configuracion/flujo.reglas';
 import { flujoDelProceso, trabajoEn } from '../configuracion/flujo-proceso';
 import { conAlcance, filtroAlcance, hayRestriccionDeAlcance } from '../../../common/api/contexto-alcance';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -91,9 +92,15 @@ const COINCIDE_BUSQUEDA_TRABAJO = `($3::text IS NULL
   OR strpos(${TEXTO_BUSCABLE_TRABAJO}, $3::text) > 0
   OR strpos(lower(COALESCE(c.codigo, '')), $3::text) > 0)`;
 
+const ordenCronograma = (alias: string) => `
+  CASE WHEN $9::text = 'DESC' THEN ${alias}.fecha + ${alias}.hora END DESC,
+  CASE WHEN $9::text <> 'DESC' THEN ${alias}.fecha + ${alias}.hora END ASC,
+  ${alias}.id::text`;
+
 /**
  * Programaciones visibles filtradas y ordenadas en PostgreSQL (fecha, hora, id).
  * $4 estado (COMPLETADA se trata como FINALIZADA) · $5 límite (NULL = todas) · $6 desplazamiento.
+ * $7 y $8 fechas inclusivas · $9 dirección.
  */
 export const CONSULTA_PROGRAMACIONES = `
 WITH trabajos AS (
@@ -102,7 +109,7 @@ WITH trabajos AS (
   ${FILTRO_TRABAJOS_PROGRAMACION}
 ), sesiones AS (
   SELECT ses.id, trabajos."idTrabajo", trabajos.horario, ses.fecha_programada AS fecha,
-    TO_CHAR(ses.hora_programada, 'HH24:MI') AS hora,
+    ses.hora_programada AS hora,
     CASE WHEN ses.estado::text = 'COMPLETADA' THEN 'FINALIZADA' ELSE ses.estado::text END AS estado,
     CASE
       WHEN ses.estado::text IN ('COMPLETADA', 'FINALIZADA') THEN 'FINALIZADA'
@@ -114,7 +121,9 @@ WITH trabajos AS (
     END AS "estadoCronograma"
   FROM trabajos
   JOIN s4.programaciones_sustentacion ses ON ses.id_proceso_evaluacion = trabajos."idProceso" AND ses.estado_registro = 1
-  WHERE trabajos.coincide OR strpos(${normalizarSql('ses.sala')}, $3::text) > 0
+  WHERE (trabajos.coincide OR strpos(${normalizarSql('ses.sala')}, $3::text) > 0)
+    AND ($7::date IS NULL OR ses.fecha_programada >= $7::date)
+    AND ($8::date IS NULL OR ses.fecha_programada <= $8::date)
 ), filtradas AS (
   SELECT * FROM sesiones
   WHERE $4::text IS NULL OR CASE $4::text
@@ -127,9 +136,9 @@ SELECT
   (SELECT count(*)::integer FROM filtradas) AS total,
   COALESCE((SELECT jsonb_agg(jsonb_build_object('id', pagina.id, 'idTrabajo', pagina."idTrabajo",
     'horarioProgramacion', pagina.horario, 'estadoCronograma', pagina."estadoCronograma")
-    ORDER BY pagina.fecha, pagina.hora, pagina.id::text) FROM (
+    ORDER BY ${ordenCronograma('pagina')}) FROM (
       SELECT id, "idTrabajo", horario, "estadoCronograma", fecha, hora
-      FROM filtradas ORDER BY fecha, hora, id::text LIMIT $5 OFFSET $6
+      FROM filtradas ORDER BY ${ordenCronograma('filtradas')} LIMIT $5 OFFSET $6
     ) pagina), '[]'::jsonb) AS filas
 `;
 
@@ -179,6 +188,11 @@ export class ProgramacionesSustentacionService {
    * una página (por defecto del periodo activo); sin él, la lista completa como antes.
    */
   async listar(filtros: ConsultarProgramacionesDto): Promise<Record<string, unknown>> {
+    const desde = filtros.desde === undefined ? null : validarFechaProgramada(filtros.desde);
+    const hasta = filtros.hasta === undefined ? null : validarFechaProgramada(filtros.hasta);
+    if (desde && hasta && desde > hasta) {
+      throw new BadRequestException('La fecha inicial no puede ser posterior a la fecha final.');
+    }
     const paginado = filtros.limite !== undefined;
     const periodoId = paginado ? await this.periodoDelListado(filtros.periodoId) : this.periodoExplicito(filtros.periodoId);
     const { limite, pagina, desplazamiento } = paginado
@@ -188,6 +202,7 @@ export class ProgramacionesSustentacionService {
     const [[{ total, filas }], catalogos] = await Promise.all([
       this.dataSource.query(...conAlcance(CONSULTA_PROGRAMACIONES, [
         filtros.carreraId ?? null, periodoId, normalizarBusqueda(filtros.buscar), estado, limite, desplazamiento,
+        desde, hasta, filtros.orden ?? 'ASC',
       ])) as Promise<Array<{ total: number; filas: Array<{
         id: string; idTrabajo: string; horarioProgramacion?: HorarioProgramacion | null; estadoCronograma: string;
       }> }>>,
@@ -254,6 +269,9 @@ export class ProgramacionesSustentacionService {
         periodoId: this.periodoExplicito(filtros.periodoId),
         estado: filtros.estado === 'COMPLETADA' ? EstadoSustentacion.FINALIZADA : filtros.estado ?? null,
         buscar: filtros.buscar?.trim() || null,
+        desde: filtros.desde ?? null,
+        hasta: filtros.hasta ?? null,
+        orden: filtros.orden ?? 'ASC',
       },
       ...resultado,
     };

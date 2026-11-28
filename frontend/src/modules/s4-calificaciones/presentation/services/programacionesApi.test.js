@@ -10,6 +10,7 @@ import {
   mapearCrearProgramacion,
 } from './programacionesApi';
 import { periodoEfectivoCronograma } from '../pages/PaginaCronograma';
+import { rangoRapidoCronograma } from '../../domain/horarioProgramacion';
 
 const ids = {
   schedule: '11111111-1111-4111-8111-111111111111',
@@ -47,6 +48,26 @@ const filtros = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('servicio API de cronogramas', () => {
+  it('usa fechas inclusivas para hoy, mañana y la semana institucional', () => {
+    expect(rangoRapidoCronograma('HOY', '2026-11-27')).toEqual({ desde: '2026-11-27', hasta: '2026-11-27' });
+    expect(rangoRapidoCronograma('MANANA', '2026-12-31')).toEqual({ desde: '2027-01-01', hasta: '2027-01-01' });
+    expect(rangoRapidoCronograma('SEMANA', '2026-11-29')).toEqual({ desde: '2026-11-23', hasta: '2026-11-29' });
+    expect(rangoRapidoCronograma('SEMANA', '2026-11-30')).toEqual({ desde: '2026-11-30', hasta: '2026-12-06' });
+    expect(rangoRapidoCronograma('')).toEqual({});
+  });
+
+  it('envía el mismo rango y orden a la página y a impresión', async () => {
+    const seleccion = { desde: '2026-11-23', hasta: '2026-11-29', orden: 'DESC' };
+    const getJson = vi.fn()
+      .mockResolvedValueOnce({ elementos: [programacion], filtros, periodoAplicado: null, paginacion: { pagina: 1, limite: 25, total: 1, paginas: 1 } })
+      .mockResolvedValueOnce({ generadoEn: '2026-11-27T12:00:00.000Z', elementos: [programacion], filtros });
+    const servicio = crearServicioProgramacionesApi({ getJson });
+    await servicio.listarPagina(seleccion);
+    await servicio.impresion(seleccion);
+    for (const [url] of getJson.mock.calls) {
+      expect(Object.fromEntries(new URLSearchParams(url.split('?')[1]))).toMatchObject(seleccion);
+    }
+  });
   it('envía solo los datos del cruce y la sesión a excluir al reprogramar', async () => {
     const cliente = { postJson: vi.fn().mockResolvedValue({ disponible: false }) };
     const servicio = crearServicioProgramacionesApi(cliente);

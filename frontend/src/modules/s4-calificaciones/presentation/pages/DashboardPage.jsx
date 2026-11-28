@@ -150,10 +150,9 @@ function DashboardPrototipo() {
     <div className="dashboard-page">
       <EncabezadoPagina
         className="dashboard-page-header"
-        eyebrow="Resumen operativo"
-        title="Resumen operativo"
+        title="Inicio"
         description="Seguimiento del proceso académico de titulación."
-        breadcrumbs={[{ etiqueta: 'Inicio' }, { etiqueta: 'Dashboard' }]}
+        breadcrumbs={[{ etiqueta: 'Inicio' }]}
         actions={(
           <div className="header-actions">
             <Link className="button button-outline" to="/consulta">Consultar historial</Link>

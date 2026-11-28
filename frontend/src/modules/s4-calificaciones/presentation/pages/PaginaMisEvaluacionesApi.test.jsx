@@ -80,6 +80,21 @@ describe('Mis evaluaciones paginadas en el servidor', () => {
     expect(html).not.toContain(`/resultados/${trabajo.id}/${idBina}`);
   });
 
+  it('ofrece la rúbrica del puesto asignado antes de calificar', () => {
+    const asignado = { ...trabajo.miembrosTribunal[0], posicion: 1 };
+    const otro = { idMiembroTribunal: '33000000-0000-4000-8000-000000000002', posicion: 2, nombres: 'Jurado', apellidos: 'Dos' };
+    usarPaginaTrabajosApi.mockReturnValue({ estado: 'listo', filtros, trabajos: [{
+      ...trabajo, idVersionRubrica: idEscrita, estadoTribunal: 'CONFIRMADO', miembrosTribunal: [asignado, otro],
+      resumenEvaluaciones: { ...trabajo.resumenEvaluaciones, etapas: [
+        { ...trabajo.resumenEvaluaciones.etapas[0], estado: 'PENDIENTE', idEvaluador: asignado.idMiembroTribunal },
+        { ...trabajo.resumenEvaluaciones.etapas[1], estado: 'NO_ASIGNADA', idEvaluador: null },
+      ] },
+    }] });
+    const html = render();
+    expect(html).toContain('Ver rúbrica PDF de Andrea Vera · Jurado Uno');
+    expect(html).not.toContain('Ver rúbrica PDF de Andrea Vera · Jurado Dos');
+  });
+
   it('muestra el paginador con varias páginas y el error recuperable sin estado vacío', () => {
     usarPaginaTrabajosApi.mockReturnValue({
       estado: 'listo', actualizando: false, trabajos: [trabajo], error: null, recargar: vi.fn(), filtros,

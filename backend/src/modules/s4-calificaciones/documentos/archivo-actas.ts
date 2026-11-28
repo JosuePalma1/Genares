@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { EntityManager } from 'typeorm';
 import { createHash } from 'node:crypto';
-import { notaAprobada } from './reglas-acta';
+import { carreraValidaParaActa, notaAprobada, numeroActa, periodoValidoParaActa } from './reglas-acta';
 import { PLANTILLAS } from './plantillas-institucionales';
 
 /** Archiva una copia interna y su resultado; notas y umbral proceden siempre del servidor. */
@@ -10,7 +10,7 @@ export async function archivarActaEn(manager: EntityManager, datos: {
   periodo: string; carreraCodigo: string; formato: keyof typeof PLANTILLAS; actor: string;
   notaFinal: string; notaMinimaAplicada: string; escala?: number; aprobado: boolean;
 }, render: (numero: string) => Promise<Buffer>) {
-  if (!/^\d{4}-[12]$/.test(datos.periodo) || !['TI', 'SOFT'].includes(datos.carreraCodigo)) {
+  if (!periodoValidoParaActa(datos.periodo) || !carreraValidaParaActa(datos.carreraCodigo)) {
     throw new Error('Carrera o período sin correspondencia institucional validada.');
   }
   const escala = datos.escala ?? 10;
@@ -45,7 +45,7 @@ export async function archivarActaEn(manager: EntityManager, datos: {
   const [contador] = await manager.query(`INSERT INTO s4.consecutivos_acta(id_carrera,periodo,ultimo)
     VALUES ($1,$2,1) ON CONFLICT(id_carrera,periodo)
     DO UPDATE SET ultimo=consecutivos_acta.ultimo+1 RETURNING ultimo`, [datos.carreraId, datos.periodo]);
-  const numero = `${String(contador.ultimo).padStart(3, '0')}-${datos.periodo}-${datos.carreraCodigo}`;
+  const numero = numeroActa(contador.ultimo, datos.periodo, datos.carreraCodigo);
   const pdf = await render(numero);
   const sha256 = createHash('sha256').update(pdf).digest('hex');
   const [acta] = await manager.query(`INSERT INTO s4.actas_archivadas

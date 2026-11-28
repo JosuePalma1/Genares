@@ -80,10 +80,20 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain('Sesiones');
   });
 
+  it('carga los filtros y la página desde la URL y conserva ese origen al abrir el expediente', () => {
+    const ruta = '/trabajos?buscar=Andrea&periodo=TODOS&carrera=TI&pagina=2';
+    const html = renderToStaticMarkup(<MemoryRouter initialEntries={[ruta]}><PaginaTrabajosApi /></MemoryRouter>);
+    expect(usarPaginaTrabajosApi).toHaveBeenCalledWith({ pagina: 2, limite: 25, periodo: 'TODOS', buscar: 'Andrea', carrera: 'TI' });
+    expect(html).toContain('Más filtros');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain(encodeURIComponent(ruta).replaceAll('%20', '+'));
+    expect(html).not.toContain('Alcance institucional');
+  });
+
   it('pide al servidor la primera página del período actual', () => {
     const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
     expect(usarPaginaTrabajosApi).toHaveBeenCalledWith({ pagina: 1, limite: 25 });
-    expect(html).toContain('1 trabajo(s)');
+    expect(html).toContain('1 trabajo</span>');
     expect(html).toContain('<option value="2026-2" selected="">2026-2 (actual)</option>');
     expect(html).toContain('<option value="TODOS">Todos</option>');
     expect(html).not.toContain('Páginas de trabajos');
@@ -94,7 +104,7 @@ describe('recorrido API de trabajos', () => {
     const html = renderToStaticMarkup(<MemoryRouter><PaginaTrabajosApi /></MemoryRouter>);
     expect(html).toContain('aria-label="Páginas de trabajos"');
     expect(html).toContain('26–50 de 60');
-    expect(html).toContain('60 trabajo(s)');
+    expect(html).toContain('60 trabajos</span>');
   });
 
   it('busca evaluadores y filtra por existencia de tribunal', () => {
@@ -124,6 +134,7 @@ describe('recorrido API de trabajos', () => {
     expect(html).toContain(`/resultados/${trabajoId}/${estudianteId}`);
     expect(html).toContain(`/documentos?trabajoId=${trabajoId}`);
     expect(html).toContain('Jurado Uno');
+    expect(html).toContain('Ver rúbrica PDF de Andrea Vera · Jurado Uno');
     expect(html).toContain('No hay tutor registrado.');
   });
 

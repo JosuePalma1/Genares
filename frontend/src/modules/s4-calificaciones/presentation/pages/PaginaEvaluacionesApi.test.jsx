@@ -153,7 +153,7 @@ describe('presentación de consulta API de evaluaciones', () => {
     const markup = html(createElement(PanelResultadoIndividualApi, { resultado }));
     expect(markup).toContain('0.00');
     expect(markup).toContain('Resultado consultivo');
-    expect(markup).toContain('ni crea una nota oficial');
+    expect(markup).toContain('La nota oficial se registra por el procedimiento institucional.');
     expect(markup).not.toContain('Aprobado');
   });
 

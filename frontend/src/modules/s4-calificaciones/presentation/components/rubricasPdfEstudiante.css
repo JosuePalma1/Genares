@@ -1,0 +1,13 @@
+.rubricas-pdf-estudiante {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  min-width: 0;
+}
+.rubricas-pdf-estudiante .button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+.rubricas-pdf-estudiante svg { flex-shrink: 0; }
