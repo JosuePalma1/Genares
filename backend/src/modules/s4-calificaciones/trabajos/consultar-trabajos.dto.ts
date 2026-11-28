@@ -5,6 +5,15 @@ import { IsIn, IsOptional, IsString, Matches, MaxLength } from 'class-validator'
  * completa que usan cronograma, seguimiento y documentos.
  */
 export class ConsultarTrabajosDto {
+  @IsOptional() @IsIn(['mis-evaluaciones'])
+  vista?: 'mis-evaluaciones';
+
+  @IsOptional() @IsIn(['ESCRITA', 'ORAL'])
+  etapaEvaluacion?: 'ESCRITA' | 'ORAL';
+
+  @IsOptional() @IsIn(['PENDIENTE', 'BORRADOR', 'CERRADA'])
+  estadoEvaluacion?: 'PENDIENTE' | 'BORRADOR' | 'CERRADA';
+
   @IsOptional() @Matches(/^\d{1,3}$/)
   limite?: string;
 

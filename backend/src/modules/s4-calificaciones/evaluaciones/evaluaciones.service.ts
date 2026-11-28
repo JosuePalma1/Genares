@@ -144,8 +144,9 @@ export class EvaluacionesService {
   async consolidarTrabajo(trabajoId: string, actorId: string, puedeConsultarDemostracion = false): Promise<Record<string, unknown>> {
     const datos = await this.datosDocumentales(trabajoId, actorId, puedeConsultarDemostracion);
     const trabajo = { id: trabajoId, codigo: datos.trabajo.codigo, titulo: datos.trabajo.titulo };
-    const versionRubrica = { id: datos.rubrica.rubricVersionId, version: datos.rubrica.version, escalaFinal: datos.rubrica.escalaFinal ?? 10 };
-    const evaluadoresEsperados = datos.evaluadores.map(({ id, posicion }) => ({ idMiembroTribunal: id, posicion }));
+    const versionRubrica = { id: datos.rubrica.rubricVersionId, version: datos.rubrica.version,
+      nombre: datos.rubrica.rubricName, escalaFinal: datos.rubrica.escalaFinal ?? 10 };
+    const evaluadoresEsperados = datos.evaluadores.map(({ id, ...miembro }) => ({ idMiembroTribunal: id, ...miembro }));
     return {
       tipo: 'CONSOLIDACION_INDIVIDUAL_DINAMICA', trabajoId, trabajo, versionRubrica,
       estudiantes: datos.consolidacion.estudiantes.map((resultado) => ({

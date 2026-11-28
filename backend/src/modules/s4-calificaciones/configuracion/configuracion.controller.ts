@@ -15,6 +15,10 @@ import {
 } from '@nestjs/common';
 import { notaAprobada, notaMinimaEnEscala } from '../documentos/reglas-acta';
 import { racionalDesdeDecimal, publicarRacional } from '../evaluaciones/reglas-consolidacion';
+import {
+  HorarioProgramacion,
+  validarConfiguracionHorario,
+} from '../sustentaciones/reglas-programacion-sustentacion';
 import { DataSource } from 'typeorm';
 import { actorValidadoDe, SolicitudConIdentidad } from '../../../common/api/identidad-api';
 import { RequiereCapacidades } from '../../../common/api/metadatos-api';
@@ -50,9 +54,17 @@ export class ConfiguracionGeneralController {
         periodo: string | null;
         redondeo: string;
         umbral: string | null;
+        horarioProgramacion: HorarioProgramacion | null;
+        admiteHorarioProgramacion: boolean;
       }>
     >(
-      'SELECT COALESCE((to_jsonb(f)->>\'oral_sin_sesion\')::boolean,false) AS "oralSinSesion",version,pasos,carrera,modalidad,periodo,redondeo,umbral::text,publicado_en,publicado_por,COALESCE((to_jsonb(f)->>\'evidencia_correccion\')::boolean,true) AS "evidenciaCorreccion",(to_jsonb(f)->>\'dias_correccion\')::int AS "diasCorreccion" FROM s4.version_flujo f ORDER BY version DESC',
+      `SELECT COALESCE((to_jsonb(f)->>'oral_sin_sesion')::boolean,false) AS "oralSinSesion",
+        to_jsonb(f)->'horario_programacion' AS "horarioProgramacion",
+        to_jsonb(f) ? 'horario_programacion' AS "admiteHorarioProgramacion",
+        version,pasos,carrera,modalidad,periodo,redondeo,umbral::text,publicado_en,publicado_por,
+        COALESCE((to_jsonb(f)->>'evidencia_correccion')::boolean,true) AS "evidenciaCorreccion",
+        (to_jsonb(f)->>'dias_correccion')::int AS "diasCorreccion"
+        FROM s4.version_flujo f ORDER BY version DESC`,
     );
     const actual = versiones[0];
     const [carreras, modalidades, periodos] = await Promise.all([
@@ -150,13 +162,44 @@ export class ConfiguracionGeneralController {
     )
       throw new ForbiddenException('La publicación global requiere administración transversal.');
     validarFlujo(dto.pasos);
+    if (dto.horarioProgramacion) validarConfiguracionHorario(dto.horarioProgramacion);
+    const limiteSimultaneas = dto.horarioProgramacion?.limiteSimultaneas;
+    if (limiteSimultaneas !== undefined && (dto.modalidad || dto.periodo)) {
+      throw new BadRequestException('El límite simultáneo se configura para todas las carreras o para una carrera completa.');
+    }
     return this.db.transaction(async (m) => {
       await m.query('SELECT pg_advisory_xact_lock(73940211)');
-      const [actual] = await m.query('SELECT max(version) AS version FROM s4.version_flujo');
+      const [actual] = await m.query(
+        `SELECT max(version) AS version,
+          bool_or(to_jsonb(f) ? 'horario_programacion') AS "admiteHorarioProgramacion"
+          FROM s4.version_flujo f`,
+      );
       if (actual.version !== dto.version)
         throw new ConflictException('Hay otra versión publicada. Vuelve a consultar antes de publicar.');
+      if (dto.horarioProgramacion && !actual.admiteHorarioProgramacion)
+        throw new ConflictException('Para guardar el horario, instala el script s4-horario-programacion.sql.');
+      const [anterior] = !actual.admiteHorarioProgramacion ? [] : await m.query(
+        `SELECT to_jsonb(f)->'horario_programacion' AS horario FROM s4.version_flujo f
+         WHERE carrera IS NOT DISTINCT FROM $1::uuid AND modalidad IS NOT DISTINCT FROM $2::uuid
+           AND periodo IS NOT DISTINCT FROM $3::uuid ORDER BY version DESC LIMIT 1`,
+        [dto.carrera ?? null, dto.modalidad ?? null, dto.periodo ?? null],
+      );
+      const horario = dto.horarioProgramacion
+        ? {
+            ...anterior?.horario,
+            bloquearFechasPasadas: dto.horarioProgramacion.bloquearFechasPasadas,
+            horaMinima: dto.horarioProgramacion.horaMinima,
+            horaMaxima: dto.horarioProgramacion.horaMaxima,
+            ...(limiteSimultaneas === undefined ? {} : { limiteSimultaneas }),
+          }
+        : anterior?.horario ?? null;
       await m.query(
-        'INSERT INTO s4.version_flujo(version,pasos,publicado_por,carrera,modalidad,periodo,redondeo,umbral,evidencia_correccion,dias_correccion,oral_sin_sesion) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
+        `INSERT INTO s4.version_flujo(
+          version,pasos,publicado_por,carrera,modalidad,periodo,redondeo,umbral,
+          evidencia_correccion,dias_correccion,oral_sin_sesion
+          ${actual.admiteHorarioProgramacion ? ',horario_programacion' : ''}
+        ) VALUES ($1,$2::jsonb,$3,$4,$5,$6,$7,$8,$9,$10,$11
+          ${actual.admiteHorarioProgramacion ? ',$12::jsonb' : ''})`,
         [
           dto.version + 1,
           JSON.stringify(dto.pasos),
@@ -167,6 +210,7 @@ export class ConfiguracionGeneralController {
           dto.redondeo ?? 'HALF_UP',
           dto.umbral ?? null,
           dto.evidenciaCorreccion ?? true, dto.diasCorreccion ?? null, dto.oralSinSesion ?? false,
+          ...(actual.admiteHorarioProgramacion ? [JSON.stringify(horario)] : []),
         ],
       );
       return { version: dto.version + 1 };

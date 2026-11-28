@@ -4,7 +4,8 @@ import {
   ArrowRight, BookOpenCheck, CalendarClock, Check, CheckCircle2, FileClock, FileSearch, GraduationCap,
   RefreshCw, UserRound, UsersRound,
 } from 'lucide-react';
-import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
+import { AlertaInstitucional, BotonVolver, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
+import { codigoVisibleTrabajo, estadoAcademicoLegible, referenciaTrabajo } from '../../domain/etiquetasAcademicas';
 import { usarPaginaTrabajosApi, usarTrabajoApi } from '../hooks/usarTrabajosApi';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { getJsonApi, postJsonApi, ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
@@ -28,7 +29,7 @@ const ETIQUETAS_ESTADO = Object.freeze({
 });
 
 function estadoLegible(estado) {
-  return ETIQUETAS_ESTADO[estado] ?? estado ?? 'Sin estado registrado';
+  return ETIQUETAS_ESTADO[estado] ?? estadoAcademicoLegible(estado);
 }
 
 function nombre(persona) {
@@ -155,7 +156,7 @@ function datosProgreso(trabajo, consultaEvaluaciones) {
         if (trabajo.estadoTribunal === 'BORRADOR' || estadoActual === 'TRIBUNAL_ASIGNADO') {
           return { detalle: trabajo.estadoTribunal === 'BORRADOR' ? 'Pendiente de confirmación' : 'Estado actual del trabajo', actual: true };
         }
-        return { detalle: trabajo.estadoTribunal ?? 'Sin estado de tribunal registrado' };
+        return { detalle: estadoAcademicoLegible(trabajo.estadoTribunal, 'Sin estado de tribunal registrado') };
       case 'revision-pendiente':
         return estadoActual === 'REVISION_ESCRITA_PENDIENTE'
           ? { detalle: `Estado actual: ${estadoLegible(estadoActual)}`, actual: true }
@@ -489,9 +490,10 @@ export function PaginaTrabajosApi() {
             {filas.map((trabajo) => {
               const tutor = trabajo.tutores.find(({ finalizadoEn }) => finalizadoEn === null);
               const progreso = progresoVerificadoTrabajo(trabajo);
+              const codigo = codigoVisibleTrabajo(trabajo.codigo);
               return (
                 <article className="trabajo-list-card" key={trabajo.id}>
-                  <header><div className="trabajo-list-code"><GraduationCap size={17} /><span>{trabajo.codigo}</span></div><div><InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></div></header>
+                  <header>{codigo && <div className="trabajo-list-code"><GraduationCap size={17} /><span>{codigo}</span></div>}<div><InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></div></header>
                   <div className="trabajo-list-main"><h3>{trabajo.titulo}</h3><div className="trabajo-list-tags"><span>{trabajo.modalidad}</span><span>{trabajo.carrera}</span><span>{trabajo.periodo}</span></div></div>
                   <div className="trabajo-list-people">
                     <div><span className="trabajo-list-label"><UsersRound size={16} /> Estudiantes</span><strong>{trabajo.estudiantes.map(nombre).join(' / ') || 'Sin estudiantes asociados'}</strong></div>
@@ -520,7 +522,8 @@ export function PaginaTrabajosApi() {
 
 function relacionRubrica(trabajo) {
   if (!trabajo.idVersionRubrica) return 'No hay una versión fijada en el registro.';
-  return `${trabajo.rubrica ?? 'Rúbrica sin nombre'} · ${trabajo.versionRubrica ?? 'versión no indicada'}${trabajo.estadoVersionRubrica ? ` · ${trabajo.estadoVersionRubrica}` : ''}`;
+  return [trabajo.rubrica ?? 'Rúbrica sin nombre', trabajo.versionRubrica ?? 'Versión no indicada',
+    trabajo.estadoVersionRubrica && estadoAcademicoLegible(trabajo.estadoVersionRubrica)].filter(Boolean).join(' · ');
 }
 
 export function PaginaDetalleTrabajoApi() {
@@ -557,8 +560,8 @@ export function PaginaDetalleTrabajoApi() {
     <div className="pagina-detalle-trabajo trabajo-detail-page">
       <EncabezadoPagina
         eyebrow="Expediente académico"
-        title={trabajo.codigo}
-        description={trabajo.titulo}
+        title={trabajo.titulo}
+        description={codigoVisibleTrabajo(trabajo.codigo) || undefined}
         breadcrumbs={[{ etiqueta: 'Inicio', to: '/dashboard' }, { etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: 'Detalle' }]}
         meta={<div className="trabajo-detail-statuses"><InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /><InsigniaEstado tono={trabajo.estado === 'FINALIZADO' ? 'success' : 'info'}>{estadoLegible(trabajo.estado)}</InsigniaEstado></div>}
         actions={(
@@ -577,9 +580,9 @@ export function PaginaDetalleTrabajoApi() {
 
       <section className="trabajo-kpi-grid" aria-label="Resumen del expediente">
         <article><UsersRound size={20} /><span>Estudiantes</span><strong>{trabajo.estudiantes.length}</strong><small>Asociados al trabajo</small></article>
-        <article><UsersRound size={20} /><span>Tribunal confirmado</span><strong>{trabajo.miembrosTribunal.length}</strong><small>{trabajo.estadoTribunal ?? 'Sin asignación activa'}</small></article>
-        <article><BookOpenCheck size={20} /><span>Versión de rúbrica</span><strong>{trabajo.idVersionRubrica ? trabajo.versionRubrica : 'Sin fijar'}</strong><small>{trabajo.estadoVersionRubrica ?? 'Sin versión asociada'}</small></article>
-        <article><CalendarClock size={20} /><span>Sustentación</span><strong>{trabajo.programacion ? trabajo.programacion.estado : 'Sin programación'}</strong><small>{trabajo.programacion ? `${trabajo.programacion.fechaProgramada} · ${trabajo.programacion.horaProgramada}` : 'No hay registro asociado'}</small></article>
+        <article><UsersRound size={20} /><span>Tribunal confirmado</span><strong>{trabajo.miembrosTribunal.length}</strong><small>{estadoAcademicoLegible(trabajo.estadoTribunal, 'Sin asignación activa')}</small></article>
+        <article><BookOpenCheck size={20} /><span>Versión de rúbrica</span><strong>{trabajo.idVersionRubrica ? trabajo.versionRubrica : 'Sin fijar'}</strong><small>{estadoAcademicoLegible(trabajo.estadoVersionRubrica, 'Sin versión asociada')}</small></article>
+        <article><CalendarClock size={20} /><span>Sustentación</span><strong>{estadoAcademicoLegible(trabajo.programacion?.estado, 'Sin programación')}</strong><small>{trabajo.programacion ? `${trabajo.programacion.fechaProgramada} · ${trabajo.programacion.horaProgramada}` : 'No hay registro asociado'}</small></article>
       </section>
 
       <div className="trabajo-detail-columns">
@@ -619,7 +622,7 @@ export function PaginaDetalleTrabajoApi() {
       <AvanceTrabajoApi trabajo={trabajo} consultaEvaluaciones={consultaEvaluaciones} />
 
       <section className="trabajo-tribunal-panel" aria-labelledby="trabajo-api-tribunal">
-        <header><div><span className="section-kicker">Relación de tribunal</span><h2 id="trabajo-api-tribunal">Miembros confirmados</h2><p>{trabajo.estadoTribunal ? `Estado registrado: ${trabajo.estadoTribunal}` : 'No existe una asignación activa registrada.'}</p></div><Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/tribunal`}>Ver detalle del tribunal</Link></header>
+        <header><div><span className="section-kicker">Relación de tribunal</span><h2 id="trabajo-api-tribunal">Miembros confirmados</h2><p>{trabajo.estadoTribunal ? estadoAcademicoLegible(trabajo.estadoTribunal) : 'No existe una asignación activa registrada.'}</p></div><Link className="button button-sm button-outline" to={`/trabajos/${trabajo.id}/tribunal`}>Ver detalle del tribunal</Link></header>
         {trabajo.miembrosTribunal.length ? (
           <div className="trabajo-evaluator-grid">{trabajo.miembrosTribunal.map((miembro) => <article key={miembro.idMiembroTribunal}><div className="trabajo-evaluator-heading"><span className="trabajo-evaluator-index">{String(miembro.posicion).padStart(2, '0')}</span><div><small>Miembro del tribunal</small><strong>{nombre(miembro)}</strong></div></div><InsigniaEstado tono="success">Confirmado</InsigniaEstado></article>)}</div>
         ) : (
@@ -631,7 +634,7 @@ export function PaginaDetalleTrabajoApi() {
         <header><div><span className="section-kicker">Cronograma</span><h2 id="trabajo-api-programacion">Programación de sustentación</h2></div><CalendarClock size={22} aria-hidden="true" /></header>
         {trabajo.programacion ? (
           <dl className="trabajo-detail-list">
-            <div><dt>Estado</dt><dd>{trabajo.programacion.estado}</dd></div><div><dt>Fecha y hora</dt><dd>{trabajo.programacion.fechaProgramada} · {trabajo.programacion.horaProgramada}</dd></div>
+            <div><dt>Estado</dt><dd>{estadoAcademicoLegible(trabajo.programacion.estado)}</dd></div><div><dt>Fecha y hora</dt><dd>{trabajo.programacion.fechaProgramada} · {trabajo.programacion.horaProgramada}</dd></div>
             <div><dt>Sala</dt><dd>{trabajo.programacion.sala}</dd></div><div><dt>Duración estimada</dt><dd>{trabajo.programacion.duracionEstimadaMinutos} minutos</dd></div>
           </dl>
         ) : (
@@ -663,7 +666,7 @@ export function PaginaDetalleTrabajoApi() {
           <header><div><span className="section-kicker">Consulta desde Evaluaciones</span><h2 id="trabajo-api-evaluaciones">Etapas y resultados</h2></div><BookOpenCheck size={22} aria-hidden="true" /></header>
           <p className="trabajo-api-description">Los estados, pendientes y calificaciones corresponden a las evaluaciones registradas.</p>
           {(consultaEvaluaciones.consolidacion.estudiantes[0]?.etapas ?? []).map((etapa) => (
-            <div className="trabajo-api-stage" key={etapa.id}><strong>{etapa.orden}. {etapa.nombre}</strong><span>{etapa.alcance} · {etapa.estado}</span></div>
+            <div className="trabajo-api-stage" key={etapa.id}><strong>{etapa.orden}. {etapa.nombre}</strong><span>{etiquetaAlcanceEtapa(etapa.alcance)} · {estadoAcademicoLegible(etapa.estado)}</span></div>
           ))}
           <div className="trabajo-api-actions">
             <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}>Abrir evaluaciones escritas</Link>
@@ -695,12 +698,12 @@ export function PaginaTribunalTrabajoApi() {
   const { trabajo } = consulta;
   return (
     <div className="trabajo-detail-page">
-      <EncabezadoPagina title="Tribunal del trabajo" description={`${trabajo.codigo} · ${trabajo.titulo}`} breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: trabajo.codigo, to: `/trabajos/${trabajo.id}` }, 'Tribunal']} actions={<BotonVolver respaldo={`/trabajos/${trabajo.id}`} />} />
+      <EncabezadoPagina title="Tribunal del trabajo" description={referenciaTrabajo(trabajo)} breadcrumbs={[{ etiqueta: 'Trabajos', to: '/trabajos' }, { etiqueta: trabajo.titulo, to: `/trabajos/${trabajo.id}` }, 'Tribunal']} actions={<BotonVolver respaldo={`/trabajos/${trabajo.id}`} />} />
       <AlertaInstitucional titulo="Consulta de asignación">
         GENARES muestra la relación recibida del sistema responsable. La conformación y confirmación institucional del tribunal corresponde al sistema responsable; esta pantalla no modifica asignaciones.
       </AlertaInstitucional>
       <section className="trabajo-tribunal-panel">
-        <header><div><span className="section-kicker">{trabajo.codigo}</span><h2>Estado de la asignación: {trabajo.estadoTribunal ?? 'Sin registro activo'}</h2></div></header>
+        <header><div><h2>Asignación del tribunal</h2><p>{estadoAcademicoLegible(trabajo.estadoTribunal, 'Sin registro activo')}</p></div></header>
         {trabajo.miembrosTribunal.length ? <div className="trabajo-evaluator-grid">{trabajo.miembrosTribunal.map((miembro) => <article key={miembro.idMiembroTribunal}><div className="trabajo-evaluator-heading"><span className="trabajo-evaluator-index">{String(miembro.posicion).padStart(2, '0')}</span><div><small>Miembro confirmado</small><strong>{nombre(miembro)}</strong></div></div><InsigniaEstado tono="success">Confirmado</InsigniaEstado></article>)}</div>
           : <EstadoVacio title="No hay miembros confirmados" description={trabajo.estadoTribunal === 'BORRADOR' ? 'Existe una propuesta, pero no está confirmada.' : 'No hay un tribunal confirmado para este trabajo.'} />}
         <p>Fecha de confirmación: {trabajo.tribunalConfirmadoEn ? new Date(trabajo.tribunalConfirmadoEn).toLocaleString('es-EC') : 'No registrada'}</p>

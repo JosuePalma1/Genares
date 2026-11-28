@@ -11,6 +11,7 @@ import { detallarConsolidacionMer, validarPuntajesBorrador, validarPuntajesCierr
 import { establecerActorAuditoria } from '../../auditoria/contexto-auditoria';
 import { ESTADO_CALCULADO_TRABAJO } from '../../trabajos/trabajos.service';
 import { accesoPorAlcance, alcanceActual, conAlcance, hayRestriccionDeAlcance, identidadActual } from '../../../../common/api/contexto-alcance';
+import { puedeGuardarBorradoresMer } from './permisos-evaluacion-mer';
 
 interface IdentidadProceso {
   porcentajeAprobacion?: string;
@@ -264,10 +265,7 @@ export class EvaluacionesMerService {
     // Usuarios con ámbito: guardan o cierran solo si su rol lo permite (el servidor lo vuelve a exigir).
     const identidad = identidadActual();
     const restringido = hayRestriccionDeAlcance();
-    const puedeGuardarBorradores = process.env.NODE_ENV === 'development'
-      && process.env.LOCAL_DEV_OPEN_ACCESS === 'true'
-      && process.env.DB_NAME === 'genares_integrado_dev'
-      && (!restringido || Boolean(identidad?.capacidades.includes('integracion:guardar-borrador')));
+    const puedeGuardarBorradores = puedeGuardarBorradoresMer();
     const puedeCerrarPorRol = !restringido || Boolean(identidad?.capacidades.includes('integracion:cerrar-evaluacion'));
     // El cálculo usa todo el tribunal; el selector solo ofrece al propio evaluador si es tribunal (RN-24).
     const idsEvaluadores = evaluadores.map(({ id }) => id);

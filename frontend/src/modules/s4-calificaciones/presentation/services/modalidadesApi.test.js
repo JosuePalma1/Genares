@@ -33,6 +33,14 @@ describe('contratos HTTP de modalidades', () => {
     await expect(cargarModalidadApi('not-uuid', { solicitarJson })).rejects.toThrow(/modalidad válida/);
   });
 
+  it('abre el detalle de una modalidad con UUID de PostgreSQL que no es v4', async () => {
+    const idPostgres = '80000000-0000-0000-0000-000000000001';
+    const solicitarJson = vi.fn().mockResolvedValue({ ...dto, id: idPostgres });
+    const signal = new AbortController().signal;
+    await expect(cargarModalidadApi(idPostgres, { signal, solicitarJson })).resolves.toMatchObject({ id: idPostgres });
+    expect(solicitarJson).toHaveBeenCalledWith(`/modalidades/${idPostgres}`, { signal });
+  });
+
   it('envía crear, PUT completo y PATCH con revisión sin credenciales de identidad', async () => {
     const solicitarJson = vi.fn().mockResolvedValue(dto);
     await crearModalidadApi({ codigo: ' PI ', nombre: ' Proyecto ', estaActivo: true }, { solicitarJson });

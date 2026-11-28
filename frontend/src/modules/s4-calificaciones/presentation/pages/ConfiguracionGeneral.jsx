@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { getJsonApi, postJsonApi, putJsonApi } from '../services/clienteHttp';
 import { EncabezadoPagina } from '../components/interfaz';
 import { DialogoGenares } from '../components/dialogos';
+import { HORARIO_PROGRAMACION_PREDETERMINADO } from '../../domain/horarioProgramacion';
 
 const legible = (v) => v.replaceAll('_', ' ').toLowerCase();
 function Seleccion({ opciones, valor, cambiar, titulo }) {
@@ -124,7 +125,18 @@ export default function ConfiguracionGeneral() {
   const [pasos, setPasos] = useState([]);
   const [ambito, setAmbito] = useState({});
   const [base, setBase] = useState(1);
+  const [limiteEditado, setLimiteEditado] = useState(undefined);
+  const puedeFijarCupo = config?.admiteHorarioProgramacion && !ambito.modalidad && !ambito.periodo;
+  const limiteVigente = (carrera) => config?.versiones.find((v) =>
+    (v.carrera ?? null) === (carrera ?? null) && !v.modalidad && !v.periodo
+    && v.horarioProgramacion && Object.hasOwn(v.horarioProgramacion, 'limiteSimultaneas')
+  )?.horarioProgramacion.limiteSimultaneas;
+  const limiteGeneral = limiteVigente(null) ?? 2;
+  const valorCupo = limiteEditado ?? (ambito.carrera ? limiteVigente(ambito.carrera) ?? '' : limiteGeneral);
   function usarVersion(v) {
+    const horario = v.horarioProgramacion ?? HORARIO_PROGRAMACION_PREDETERMINADO;
+    const { bloquearFechasPasadas, horaMinima, horaMaxima } = horario;
+    setLimiteEditado(undefined);
     setPasos(v.pasos);
     setBase(v.version);
     setAmbito({
@@ -136,6 +148,7 @@ export default function ConfiguracionGeneral() {
       diasCorreccion: v.diasCorreccion ?? null,
       oralSinSesion: v.oralSinSesion ?? false,
       evidenciaCorreccion: v.evidenciaCorreccion ?? true,
+      horarioProgramacion: { bloquearFechasPasadas, horaMinima, horaMaxima },
     });
   }
   const [aviso, setAviso] = useState('');
@@ -162,6 +175,13 @@ export default function ConfiguracionGeneral() {
     setOcupado(true);
     setAviso('');
     try {
+      const { horarioProgramacion, ...reglas } = ambito;
+      const nuevosLimites = puedeFijarCupo && limiteEditado !== undefined
+        ? { limiteSimultaneas: limiteEditado === '' ? null : Number(limiteEditado) }
+        : {};
+      if (config.admiteHorarioProgramacion && horarioProgramacion.horaMinima > horarioProgramacion.horaMaxima) {
+        throw new Error('La hora mínima no puede ser posterior a la hora máxima.');
+      }
       const nombre = (opciones, id, general) => opciones.find((opcion) => opcion.id === id)?.nombre ?? general;
       const alcance = [
         nombre(config.carreras, ambito.carrera, 'Todas las carreras'),
@@ -171,14 +191,23 @@ export default function ConfiguracionGeneral() {
       const confirmacion = await DialogoGenares.fire({
         icon: 'question',
         title: '¿Guardar reglas?',
-        text: `La opción de calificar oral sin sesión se aplicará a los trabajos nuevos y existentes. ${alcance}. Los demás cambios del flujo se aplicarán a evaluaciones nuevas.`,
+        text: `La opción de calificar oral sin sesión se aplicará a los trabajos nuevos y existentes.${
+          config.admiteHorarioProgramacion ? ' El horario se aplicará al programar y reprogramar.' : ''
+        } ${alcance}. Las demás reglas del flujo se aplicarán a evaluaciones nuevas.`,
         showCancelButton: true,
         confirmButtonText: 'Guardar reglas',
         cancelButtonText: 'Seguir editando',
         focusCancel: true,
       });
       if (!confirmacion.isConfirmed) return;
-      const { version } = await postJsonApi('/configuracion-general', { version: config.version, pasos, ...ambito });
+      const { version } = await postJsonApi('/configuracion-general', {
+        version: config.version,
+        pasos,
+        ...reglas,
+        ...(config.admiteHorarioProgramacion
+          ? { horarioProgramacion: { ...horarioProgramacion, ...nuevosLimites } }
+          : {}),
+      });
       setConfig((anterior) => ({ ...anterior, version }));
       await cargar().catch(() => {
         setAviso('Las reglas se guardaron. Recarga la página para actualizar la lista de versiones.');
@@ -186,7 +215,7 @@ export default function ConfiguracionGeneral() {
       await DialogoGenares.fire({
         icon: 'success',
         title: 'Reglas guardadas',
-        text: `La opción de oral sin sesión ya se aplica a trabajos nuevos y existentes. ${alcance}. Las reglas más específicas tienen prioridad.`,
+        text: `Se guardaron las reglas para este ámbito. ${alcance}. Las reglas más específicas tienen prioridad.`,
         confirmButtonText: 'Entendido',
       });
     } catch (err) {
@@ -195,6 +224,12 @@ export default function ConfiguracionGeneral() {
     } finally {
       setOcupado(false);
     }
+  }
+  function editarHorario(campos) {
+    setAmbito((actual) => ({
+      ...actual,
+      horarioProgramacion: { ...actual.horarioProgramacion, ...campos },
+    }));
   }
   const pasosPosterioresAlCierre = new Set(['FINALIZADO']);
   for (const paso of pasos) {
@@ -245,9 +280,12 @@ export default function ConfiguracionGeneral() {
                 {campo}{' '}
                 <select
                   value={ambito[campo] ?? ''}
-                  onChange={(e) => setAmbito({ ...ambito, [campo]: e.target.value || null })}
+                  onChange={(e) => {
+                    setLimiteEditado(undefined);
+                    setAmbito({ ...ambito, [campo]: e.target.value || null });
+                  }}
                 >
-                  <option value="">Cualquiera</option>
+                  <option value="">{campo === 'carrera' ? 'Todas las carreras' : 'Cualquiera'}</option>
                   {opciones.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.nombre}
@@ -281,6 +319,40 @@ export default function ConfiguracionGeneral() {
             </div>
             <label><input type="checkbox" checked={ambito.oralSinSesion ?? false}
               onChange={(e) => setAmbito({ ...ambito, oralSinSesion: e.target.checked })} /> Permitir calificar oral sin sustentación programada</label>
+            <fieldset disabled={!config.admiteHorarioProgramacion}>
+              <legend>Horario de programación de sustentaciones</legend>
+              <label>
+                <input type="checkbox" checked={ambito.horarioProgramacion.bloquearFechasPasadas}
+                  onChange={(e) => editarHorario({ bloquearFechasPasadas: e.target.checked })} />
+                Bloquear fechas pasadas
+              </label>
+              <label>
+                Hora de inicio mínima
+                <input type="time" required value={ambito.horarioProgramacion.horaMinima}
+                  onChange={(e) => editarHorario({ horaMinima: e.target.value })} />
+              </label>
+              <label>
+                Hora de inicio máxima
+                <input type="time" required value={ambito.horarioProgramacion.horaMaxima}
+                  onChange={(e) => editarHorario({ horaMaxima: e.target.value })} />
+              </label>
+              <p>{config.admiteHorarioProgramacion
+                ? 'Se usa la fecha de Ecuador continental y el ámbito seleccionado arriba.'
+                : 'Para editar estos límites, aplica el script s4-horario-programacion.sql.'}</p>
+              {puedeFijarCupo ? (
+                <label>
+                  Máximo de sustentaciones simultáneas
+                  <input type="number" min="1" max="2147483647" step="1" required={!ambito.carrera}
+                    value={valorCupo} placeholder={`Usar el cupo de todas (${limiteGeneral})`}
+                    onChange={(e) => setLimiteEditado(e.target.value)} />
+                  <small>{ambito.carrera
+                    ? 'Un valor le da un cupo independiente a esta carrera. Déjelo vacío para compartir el cupo de todas.'
+                    : 'Este cupo lo comparten las carreras que no tienen un máximo propio.'}</small>
+                </label>
+              ) : config.admiteHorarioProgramacion && (
+                <p>Para editar el máximo simultáneo, seleccione cualquier modalidad y cualquier período.</p>
+              )}
+            </fieldset>
             <fieldset>
               <legend>Solicitudes de corrección</legend>
               <label><input type="checkbox" checked={ambito.evidenciaCorreccion ?? true} onChange={e => setAmbito({...ambito,evidenciaCorreccion:e.target.checked})}/> Requerir evidencia adjunta</label>

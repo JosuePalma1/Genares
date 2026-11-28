@@ -17,8 +17,8 @@ export class ConsultarProgramacionesDto {
   periodoId?: string;
 
   @IsOptional()
-  @IsIn([...Object.values(EstadoSustentacion), 'COMPLETADA'])
-  estado?: EstadoSustentacion | 'COMPLETADA';
+  @IsIn([...Object.values(EstadoSustentacion), 'COMPLETADA', 'PROXIMA', 'EN_CURSO_O_PENDIENTE'])
+  estado?: EstadoSustentacion | 'COMPLETADA' | 'PROXIMA' | 'EN_CURSO_O_PENDIENTE';
 
   @IsOptional()
   @IsString()

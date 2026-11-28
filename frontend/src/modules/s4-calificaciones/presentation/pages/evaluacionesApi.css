@@ -9,9 +9,23 @@
 .evaluaciones-api-section-title p { margin: .35rem 0 0; color: var(--text-muted, #617067); }
 .evaluaciones-api-search { display: grid; gap: .6rem; max-width: 48rem; }
 .evaluaciones-api-search label { font-weight: 650; }
-.evaluaciones-api-filtros { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto auto; align-items: end; gap: .75rem 1rem; margin-bottom: 1rem; }
-.evaluaciones-api-filtros > p { margin: 0 0 .6rem; white-space: nowrap; }
-@media (max-width: 760px) { .evaluaciones-api-filtros { grid-template-columns: minmax(0, 1fr); } .evaluaciones-api-filtros > p { margin: 0; } }
+.evaluaciones-api-filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); align-items: end; gap: .75rem 1rem; margin-bottom: 1rem; }
+.mis-evaluaciones-filtros-resumen { grid-column: 1 / -1; }
+.mis-evaluaciones-filtros-resumen p { margin: 0; }
+.mis-evaluaciones-tarjeta { display: grid; gap: 1rem; }
+.mis-evaluaciones-meta, .mis-evaluaciones-etapa { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .75rem; min-width: 0; }
+.mis-evaluaciones-meta { color: var(--text-muted, #526273); margin-bottom: .4rem; }
+.mis-evaluaciones-tarjeta h2, .mis-evaluaciones-tarjeta dd { overflow-wrap: anywhere; }
+.mis-evaluaciones-fila { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem 1rem; }
+.mis-evaluaciones-grupo { display: grid; gap: .65rem; border-top: 1px solid #e1e8ee; padding-top: .8rem; }
+.mis-evaluaciones-grupo h3 { font-size: 1rem; margin: 0; }
+.mis-evaluaciones-etapa small, .mis-evaluaciones-sesion { color: var(--text-muted, #526273); }
+.mis-evaluaciones-etapa small { flex-basis: 100%; }
+.mis-evaluaciones-detalles { border-top: 1px solid #e1e8ee; padding-top: .75rem; }
+.mis-evaluaciones-detalles summary { width: fit-content; cursor: pointer; font-weight: 600; }
+.mis-evaluaciones-detalles dl { display: grid; gap: .6rem; margin-bottom: 0; }
+.mis-evaluaciones-detalles dt { font-weight: 600; }
+.mis-evaluaciones-detalles dd { margin: 0; }
 .evaluaciones-api-search input { width: 100%; min-width: 0; min-height: 2.8rem; padding: .7rem .8rem; border: 1px solid var(--border, #dfe5e1); border-radius: .6rem; font: inherit; }
 .evaluaciones-api-search p { margin: 0; color: var(--text-muted, #617067); overflow-wrap: anywhere; }
 .evaluaciones-api-search .evaluaciones-api-error { color: #a82c27; }

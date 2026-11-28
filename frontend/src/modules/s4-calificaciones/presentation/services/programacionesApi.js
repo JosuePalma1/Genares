@@ -7,6 +7,7 @@ import { ErrorRespuestaApi, crearClienteHttp } from './clienteHttp';
 import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';
 import { esEstadoRegistroValido, esRegistroVisible } from '../../domain/estadoRegistro';
 const ESTADOS = new Set(['PROGRAMADA', 'EN_SUSTENTACION', 'FINALIZADA', 'COMPLETADA', 'CANCELADA']);
+const ESTADOS_CRONOGRAMA = new Set(['PROGRAMADA', 'EN_CURSO_O_PENDIENTE', 'FINALIZADA', 'CANCELADA']);
 const RUTA = '/programaciones-sustentacion';
 
 function esObjeto(valor) {
@@ -53,6 +54,7 @@ export function adaptarProgramacionApi(valor) {
   exigir(Number.isInteger(duracionEstimadaMinutos) && duracionEstimadaMinutos >= 1 && duracionEstimadaMinutos <= 240);
   exigir(valor.inicioRealEn == null || typeof valor.inicioRealEn === 'string');
   exigir(valor.finalizacionRealEn == null || typeof valor.finalizacionRealEn === 'string');
+  exigir(valor.estadoCronograma == null || ESTADOS_CRONOGRAMA.has(valor.estadoCronograma));
   return {
     ...valor,
     estado: valor.estado === 'COMPLETADA' ? 'FINALIZADA' : valor.estado,
@@ -200,6 +202,18 @@ export function crearServicioProgramacionesApi(cliente) {
     async trabajosDisponibles(filtros, options) {
       return adaptarTrabajosDisponiblesApi(await cliente.getJson(`${RUTA}/trabajos-disponibles${crearQueryProgramacion(filtros)}`, options));
     },
+    async consultarDisponibilidadSala({ fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos, idProgramacion, idTrabajo }, options) {
+      const respuesta = await cliente.postJson(`${RUTA}/disponibilidad-sala`, {
+        fechaProgramada,
+        horaProgramada,
+        sala: sala.trim(),
+        duracionEstimadaMinutos,
+        ...(idProgramacion ? { idProgramacion } : {}),
+        ...(!idProgramacion && idTrabajo ? { idTrabajo } : {}),
+      }, options);
+      exigir(typeof respuesta.disponible === 'boolean');
+      return respuesta;
+    },
     async obtener(id, options) {
       return adaptarProgramacionApi(await cliente.getJson(`${RUTA}/${encodeURIComponent(id)}`, options));
     },
@@ -234,6 +248,7 @@ export const capacidadesProgramacionesApi = (...args) => programacionesApi.capac
 export const listarProgramacionesApi = (...args) => programacionesApi.listar(...args);
 export const listarPaginaProgramacionesApi = (...args) => programacionesApi.listarPagina(...args);
 export const listarTrabajosDisponiblesApi = (...args) => programacionesApi.trabajosDisponibles(...args);
+export const consultarDisponibilidadSalaApi = (...args) => programacionesApi.consultarDisponibilidadSala(...args);
 export const obtenerProgramacionApi = (...args) => programacionesApi.obtener(...args);
 export const obtenerImpresionProgramacionesApi = (...args) => programacionesApi.impresion(...args);
 export const crearProgramacionApi = (...args) => programacionesApi.crear(...args);

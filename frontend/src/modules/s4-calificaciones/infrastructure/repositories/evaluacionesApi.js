@@ -11,6 +11,7 @@ const ESTADOS_CONSOLIDACION = new Set([
   'LEGACY_NO_CONSOLIDADA',
 ]);
 const ESTADOS_EVALUACION = new Set(['BORRADOR', 'CERRADA']);
+const ESTADOS_RESUMEN_EVALUACION = new Set(['PENDIENTE', 'BORRADOR', 'CERRADA', 'NO_ASIGNADA']);
 const ESTADOS_ETAPA = new Set(['SIN_EVALUACIONES', 'EN_PROGRESO', 'CERRADA_INCOMPLETA', 'COMPLETA']);
 const ALCANCES = new Set(['TRABAJO_COMPARTIDO', 'ESTUDIANTE_INDIVIDUAL']);
 
@@ -36,8 +37,20 @@ export function adaptarListaTrabajosEvaluacionApi(respuesta) {
     && Array.isArray(trabajo.miembrosTribunal)
     && trabajo.miembrosTribunal.every((miembro) => objeto(miembro)
       && esUuidPostgres(miembro.idMiembroTribunal) && Number.isInteger(miembro.posicion)
-      && typeof miembro.nombres === 'string' && typeof miembro.apellidos === 'string')));
+      && typeof miembro.nombres === 'string' && typeof miembro.apellidos === 'string')
+    && (trabajo.resumenEvaluaciones == null || esResumenEvaluaciones(trabajo.resumenEvaluaciones))));
   return elementos;
+}
+
+function esResumenEvaluaciones(resumen) {
+  return objeto(resumen) && typeof resumen.puedeCalificar === 'boolean'
+    && Array.isArray(resumen.conResultado) && resumen.conResultado.every(esUuidPostgres)
+    && Array.isArray(resumen.etapas) && resumen.etapas.every((etapa) => objeto(etapa)
+      && esUuidPostgres(etapa.idEtapa) && typeof etapa.nombre === 'string'
+      && (etapa.tipo === 'ESCRITA' ? etapa.idEstudiante === null : etapa.tipo === 'ORAL' && esUuidPostgres(etapa.idEstudiante))
+      && (etapa.idEvaluador === null || esUuidPostgres(etapa.idEvaluador))
+      && typeof etapa.requiereSesion === 'boolean'
+      && ESTADOS_RESUMEN_EVALUACION.has(etapa.estado));
 }
 
 function objeto(valor) {

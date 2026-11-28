@@ -8,9 +8,26 @@ import {
   validarSalaProgramada,
   elegirParticipantesSesion,
   validarMotivoReprogramacion,
+  validarHorarioProgramacion,
+  validarConfiguracionHorario,
 } from './reglas-programacion-sustentacion';
 
 describe('reglas de programación de sustentaciones', () => {
+  it('usa la fecha de Ecuador y admite ambos extremos del horario de inicio', () => {
+    const ahora = new Date('2026-11-28T02:30:00Z');
+    expect(() => validarHorarioProgramacion('2026-11-26', '12:00', null, ahora)).toThrow('fechas pasadas');
+    expect(() => validarHorarioProgramacion('2026-11-27', '06:00', null, ahora)).not.toThrow();
+    expect(() => validarHorarioProgramacion('2026-11-27', '23:00', null, ahora)).not.toThrow();
+    expect(() => validarHorarioProgramacion('2026-11-27', '05:59', null, ahora)).toThrow('06:00 y 23:00');
+    expect(() => validarHorarioProgramacion('2026-11-27', '23:00:01', null, ahora)).toThrow('06:00 y 23:00');
+  });
+
+  it('permite cambiar el horario y autorizar fechas anteriores', () => {
+    const horario = { bloquearFechasPasadas: false, horaMinima: '05:00', horaMaxima: '20:30' };
+    expect(() => validarHorarioProgramacion('2020-06-01', '05:00', horario)).not.toThrow();
+    expect(() => validarHorarioProgramacion('2020-06-01', '20:31', horario)).toThrow('05:00 y 20:30');
+    expect(() => validarConfiguracionHorario({ ...horario, horaMinima: '21:00' })).toThrow('hora mínima');
+  });
   it('acepta una fecha de calendario real y rechaza una fecha imposible', () => {
     expect(validarFechaProgramada('2026-10-23')).toBe('2026-10-23');
     expect(() => validarFechaProgramada('2026-02-30')).toThrow('no existe en el calendario');

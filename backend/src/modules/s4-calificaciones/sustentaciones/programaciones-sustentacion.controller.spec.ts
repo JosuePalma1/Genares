@@ -15,6 +15,7 @@ const servicio = {
   crear: jest.fn(),
   actualizar: jest.fn(),
   cambiarEstado: jest.fn(),
+  consultarDisponibilidadSala: jest.fn(),
 };
 
 @Module({ imports: [ModuloApi], controllers: [ProgramacionesSustentacionController], providers: [
@@ -82,6 +83,34 @@ describe('API de programaciones de sustentación', () => {
     const respuesta = await solicitar('/api/v1/programaciones-sustentacion?estado=COMPLETADA', 'lector');
     expect(respuesta.status).toBe(200);
     expect(servicio.listar).toHaveBeenCalledWith(expect.objectContaining({ estado: 'COMPLETADA' }));
+  });
+
+  it('acepta los estados previstos del cronograma para el listado y la impresión', async () => {
+    const ruta = '/api/v1/programaciones-sustentacion';
+    servicio.listar.mockResolvedValue({ elementos: [], filtros: { carreras: [], periodos: [] } });
+    servicio.listarParaImpresion.mockResolvedValue({ elementos: [] });
+    expect((await solicitar(`${ruta}?estado=PROXIMA&buscar=Sala%202`, 'lector')).status).toBe(200);
+    expect(servicio.listar).toHaveBeenCalledWith(expect.objectContaining({ estado: 'PROXIMA', buscar: 'Sala 2' }));
+    expect((await solicitar(`${ruta}/impresion?estado=EN_CURSO_O_PENDIENTE`, 'lector')).status).toBe(200);
+    expect(servicio.listarParaImpresion).toHaveBeenCalledWith(expect.objectContaining({ estado: 'EN_CURSO_O_PENDIENTE' }));
+  });
+
+  it('consulta cruces sin escribir y exige capacidad administrativa', async () => {
+    const ruta = '/api/v1/programaciones-sustentacion/disponibilidad-sala';
+    const dto = {
+      fechaProgramada: '2026-12-15', horaProgramada: '09:30', sala: 'Sala 1',
+      duracionEstimadaMinutos: 60, idProgramacion: '11111111-1111-4111-8111-111111111111',
+    };
+    servicio.consultarDisponibilidadSala.mockResolvedValue({ disponible: false });
+    expect((await solicitar(ruta, 'lector', 'POST', dto)).status).toBe(403);
+    expect((await solicitar(ruta, 'administrador', 'POST', { ...dto, idProgramacion: 'inválido' })).status).toBe(400);
+    const respuesta = await solicitar(ruta, 'administrador', 'POST', dto);
+    expect(respuesta.status).toBe(200);
+    expect(await respuesta.json()).toMatchObject({ disponible: false });
+    expect(servicio.consultarDisponibilidadSala).toHaveBeenCalledTimes(1);
+    expect(servicio.consultarDisponibilidadSala).toHaveBeenCalledWith(dto);
+    expect(servicio.crear).not.toHaveBeenCalled();
+    expect(servicio.actualizar).not.toHaveBeenCalled();
   });
 
   it('solo permite escribir a quien tiene capacidad administrativa y toma el actor de la identidad', async () => {

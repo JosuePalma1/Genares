@@ -4,6 +4,43 @@ export const DURACION_ESTIMADA_MINIMA_MINUTOS = 1;
 export const DURACION_ESTIMADA_MAXIMA_MINUTOS = 240;
 export const DURACION_ESTIMADA_PREDETERMINADA_MINUTOS = 60;
 
+export interface HorarioProgramacion {
+  bloquearFechasPasadas: boolean;
+  horaMinima: string;
+  horaMaxima: string;
+}
+
+export const HORARIO_PROGRAMACION_PREDETERMINADO: HorarioProgramacion = {
+  bloquearFechasPasadas: true,
+  horaMinima: '06:00',
+  horaMaxima: '23:00',
+};
+
+export const FORMATO_HORA_PROGRAMACION = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+const fechaInstitucional = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Guayaquil' });
+
+export function validarConfiguracionHorario(horario: HorarioProgramacion): void {
+  if (horario.horaMinima > horario.horaMaxima) {
+    throw new BadRequestException('La hora mínima no puede ser posterior a la hora máxima.');
+  }
+}
+
+export function validarHorarioProgramacion(
+  fecha: string,
+  hora: string,
+  horario: HorarioProgramacion | null | undefined,
+  ahora = new Date(),
+): void {
+  const { bloquearFechasPasadas, horaMinima, horaMaxima } = horario ?? HORARIO_PROGRAMACION_PREDETERMINADO;
+  if (bloquearFechasPasadas && fecha < fechaInstitucional.format(ahora)) {
+    throw new BadRequestException('No se pueden programar sustentaciones en fechas pasadas.');
+  }
+  const inicio = minutosDesdeMedianoche(hora);
+  if (inicio < minutosDesdeMedianoche(horaMinima) || inicio > minutosDesdeMedianoche(horaMaxima)) {
+    throw new BadRequestException(`La hora de inicio debe estar entre ${horaMinima} y ${horaMaxima}.`);
+  }
+}
+
 export function validarFechaProgramada(fecha: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || fecha.startsWith('0000-')) {
     throw new BadRequestException('La fecha debe usar el formato AAAA-MM-DD.');

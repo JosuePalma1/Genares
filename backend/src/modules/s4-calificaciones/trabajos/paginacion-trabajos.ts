@@ -9,6 +9,10 @@ export function normalizarBusqueda(texto: string | null | undefined): string | n
   return limpio || null;
 }
 
+/** Minúsculas y sin tildes para comparar texto en PostgreSQL. */
+export const normalizarSql = (expresion: string) => `translate(lower(${expresion}),
+  'áàäâéèëêíìïîóòöôúùüûñçÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑÇ', 'aaaaeeeeiiiioooouuuuncaaaaeeeeiiiioooouuuunc')`;
+
 export function leerPaginacion(
   limite?: string,
   pagina?: string,

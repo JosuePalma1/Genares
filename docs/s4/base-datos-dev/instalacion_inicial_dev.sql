@@ -1746,7 +1746,8 @@ END $$;
 -- ===== oral-sin-sustentacion.sql =====
 ALTER TABLE s4.evaluaciones ADD COLUMN IF NOT EXISTS id_programacion_sustentacion uuid;
 ALTER TABLE s4.version_flujo
-  ADD COLUMN IF NOT EXISTS oral_sin_sesion boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS oral_sin_sesion boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS horario_programacion jsonb;
 
 ALTER TABLE s4.evaluaciones DROP CONSTRAINT IF EXISTS ck_s4_evaluaciones_sesion_oral;
 ALTER TABLE s4.evaluaciones ADD CONSTRAINT ck_s4_evaluaciones_sesion_oral CHECK (

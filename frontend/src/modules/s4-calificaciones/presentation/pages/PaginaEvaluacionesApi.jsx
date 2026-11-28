@@ -1,17 +1,19 @@
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowRight, BookOpenCheck, ClipboardCheck, Database, FilePen, FileSearch, FileText, LockKeyhole, UsersRound } from 'lucide-react';
-import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado, InsigniaEstadoRegistro } from '../components/interfaz';
+import { ArrowRight, Database, FilePen, FileSearch, FileText, LockKeyhole } from 'lucide-react';
+import { AlertaInstitucional, EncabezadoPagina, EstadoVacio, etiquetaAlcanceEtapa, InsigniaEstado } from '../components/interfaz';
 import { adaptarListaTrabajosEvaluacionApi } from '../../infrastructure/repositories/evaluacionesApi';
 import { usarPaginaTrabajosApi } from '../hooks/usarTrabajosApi';
 import { usarValorDiferido } from '../hooks/usarValorDiferido';
 import { Paginador } from '../components/Paginador';
 import { SelectorPeriodo } from '../components/SelectorPeriodo';
+import { TarjetaMisEvaluaciones } from '../components/TarjetaMisEvaluaciones';
 import { usarEvaluacionesTrabajoApi } from '../hooks/usarEvaluacionesApi';
 import { usarCapacidadesCorrecciones } from '../hooks/usarCapacidadesCorrecciones';
 import { EditorEvaluacionApi } from './EditorEvaluacionApi';
 import { ErrorConexionApi, ErrorRespuestaApi } from '../services/clienteHttp';
 import { mensajeErrorDocumento, rutaPdfRubrica } from '../../domain/documentosRubrica';
+import { estadoAcademicoLegible, referenciaTrabajo } from '../../domain/etiquetasAcademicas';
 import { obtenerPdfDocumento } from '../services/documentosApi';
 import { BotonPdf } from '../components/BotonPdf';
 import './evaluacionesApi.css';
@@ -31,7 +33,19 @@ const ETIQUETAS_ESTADO = {
 };
 
 function estadoLegible(estado) {
-  return ETIQUETAS_ESTADO[estado] ?? estado ?? 'Sin estado';
+  return ETIQUETAS_ESTADO[estado] ?? estadoAcademicoLegible(estado, 'Sin estado');
+}
+
+function nombrePersona(persona, ausencia) {
+  return [persona?.nombres, persona?.apellidos].filter(Boolean).join(' ').trim() || ausencia;
+}
+
+function nombreMiembro(miembro, posicion = miembro?.posicion) {
+  return nombrePersona(miembro, posicion ? `Miembro ${posicion}` : 'Evaluador sin nombre registrado');
+}
+
+function nombreVersion(version, nombre) {
+  return [nombre, version].filter(Boolean).join(' · ') || 'Versión sin identificar';
 }
 
 export function mensajeSeguroEvaluaciones(error) {
@@ -51,25 +65,34 @@ export function PaginaMisEvaluacionesApi() {
   const [busqueda, establecerBusqueda] = useState('');
   // null = el periodo que el servidor considera actual (activo).
   const [periodo, establecerPeriodo] = useState(null);
+  const [etapaEvaluacion, establecerEtapaEvaluacion] = useState('');
+  const [estadoEvaluacion, establecerEstadoEvaluacion] = useState('');
   const [pagina, establecerPagina] = useState(1);
   const busquedaDiferida = usarValorDiferido(busqueda);
   const filtros = useMemo(() => ({
-    pagina, limite: EVALUACIONES_POR_PAGINA,
+    vista: 'mis-evaluaciones', pagina, limite: EVALUACIONES_POR_PAGINA,
     ...(periodo && { periodo }),
     ...(busquedaDiferida.trim() && { buscar: busquedaDiferida.trim() }),
-  }), [pagina, periodo, busquedaDiferida]);
+    ...(etapaEvaluacion && { etapaEvaluacion }),
+    ...(estadoEvaluacion && { estadoEvaluacion }),
+  }), [pagina, periodo, busquedaDiferida, etapaEvaluacion, estadoEvaluacion]);
   const consulta = usarPaginaTrabajosApi(filtros, adaptarListaTrabajosEvaluacionApi);
   const { estado, error, trabajos } = consulta;
-  const filtrosActivos = Boolean(busqueda || periodo !== null);
-  const limpiar = () => { establecerBusqueda(''); establecerPeriodo(null); establecerPagina(1); };
+  const filtrosActivos = Boolean(busqueda || periodo !== null || etapaEvaluacion || estadoEvaluacion);
+  const total = consulta.paginacion?.total ?? 0;
+  function limpiar() {
+    establecerBusqueda('');
+    establecerPeriodo(null);
+    establecerEtapaEvaluacion('');
+    establecerEstadoEvaluacion('');
+    establecerPagina(1);
+  }
 
   return (
     <div className="evaluaciones-api-page">
       <EncabezadoPagina
-        title="Evaluaciones"
-        description="Consulte trabajos, estudiantes, tribunales y resultados de las evaluaciones."
-        breadcrumbs={['Gestión académica', 'Evaluaciones']}
-        meta={<InsigniaEstado tono="info"><Database size={14} /> Seguimiento académico</InsigniaEstado>}
+        title="Mis evaluaciones"
+        breadcrumbs={['Gestión académica', 'Mis evaluaciones']}
       />
       <section className="evaluaciones-api-card evaluaciones-api-filtros" aria-label="Buscar evaluaciones">
         <div className="field">
@@ -82,41 +105,38 @@ export function PaginaMisEvaluacionesApi() {
           <SelectorPeriodo id="mis-evaluaciones-periodo" valor={periodo ?? consulta.filtros?.periodo ?? 'TODOS'}
             periodos={consulta.filtros?.periodos ?? []} alCambiar={(valor) => { establecerPeriodo(valor); establecerPagina(1); }} />
         </div>
-        <p aria-live="polite">{consulta.actualizando ? 'Actualizando…' : `${consulta.paginacion?.total ?? 0} trabajo(s)`}</p>
-        {filtrosActivos && <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>}
+        <div className="field">
+          <label htmlFor="mis-evaluaciones-etapa">Etapa</label>
+          <select id="mis-evaluaciones-etapa" className="select" value={etapaEvaluacion}
+            onChange={(evento) => { establecerEtapaEvaluacion(evento.target.value); establecerPagina(1); }}>
+            <option value="">Todas las etapas</option>
+            <option value="ESCRITA">Escrita</option>
+            <option value="ORAL">Oral</option>
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="mis-evaluaciones-estado">Estado de evaluación</label>
+          <select id="mis-evaluaciones-estado" className="select" value={estadoEvaluacion}
+            onChange={(evento) => { establecerEstadoEvaluacion(evento.target.value); establecerPagina(1); }}>
+            <option value="">Todos los estados</option>
+            <option value="PENDIENTE">Pendiente</option>
+            <option value="BORRADOR">Borrador</option>
+            <option value="CERRADA">Cerrada</option>
+          </select>
+        </div>
+        <div className="mis-evaluaciones-fila mis-evaluaciones-filtros-resumen">
+          <p aria-live="polite">{consulta.actualizando ? 'Actualizando…' : `${total} ${total === 1 ? 'trabajo' : 'trabajos'}`}</p>
+          {filtrosActivos && <button className="button button-outline" type="button" onClick={limpiar}>Limpiar filtros</button>}
+        </div>
       </section>
       {estado === 'cargando' && <EstadoConsultaEvaluacionesApi estado="cargando" />}
       {estado === 'error' && <EstadoConsultaEvaluacionesApi estado="error" error={error} alReintentar={() => { void consulta.recargar(); }} />}
       {estado === 'listo' && trabajos.length === 0 && <EstadoVacio className="card" icon={FileSearch}
         title={filtrosActivos ? 'No hay coincidencias' : 'No hay trabajos registrados'}
-        description={filtrosActivos ? 'Cambie la búsqueda o el período.' : 'Los trabajos del período actual aparecerán aquí cuando estén disponibles para su perfil.'} />}
+        description={filtrosActivos ? 'Cambia los filtros para ver otras evaluaciones.' : 'Los trabajos del período actual aparecerán aquí cuando estén disponibles para tu perfil.'} />}
       {estado === 'listo' && trabajos.length > 0 && <div className="evaluaciones-api-sections">
-        {trabajos.map((trabajo) => (
-          <article className="evaluaciones-api-card" key={trabajo.id}>
-            <div className="evaluaciones-api-section-title">
-              <div>
-                <span>{trabajo.codigo} | {trabajo.codigoCarrera ?? trabajo.carrera} | {trabajo.periodo} <InsigniaEstadoRegistro estadoRegistro={trabajo.estadoRegistro} /></span>
-                <h2>{trabajo.titulo}</h2>
-                <p>{trabajo.modalidad}{trabajo.rubrica ? ' | ' + trabajo.rubrica + ' ' + (trabajo.versionRubrica ?? '') : ' | Sin rúbrica asociada'}</p>
-              </div>
-              <UsersRound aria-hidden="true" />
-            </div>
-            <p>Estudiantes: {trabajo.estudiantes.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Sin estudiantes registrados'}</p>
-            <p>Tribunal confirmado: {trabajo.miembrosTribunal.map(({ nombres, apellidos }) => nombres + ' ' + apellidos).join(' | ') || 'Pendiente de asignación'}</p>
-            {trabajo.programacion?.estado === 'PROGRAMADA' && <p>Sustentación ? {trabajo.programacion.fechaProgramada} ? {trabajo.programacion.horaProgramada}</p>}
-            {trabajo.programacion === null && !trabajo.oralSinSesion && <p>Sustentación sin programar</p>}
-            <div className="form-actions">
-              {trabajo.miembrosTribunal.length > 0 && ((trabajo.oralSinSesion || (trabajo.programacion !== null && trabajo.programacion?.estado !== 'CANCELADA')) && trabajo.estudiantes.length > 0
-                ? <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}`}><BookOpenCheck size={16} /> {trabajo.estudiantes.length === 2 ? 'Calificar bina' : 'Calificar sustentación'}</Link>
-                : <Link className="button button-primary" to={`/evaluaciones/${trabajo.id}/escrita`}><ClipboardCheck size={16} /> Evaluar escrita</Link>)}
-              <details className="em-opciones">
-                <summary>Otras acciones</summary>
-                {trabajo.miembrosTribunal.length > 0 && <Link to={`/evaluaciones/${trabajo.id}/escrita`}>Evaluar escrita</Link>}
-                {trabajo.estudiantes.map((estudiante) => <Link key={estudiante.id} to={`/resultados/${trabajo.id}/${estudiante.id}`}>Resultado de {estudiante.nombres} {estudiante.apellidos}</Link>)}
-              </details>
-            </div>
-          </article>
-        ))}
+        {trabajos.map((trabajo) => <TarjetaMisEvaluaciones key={trabajo.id} trabajo={trabajo}
+          etapaEvaluacion={etapaEvaluacion} estadoEvaluacion={estadoEvaluacion} />)}
       </div>}
       {estado === 'listo' && <Paginador paginacion={consulta.paginacion} alCambiar={establecerPagina} deshabilitado={consulta.actualizando} etiqueta="Páginas de evaluaciones" />}
     </div>
@@ -168,28 +188,29 @@ function FilaIndicadores({ evaluacion }) {
   );
 }
 
-function EvaluacionCard({ evaluacion, compartida }) {
+function EvaluacionCard({ evaluacion, compartida, estudiantesPorId, miembrosPorId }) {
   const { puedeSolicitar } = usarCapacidadesCorrecciones();
+  const nombreEstudiante = (id) => nombrePersona(estudiantesPorId.get(id), 'Estudiante sin nombre registrado');
   return (
     <article className="evaluaciones-api-evaluation">
       <div className="evaluaciones-api-evaluation-heading">
         <div>
           <strong>{evaluacion.etapaRubrica?.nombre ?? evaluacion.etapaRubrica?.codigo ?? 'Evaluación histórica'}</strong>
-          <span>{compartida ? 'Evaluación compartida del trabajo' : evaluacion.idEstudiante ? `Estudiante · ${evaluacion.idEstudiante}` : 'Evaluación sin estudiante asociado'}</span>
+          <span>{compartida ? 'Evaluación compartida del trabajo' : evaluacion.idEstudiante ? `Estudiante · ${nombreEstudiante(evaluacion.idEstudiante)}` : 'Evaluación sin estudiante asociado'}</span>
         </div>
         <InsigniaEstado estado={evaluacion.estado} />
       </div>
       <dl className="evaluaciones-api-score-grid">
-        <div><dt>Ámbito</dt><dd aria-label={`${etiquetaAlcanceEtapa(evaluacion.alcance)} (${evaluacion.alcance})`}>{etiquetaAlcanceEtapa(evaluacion.alcance)}</dd></div>
-        <div><dt>Versión de rúbrica</dt><dd>{evaluacion.instantaneaRubrica.version} · {evaluacion.idVersionRubrica}</dd></div>
-        <div><dt>Miembro del tribunal</dt><dd>{evaluacion.idMiembroTribunal}</dd></div>
+        <div><dt>Ámbito</dt><dd>{etiquetaAlcanceEtapa(evaluacion.alcance)}</dd></div>
+        <div><dt>Versión de rúbrica</dt><dd>{nombreVersion(evaluacion.instantaneaRubrica.version, evaluacion.instantaneaRubrica.rubricName)}</dd></div>
+        <div><dt>Miembro del tribunal</dt><dd>{nombreMiembro(miembrosPorId.get(evaluacion.idMiembroTribunal))}</dd></div>
         <div><dt>Calificación registrada</dt><dd><Calificacion valor={evaluacion.calificacionTotal} /> / {evaluacion.calificacionMaxima}</dd></div>
       </dl>
       {compartida && (
         <div className="evaluaciones-api-transfer-note">
           <LockKeyhole size={16} aria-hidden="true" />
           <span>La evaluación compartida se vincula a cada estudiante mediante el traspaso registrado. La evaluación original no se duplica.</span>
-          {evaluacion.estudiantesTraspasados.length > 0 && <ul>{evaluacion.estudiantesTraspasados.map(({ idEstudiante }) => <li key={idEstudiante}>{idEstudiante}</li>)}</ul>}
+          {evaluacion.estudiantesTraspasados.length > 0 && <ul>{evaluacion.estudiantesTraspasados.map(({ idEstudiante }) => <li key={idEstudiante}>{nombreEstudiante(idEstudiante)}</li>)}</ul>}
         </div>
       )}
       <FilaIndicadores evaluacion={evaluacion} />
@@ -205,9 +226,12 @@ function EvaluacionCard({ evaluacion, compartida }) {
   );
 }
 
-export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
+export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion, miembrosTribunal = [] }) {
   const estudiantesPorId = new Map(consolidacion.estudiantes.map(({ estudiante }) => [estudiante.id, estudiante]));
   const etapas = consolidacion.estudiantes[0]?.etapas ?? [];
+  const miembrosPorId = new Map([...etapas.flatMap((etapa) => etapa.evaluadoresEsperados ?? []), ...miembrosTribunal]
+    .map((miembro) => [miembro.idMiembroTribunal, miembro]));
+  const referencias = { estudiantesPorId, miembrosPorId };
   const etapasConsolidables = new Set(etapas.map(({ id }) => id));
   const legacy = evaluaciones.filter(({ idEtapaRubrica }) => !idEtapaRubrica || !etapasConsolidables.has(idEtapaRubrica));
 
@@ -215,8 +239,8 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
     <div className="evaluaciones-api-sections">
       <section className="evaluaciones-api-card" aria-labelledby="evaluaciones-dynamic-title">
         <div className="evaluaciones-api-section-title">
-          <div><h2 id="evaluaciones-dynamic-title">Etapas de la versión fijada</h2><p>Las etapas se identifican por su UUID persistente, ámbito y orden configurado.</p></div>
-          <span>{consolidacion.versionRubrica?.version ?? 'Versión'} · {consolidacion.versionRubrica?.id}</span>
+          <div><h2 id="evaluaciones-dynamic-title">Etapas de evaluación</h2></div>
+          <span>{nombreVersion(consolidacion.versionRubrica?.version, consolidacion.versionRubrica?.nombre)}</span>
         </div>
         {etapas.map((etapa) => {
           const registrosEtapa = evaluaciones.filter(({ idEtapaRubrica }) => idEtapaRubrica === etapa.id);
@@ -230,12 +254,12 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
               {esCompartida && <AlertaInstitucional tono="info">Una evaluación del trabajo puede traspasarse a cada estudiante. Se muestra la evaluación original y sus traspasos registrados.</AlertaInstitucional>}
               {registrosEtapa.length === 0 ? <EstadoVacio title="Todavía no hay evaluaciones registradas" /> : (
                 esCompartida
-                  ? registrosEtapa.filter(({ idEstudiante }) => idEstudiante === null).map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida />)
+                  ? registrosEtapa.filter(({ idEstudiante }) => idEstudiante === null).map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida {...referencias} />)
                   : [...estudiantesPorId.entries()].map(([idEstudiante, estudiante]) => {
                     const delEstudiante = registrosEtapa.filter((evaluacion) => evaluacion.idEstudiante === idEstudiante);
                     return <div className="evaluaciones-api-student-stage" key={idEstudiante}>
-                      <h4>{[estudiante.nombres, estudiante.apellidos].filter(Boolean).join(' ') || idEstudiante}</h4>
-                      {delEstudiante.length ? delEstudiante.map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida={false} />) : <p>Sin evaluación individual registrada.</p>}
+                      <h4>{nombrePersona(estudiante, 'Estudiante sin nombre registrado')}</h4>
+                      {delEstudiante.length ? delEstudiante.map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida={false} {...referencias} />) : <p>Sin evaluación individual registrada.</p>}
                     </div>;
                   })
               )}
@@ -244,8 +268,9 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
                 {consolidacion.estudiantes.map((resultado) => {
                   const etapaEstudiante = resultado.etapas.find(({ id }) => id === etapa.id);
                   return <div className="evaluaciones-api-stage-result-student" key={resultado.estudiante.id}>
-                    <p>{[resultado.estudiante.nombres, resultado.estudiante.apellidos].filter(Boolean).join(' ') || resultado.estudiante.id}: {estadoLegible(resultado.estado)} · <Calificacion valor={etapaEstudiante?.promedioEtapa?.presentado ?? null} /></p>
-                    {etapaEstudiante?.evaluadoresPendientes.length > 0 && <small>Evaluadores pendientes: {etapaEstudiante.evaluadoresPendientes.map(({ posicion, causa }) => `miembro ${posicion} (${causa})`).join(', ')}</small>}
+                    <p>{nombrePersona(resultado.estudiante, 'Estudiante sin nombre registrado')}: {estadoLegible(resultado.estado)} · <Calificacion valor={etapaEstudiante?.promedioEtapa?.presentado ?? null} /></p>
+                    {etapaEstudiante?.evaluadoresPendientes.length > 0 && <small>Evaluadores pendientes: {etapaEstudiante.evaluadoresPendientes.map(({ idMiembroTribunal, posicion, causa }) =>
+                      `${nombreMiembro(miembrosPorId.get(idMiembroTribunal), posicion)} (${estadoAcademicoLegible(causa)})`).join(', ')}</small>}
                   </div>;
                 })}
               </div>
@@ -257,7 +282,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
       {legacy.length > 0 && <section className="evaluaciones-api-card" aria-labelledby="evaluaciones-legacy-title">
         <h2 id="evaluaciones-legacy-title">Evaluaciones históricas</h2>
         <AlertaInstitucional tono="warning">Estas evaluaciones no pertenecen a una etapa dinámica identificada en la versión del trabajo. Se muestran sin aplicarles la consolidación dinámica.</AlertaInstitucional>
-        {legacy.map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida={false} />)}
+        {legacy.map((evaluacion) => <EvaluacionCard key={evaluacion.id} evaluacion={evaluacion} compartida={false} {...referencias} />)}
       </section>}
 
       <section className="evaluaciones-api-card" aria-labelledby="evaluaciones-students-title">
@@ -265,7 +290,7 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
         <div className="evaluaciones-api-result-links">
           {consolidacion.estudiantes.map(({ estudiante, trabajoId, estado }) => (
             <Link className="evaluaciones-api-result-link" key={estudiante.id} to={`/resultados/${trabajoId}/${estudiante.id}`}>
-              <span>{[estudiante.nombres, estudiante.apellidos].filter(Boolean).join(' ') || estudiante.id}</span>
+              <span>{nombrePersona(estudiante, 'Estudiante sin nombre registrado')}</span>
               <InsigniaEstado estado={estadoLegible(estado)} />
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
@@ -277,16 +302,16 @@ export function PanelEvaluacionesTrabajoApi({ evaluaciones, consolidacion }) {
 }
 
 export function PanelResultadoIndividualApi({ resultado }) {
-  const miembros = [...new Map(resultado.etapas.flatMap((etapa) => etapa.evaluadoresEsperados ?? [])
-    .map((miembro) => [miembro.idMiembroTribunal, miembro])).values()]
-    .sort((a, b) => a.posicion - b.posicion);
+  const miembrosPorId = new Map(resultado.etapas.flatMap((etapa) => etapa.evaluadoresEsperados ?? [])
+    .map((miembro) => [miembro.idMiembroTribunal, miembro]));
+  const miembros = [...miembrosPorId.values()].sort((a, b) => a.posicion - b.posicion);
   return (
     <>
       <AlertaInstitucional titulo="Resultado consultivo"><p>La consolidación usa la escala de la versión de rúbrica. Esta consulta no modifica el expediente ni crea una nota oficial.</p></AlertaInstitucional>
       <section className="evaluaciones-api-card" aria-labelledby="resultado-estudiante-title">
         <div className="evaluaciones-api-result-header">
-          <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{[resultado.estudiante.nombres, resultado.estudiante.apellidos].filter(Boolean).join(' ') || resultado.estudiante.id}</h2><p>{resultado.estudiante.id}</p></div>
-          <div><span>Versión de rúbrica fijada</span><strong>{resultado.versionRubrica.version} · {resultado.versionRubrica.id}</strong></div>
+          <div><span>Estudiante</span><h2 id="resultado-estudiante-title">{nombrePersona(resultado.estudiante, 'Estudiante sin nombre registrado')}</h2></div>
+          <div><span>Versión de rúbrica fijada</span><strong>{nombreVersion(resultado.versionRubrica.version, resultado.versionRubrica.nombre)}</strong></div>
         </div>
         {resultado.estado === 'LEGACY_NO_CONSOLIDADA' && <AlertaInstitucional tono="warning" titulo="Evaluación histórica">Hay registros históricos sin consolidación. No se recalculan ni se mezclan con las etapas actuales.</AlertaInstitucional>}
         {resultado.estado === 'SIN_EVALUACIONES' && <EstadoVacio title="Sin evaluaciones registradas" description="No se muestra una calificación final." />}
@@ -298,7 +323,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
               <div><span>Etapa {etapa.orden} · {etapa.codigo}</span><h3>{etapa.nombre}</h3><p>{etiquetaAlcanceEtapa(etapa.alcance)} · máximo {etapa.calificacionMaxima} puntos de esta etapa</p></div>
               <InsigniaEstado estado={estadoLegible(etapa.estado)} />
               <div className="evaluaciones-api-stage-grade"><span>Promedio presentado</span><strong><Calificacion valor={etapa.promedioEtapa?.presentado ?? null} /></strong></div>
-              {etapa.evaluadoresPendientes.length > 0 && <div className="evaluaciones-api-pending"><strong>Evaluadores pendientes</strong><ul>{etapa.evaluadoresPendientes.map((pendiente) => <li key={pendiente.idMiembroTribunal}>Miembro {pendiente.posicion} · {pendiente.causa}</li>)}</ul></div>}
+              {etapa.evaluadoresPendientes.length > 0 && <div className="evaluaciones-api-pending"><strong>Evaluadores pendientes</strong><ul>{etapa.evaluadoresPendientes.map((pendiente) => <li key={pendiente.idMiembroTribunal}>{nombreMiembro(miembrosPorId.get(pendiente.idMiembroTribunal), pendiente.posicion)} · {estadoAcademicoLegible(pendiente.causa)}</li>)}</ul></div>}
               {etapa.alcance === 'TRABAJO_COMPARTIDO' && etapa.evaluaciones.some(({ traspaso }) => traspaso) && <p className="evaluaciones-api-transfer-note"><LockKeyhole size={15} aria-hidden="true" /> Calificación compartida recibida mediante el traspaso registrado.</p>}
             </article>
           ))}
@@ -315,7 +340,7 @@ export function PanelResultadoIndividualApi({ resultado }) {
               key={miembro.idMiembroTribunal}
               obtenerPdf={() => obtenerPdfDocumento(ruta)}
               mensajeError={(error) => mensajeErrorDocumento(error, ruta)}
-            ><FileText size={16} /> Ver rúbrica PDF · Miembro {miembro.posicion}</BotonPdf>;
+            ><FileText size={16} /> Ver rúbrica PDF · {nombreMiembro(miembro)}</BotonPdf>;
           })}
         </div>}
       </section>
@@ -332,7 +357,7 @@ export function PaginaEvaluacionTrabajoApi() {
 
   if (consulta.estado !== 'listo') return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Evaluaciones del trabajo" description={idTrabajo} breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, 'Evaluaciones']} />
+      <EncabezadoPagina title="Evaluaciones del trabajo" breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, 'Evaluaciones']} />
       <EstadoConsultaEvaluacionesApi estado={consulta.estado} error={consulta.error} alReintentar={reintentar} />
     </div>
   );
@@ -343,8 +368,8 @@ export function PaginaEvaluacionTrabajoApi() {
     <div className="evaluaciones-api-page">
       <EncabezadoPagina
         title="Evaluaciones del trabajo"
-        description={`${trabajo.codigo} · ${trabajo.titulo}`}
-        breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, trabajo.codigo]}
+        description={referenciaTrabajo(trabajo)}
+        breadcrumbs={[{ etiqueta: 'Mis evaluaciones', to: '/mis-evaluaciones' }, trabajo.titulo]}
         meta={<InsigniaEstado tono="info"><Database size={14} /> Acceso según los permisos del perfil</InsigniaEstado>}
       />
       <AlertaInstitucional titulo="Evaluación vinculada al tribunal"><p>Seleccione el miembro registrado del tribunal que corresponda. Solo puede registrar y cerrar evaluaciones quien está habilitado como integrante del tribunal del trabajo.</p></AlertaInstitucional>
@@ -358,7 +383,7 @@ export function PaginaEvaluacionTrabajoApi() {
         idEstudianteInicial={idEstudiante}
         tipoEtapaInicial={esOral ? 'ORAL' : 'ESCRITA'}
       />
-      <PanelEvaluacionesTrabajoApi evaluaciones={evaluaciones} consolidacion={consolidacion} />
+      <PanelEvaluacionesTrabajoApi evaluaciones={evaluaciones} consolidacion={consolidacion} miembrosTribunal={consulta.contexto?.miembrosTribunal} />
     </div>
   );
 }
@@ -379,7 +404,7 @@ export function PaginaResultadoApi() {
 
   return (
     <div className="evaluaciones-api-page">
-      <EncabezadoPagina title="Resultado individual" description={`${consolidacion.trabajo.codigo} · ${consolidacion.trabajo.titulo}`} breadcrumbs={[{ etiqueta: 'Evaluaciones del trabajo', to: `/evaluaciones/${idTrabajo}/escrita` }, 'Resultado individual']} meta={<InsigniaEstado estado={estadoLegible(resultado.estado)} />} />
+      <EncabezadoPagina title="Resultado individual" description={referenciaTrabajo(consolidacion.trabajo)} breadcrumbs={[{ etiqueta: 'Evaluaciones del trabajo', to: `/evaluaciones/${idTrabajo}/escrita` }, 'Resultado individual']} meta={<InsigniaEstado estado={estadoLegible(resultado.estado)} />} />
       <PanelResultadoIndividualApi resultado={resultado} />
     </div>
   );

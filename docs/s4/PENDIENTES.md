@@ -1,7 +1,86 @@
 # Lo que falta en Genares S4
 
-**Actualizado:** 16/11/2026, con el plan del núcleo y la revisión de pantallas (sección 4).
+**Actualizado el 27/11/2026.** El orden de trabajo refleja lo que se puede avanzar en el sistema local.
 Para poner el proyecto en marcha, ver [PRIMEROS-PASOS.md](PRIMEROS-PASOS.md). El detalle de cada requisito está en [estado-paso-1.md](estado-paso-1.md). Los Pasos 3, 4 y 5 se actualizaron a la versión 1.1, con los nombres reales de las tablas y el estado de la estructura y de las tareas.
+
+## Por dónde empezar
+
+**Siguiente tarea.** Mejorar la edición, los filtros y el PDF del Cronograma.
+
+| N.º | Tarea | Descripción |
+| --- | --- | --- |
+| 1 | Mejorar la edición, los filtros y el PDF del Cronograma | Editar desde la lista, buscar trabajos habilitados, añadir filtros rápidos y mantener el mismo orden y los mismos filtros en el PDF. |
+| 2 | Mostrar la numeración de actas en Configuración general | Añadir «Nombre de las actas». Mostrar el último número emitido y el siguiente previsto por carrera y período, usando el contador existente. Consultar el siguiente número no lo reserva, y las actas emitidas conservan su número. |
+| 3 | Dar acceso directo a los PDF | Facilitar la apertura de rúbricas y otros documentos desde el expediente, Mis evaluaciones, Coordinación y Secretaría. |
+| 4 | Mejorar la pantalla al terminar de calificar | Mostrar la nota del miembro y facilitar las acciones «Ver rúbrica» y «Siguiente estudiante». Presentar la nota consolidada y el acceso al acta cuando estén disponibles. |
+| 5 | Mejorar Inicio, navegación y filtros generales | Facilitar volver al listado, dar jerarquía a Inicio, reducir avisos repetidos y simplificar los filtros de Trabajos. |
+| 6 | Incorporar correos automáticos si se aprueban | Acordar con Coordinación qué eventos requieren un correo antes de implementarlos. |
+| 7 | Importar rúbricas desde Word si queda tiempo | Leer categorías, indicadores y puntos, abrir el formulario existente con esos datos y guardar el resultado revisado como borrador. |
+| 8 | Automatizar la reportería de cohortes, deserción y permanencia | Añadir al panel de Secretaría y Coordinación una vista con filtros por período de ingreso y tipo de estudiante (regular u homologado). Calcular los indicadores desde la base de estudiantes de 2018-1 a 2026 y usar el Excel local de matrículas como referencia. <br>**Cohorte buena (tasa de graduación):** 8 semestres para la malla actual y 9 para la malla antigua vigente hasta 2022, con hasta 3 semestres de tolerancia para graduarse. Solo cuentan los estudiantes que ingresaron a primer nivel con cupo regular. Se excluyen homologaciones externas y cambios de carrera. <br>**Deserción:** un estudiante regular se considera desertor tras 3 semestres consecutivos sin matrícula. <br>**Permanencia y reingreso:** si vuelve a matricularse, pasa a permanencia y se conserva el historial de deserción. El reingreso queda fuera de la cohorte buena. |
+| 9 | Actualizar el MER y los Pasos 1 a 5 | Alinear el MER con el esquema de S4 y sus dependencias en la base compartida. Actualizar el [Paso 1](planificacion-integracion-s4/Paso_1.md) para requisitos y reglas, el [Paso 2](planificacion-integracion-s4/Paso_2.md) para responsabilidades e integración, el [Paso 3](planificacion-integracion-s4/Paso_3.md) para arquitectura y base de datos, el [Paso 4](planificacion-integracion-s4/Paso_4.md) para estructura y componentes, y el [Paso 5](planificacion-integracion-s4/Paso_5.md) para tareas y entregas. En el Paso 5, registrar el orden de las migraciones y los datos iniciales autorizados para producción. |
+
+## Qué ya existe y qué queda para después
+
+- **Detalle de Modalidad.** La pantalla admite cualquier UUID válido de PostgreSQL, incluidos los identificadores de la base de pruebas que no son v4.
+- **Nombres y estados en pantalla.** Trabajos, Cronograma y Seguimiento muestran el título en lugar del UUID. Evaluaciones y Resultados muestran los nombres de estudiantes, miembros del tribunal y rúbricas cuando están registrados, con estados en lenguaje claro.
+- **Mis evaluaciones.** La lista muestra la escrita compartida, la oral y los resultados por estudiante, y el motivo de los bloqueos. Los filtros de etapa y estado consultan todas las páginas en el servidor.
+- **Estados y búsqueda del Cronograma.** La tabla y el PDF muestran «Programada» antes de la hora prevista y «En curso o pendiente» desde esa hora. Se conserva «Cancelada» y el estado de los registros históricos finalizados. La búsqueda admite el nombre de la sala y se aplica junto con los filtros del Cronograma.
+- **Horarios de sustentación.** El formulario y el servidor aplican los límites al crear o reprogramar. El formulario avisa si la sala está ocupada antes de guardar. Al reprogramar, excluye la propia sesión. El servidor vuelve a comprobar los cruces al guardar. En Configuración general se puede decidir si se bloquean fechas pasadas y fijar el horario de inicio por carrera, modalidad y período. Los valores por defecto bloquean fechas pasadas y admiten inicios de 06:00 a 23:00, hora de Ecuador continental. El [script de horario](../../backend/fixtures/s4-horario-programacion.sql) ya se ejecutó en la base local, según confirmó Josué.
+- **Rúbricas.** El sistema admite varias rúbricas y versiones configurables. La aplicación conserva la versión usada en cada evaluación. La asignación automática ya resuelve los casos con una candidata y pide una elección si encuentra varias aplicables. Los ejemplos de 5 + 5 y 10 + 10 son referencias para configurar, no tareas para elegir una rúbrica única.
+- **Sustentaciones simultáneas.** El cupo compartido inicia en 2. Configuración general permite cambiarlo y dar cupos independientes a las carreras que los necesiten. El Cronograma avisa con SweetAlert2 si hay un cruce de sala o se alcanza el cupo. La validación se aplica al crear y reprogramar.
+- **Redondeo.** Configuración general ya permite redondear o truncar a dos decimales y comparar el resultado publicado con el umbral. Las pruebas confirman que 6,995 aprueba al publicarse como 7,00 y reprueba al truncarse a 6,99 con mínimo de 7. El cálculo conserva precisión exacta antes de publicar. La regla histórica de los pasos 4 → 3 → 2 queda como antecedente de la discusión.
+- **Cambio de una nota cerrada.** El flujo de solicitud, aprobación y rechazo ya está implementado. Las pruebas del backend cubren permisos, plazos, evidencia configurable, auditoría, aplicación de la corrección y bloqueo si el trabajo finalizó o tiene acta archivada.
+- **Numeración de actas.** Las actas archivadas ya usan un consecutivo compartido por los dos formatos PAT, por carrera y período. El código actual genera, por ejemplo, `001-2026-2-SOFT`. La vista previa se muestra sin número. La tarea 2 añade la consulta en Configuración general.
+- **Acuerdos con S2 y S3.** El Paso 2 confirma que S3 administra los tribunales y S4 administra el calendario. Los puntos D-05 a D-08 siguen como asuntos de integración en esa documentación. Incluyen identidad, propiedad de los datos del trabajo y acceso de S3 al historial y a resultados.
+- **Acceso institucional, revisión de seguridad y despliegue.** Se retoman más adelante. La integración con el repositorio común queda para cuando el sistema llegue al 70 % de avance. Los asuntos de GitHub de la lista anterior son gestión del trabajo y automatización de comprobaciones de los PR.
+- **Seguimiento de la entrega.** Mantener actualizada la demostración, preparar el manual y completar el README, y actualizar la evaluación ISO/IEC 25010. El detalle de cada punto sigue en la lista de referencia.
+
+## Plan de aceptación para más adelante
+
+- Recorrer PA-02 a PA-18 con el sistema en funcionamiento. Incluir asignación de rúbricas, cierre escrito y oral, nota consolidada, corrección de notas, actas y finalización.
+- Revisar en el mismo recorrido las políticas por ámbito, los reemplazos, las convocatorias, las etapas personalizadas y las excepciones de programación y cierre.
+- Probar con el tribunal el recorrido en los dispositivos previstos. Revisar agenda, evaluaciones, rueda de notas, menú y PDF. Comprobar la recuperación de borradores, la sincronización y el cierre con confirmación del servidor. Los detalles de funcionamiento sin conexión y del alcance de la APK siguen en la revisión técnica.
+- Repetir las mediciones de rendimiento en el ambiente de aceptación.
+
+<details>
+<summary>Lista anterior de 30 puntos y contexto técnico completo</summary>
+
+La lista anterior y las revisiones fechadas se conservan como referencia. Para elegir el siguiente cambio, usa la tabla de «Por dónde empezar».
+
+## Lista anterior
+
+| N.º | Tarea | Descripción | Dependencia, cuando aplica |
+| --- | --- | --- | --- |
+| 1 | Habilitar el acceso institucional y los permisos | Conectar S4 al inicio de sesión real, aplicar los roles por ámbito y comprobar quién guarda, cierra o firma cada evaluación. | Institución y responsable de `auth/` en el repositorio común. |
+| 2 | Revisar la seguridad y proteger los datos personales | Revisar permisos del servidor, validación de entradas y mensajes de error. Sustituir por ejemplos los datos reales en las plantillas Word y PDF del repositorio y retirar los temporales de Word. | |
+| 3 | Confirmar y validar la rúbrica vigente | Acordar qué versión de Proyecto Integrador corresponde a cada carrera, modalidad y período. En la base de uso, verificar la asignación, dejar una sola versión aplicable por ámbito y comprobar qué pasa con los trabajos DEV ya evaluados y los que pueden reasignarse. | Coordinación y autoridades de la facultad. |
+| 4 | Cerrar la regla institucional de redondeo | Confirmar por escrito cómo tratar las cifras que exceden cuatro decimales y en qué períodos se aplica la regla en pasos. Según lo acordado, completar la configuración, las pruebas, la trazabilidad y la documentación normativa. | Coordinación y autoridades de la facultad. |
+| 5 | Cerrar los contratos con S2, S3 e identidad | Documentar identidad, creación de trabajos y estudiantes, consulta de historial y resultados, uso de la tabla antigua `s3.defensa` y señal de trabajo terminado para las consultas históricas. | Equipos de S2, S3 e identidad. Paso 2, D-05 a D-08. |
+| 6 | Integrar S4 con el repositorio común | Trasladar los cambios de S4 mediante PR revisados, coordinar los archivos compartidos y comunicar las dependencias nuevas de Capacitor para el visor de PDF. | Responsable de integración. Paso 5. |
+| 7 | Preparar el ambiente de aceptación | Publicar con HTTPS. En bases existentes, aplicar y comprobar las migraciones y scripts de la [guía de instalación](instalacion/local.md), incluido el umbral de aprobación y las políticas académicas vigentes. | Responsable de despliegue. |
+| 8 | Validar el flujo completo de aceptación | Automatizar PA-02 a PA-18 con datos propios de E2E. Incluir asignación de rúbrica, cierre escrito y oral, cálculo, actas, finalización y recuperación de borradores. Repetir las mediciones de rendimiento en aceptación. | Ambiente de aceptación. RNF-17, S4-17 y [prueba de carga](validacion-rnf-03-carga.md). |
+| 9 | Validar correcciones de notas cerradas | Probar una solicitud con evaluación cerrada, sin acta archivada y con el trabajo sin finalizar. Confirmar quién tramita la corrección, cuándo exige evidencia y cómo se gestiona externamente un acta emitida. | Coordinación y autoridades de la facultad. |
+| 10 | Validar las políticas académicas de cada ámbito | Probar las configuraciones ya disponibles para reemplazos por etapa, convocatorias por reprobación, etapas personalizadas y excepciones de programación y cierre. Verificar la trazabilidad y que la presidencia no agregue una tercera nota. | [Configuración general](configuracion-general.md) y Coordinación. |
+| 11 | Validar fechas, horas y salas del Cronograma | Impedir fechas pasadas, admitir horas entre 06:00 y 23:00, validar en pantalla y servidor, y avisar si la sala está ocupada antes de guardar. | |
+| 12 | Confirmar el contenido y la escala de las actas oficiales | Confirmar códigos académicos, origen de los datos que debe completar Genares y plantilla PAT por período. Probar la escala y la nota en letras en las actas y mostrar la escala correspondiente en los listados que mezclen períodos. Mantener los campos manuales acordados en el plan del núcleo. | Institución, Coordinación y equipos que provean los datos. |
+| 13 | Completar el cierre de calificación para el tribunal | Mostrar al cerrar la oral la nota del miembro, el estado de los demás, el PDF y el acceso al siguiente estudiante. Mostrar la nota consolidada y el acta cuando estén listas. Dar visibilidad a las evaluaciones pendientes y facilitar el cierre de la escrita antes de la defensa. | Ver «Al terminar de calificar y nota final del tribunal». |
+| 14 | Probar la APK con tribunales en dispositivos reales | Revisar desplazamiento, gestos simultáneos, rueda de notas, menú y apertura de PDF en Android. Comprobar el caso sin lector PDF y los enlaces antiguos de rúbricas. Probar también la interfaz web en iPad. | Tribunales y ambiente de aceptación. |
+| 15 | Completar el trabajo sin conexión | Descargar y actualizar la agenda, las rúbricas y los trabajos asignados. Medir el tamaño, descargar los PDF de tesis bajo demanda y probar la sincronización ante cambios de tribunal o sesión. Mantener el cierre con confirmación del servidor. | Acordar con la institución el almacenamiento, el cifrado y el borrado al cerrar sesión. |
+| 16 | Preparar la APK exclusiva del tribunal | Darle una entrada con agenda, evaluaciones y recuperación de borradores, reutilizando las pantallas de S4. | Paso 4, S4-15. |
+| 17 | Corregir los estados y la búsqueda del Cronograma | Mostrar y filtrar «Programada», «En curso o pendiente» y «Cancelada» según la hora. Retirar estados sin resultados y el aviso «Sin inicio real registrado». Permitir buscar por sala. | |
+| 18 | Corregir el detalle de Modalidad | Aceptar identificadores válidos de PostgreSQL, como en Carreras, y comprobar que abren las modalidades de prueba. | Ver «Errores encontrados». |
+| 19 | Simplificar Mis evaluaciones | Agrupar por trabajo, estudiantes y tribunal. Mostrar las acciones disponibles, explicar los bloqueos y filtrar por evaluaciones pendientes o cerradas por etapa. Revisar con el tribunal que el formulario, el total y los indicadores faltantes se entiendan en los cambios recientes. | Probar en móvil, tablet y escritorio. |
+| 20 | Mostrar nombres y estados legibles | Usar títulos, nombres de estudiantes y versiones de rúbrica donde aparecen identificadores internos. Unificar nombres del menú, títulos, rutas, estados y mensajes que hoy usan términos técnicos. | Ver la revisión de UX/UI. |
+| 21 | Mejorar la edición, los filtros y el PDF del Cronograma | Editar desde la lista, buscar trabajos habilitados, alinear los campos, añadir filtros rápidos, limpiar filtros y ordenar por fecha y hora. Aplicar los mismos filtros y orden al PDF. | |
+| 22 | Completar los datos de la rúbrica en PDF | Guardar la letra explícita de cada categoría y usarla en el PDF. Revisar si la línea de fuente debe configurarse por versión y comprobar la presentación de la escala en los documentos. | Ver el plan del núcleo y las diferencias de plantilla. |
+| 23 | Dar acceso directo a rúbricas y documentos | Facilitar el acceso al PDF desde el expediente, Mis evaluaciones, Coordinación y Secretaría. Confirmar qué se muestra en Resultados y en Documentos, retirar bloques duplicados y revisar los nombres de descarga al usar el visor. | El nombre al guardar desde el visor depende del navegador y del acceso institucional. |
+| 24 | Mejorar Inicio, navegación y filtros generales | Dar jerarquía a Inicio, facilitar «Volver» y el acceso a consultas, reducir avisos repetidos, simplificar los filtros de Trabajos y ajustar detalles visuales de formularios y listados. | Probar a 360, 768 y 1440 px. Acordar cualquier cambio de la insignia de visibilidad. |
+| 25 | Organizar las entregas y automatizar las comprobaciones | Fijar la fecha de entrega o de la primera sustentación. Crear o actualizar las tareas S4-01 a S4-17, organizar el tablero y configurar GitHub para compilar y probar cada PR. | Paso 5, sección 4.1. |
+| 26 | Mantener la demostración al día | Verificar que la rama `demo/accesos-por-rol` incluya los avances que se mostrarán y que los usuarios de prueba puedan recorrer el flujo previsto. | Instrucciones en `docs/s4/demo-usuarios.md` de la rama `demo/accesos-por-rol`. |
+| 27 | Actualizar la documentación de uso e instalación | Preparar un manual breve para docentes y coordinación sobre calificación, cierre, modo sin conexión y PDF. Añadir `s4-asignacion-rubrica-proceso.sql` a la tabla de scripts del README y documentar el cálculo con ejemplos. | Para el redondeo, usar la regla institucional confirmada. |
+| 28 | Actualizar la evaluación de calidad | Registrar los resultados de seguridad, pruebas con usuarios y mediciones en aceptación y actualizar [calidad-iso-25010.md](calidad-iso-25010.md). | Resultados de las pruebas y revisión de seguridad. |
+| 29 | Confirmar si se requieren correos automáticos | Acordar si los avisos por correo entran en el alcance y en qué eventos se enviarían. | Coordinación. |
+| 30 | Evaluar la importación de rúbricas desde Word | Si hay tiempo, leer categorías, indicadores y puntos, abrir el formulario existente con los datos y guardar la versión revisada como borrador. | La opción «Nueva versión basada en…» ya está disponible. |
 
 ## En pocas palabras
 
@@ -15,14 +94,7 @@ Las funciones de S4 están hechas y probadas en local:
 - seguimiento, documentos PDF y auditoría;
 - la app del tribunal para Android.
 
-Lo que falta:
-
-- Revisar con tribunales la UX de la APK en celular y tablet: desplazamiento, gestos simultáneos, precisión de la rueda y visibilidad del menú durante una sustentación.
-
-- probar todo de principio a fin;
-- mejorar la experiencia de uso;
-- llevar S4 al repositorio común;
-- conectarlo con los usuarios reales de la institución.
+Las secciones siguientes conservan los detalles técnicos y las decisiones de las revisiones anteriores. Consulta la tabla para ver el orden de trabajo y la [guía de Configuración general](configuracion-general.md) para conocer las opciones ya implementadas. La [guía de instalación](instalacion/local.md) detalla los scripts de cada base existente.
 
 ## Plan del núcleo: rúbricas y calificación (decidido el 16/11/2026)
 
@@ -166,38 +238,6 @@ Orden de trabajo:
 
 **Descartado:** subir el PDF de la rúbrica y dibujar encima los campos a mano. Exigiría construir un editor visual de PDF dentro del sistema, sería engorroso para coordinación y se rompería con cualquier cambio de formato.
 
-## 1. Se puede hacer ya
-
-| Tarea | Qué hay que hacer |
-| --- | --- |
-| **App solo para el tribunal** (Paso 4, tarea S4-15) | Hoy la APK es la web completa: en el teléfono se ven Rúbricas, Auditoría, Seguimiento… El Paso 4 pide una entrada propia (`frontend/src/apps/tribunal/`) con solo lo del tribunal: su agenda, sus evaluaciones y la recuperación de borradores. Debe reutilizar las pantallas y reglas del módulo S4, no copiarlas. |
-| **Corregir el estado y los filtros del Cronograma** | Desde que se quitaron «Iniciar» y «Finalizar» sustentación, una sesión solo puede estar «Programada» o «Cancelada», y el Cronograma muestra ese estado guardado. Por eso una sesión que ya empezó sigue diciendo «Programada», mientras que en Trabajos el mismo trabajo sí aparece como «Sustentación pendiente». Hay que corregir tres cosas: <br>1. Mostrar y filtrar por el estado según la hora: «Programada» antes de empezar, «En curso o pendiente» después, y «Cancelada». <br>2. Quitar del filtro «En sustentación» y «Finalizadas», que hoy nunca dan resultados, y el texto «Sin inicio real registrado». <br>3. Que el buscador encuentre también por sala. <br>Son cambios pequeños, dentro del módulo S4. |
-| **Mejorar la experiencia y la interfaz** | Ver las secciones 3 y 4. Es lo más visible para quien use el sistema. |
-| **Errores de la revisión del 16/11** | El detalle de Modalidad falla con los datos de prueba, la rúbrica oficial 5 + 5 no se puede crear y el Cronograma acepta fechas pasadas. Ver la sección 4. |
-| **Escalas configurables** | Que los puntos de cada etapa y la escala final salgan de la versión de rúbrica y de la configuración académica, no de un 10 fijo en el código. Ver la sección 4. |
-| **Organizar el trabajo en GitHub** (Paso 5) | Todavía no hay issues, tablero ni solicitudes de integración (PR). Todo está en una sola rama. Hay que crear las tarjetas S4-01 a S4-17 (su estado está en el Paso 5, sección 4.1) y trabajar con una rama por cambio y PR revisado por otra persona. |
-| **Comprobación automática en GitHub** (CI) | Que cada PR compile y pase las pruebas solo, sin depender de que alguien lo haga a mano. |
-| **Calidad según ISO/IEC 25010** | Ver [calidad-iso-25010.md](calidad-iso-25010.md). La más débil es la seguridad; faltan además las pruebas con usuarios reales y las mediciones en el ambiente de aceptación. Hay que actualizar el estado de cada característica cuando cambie algo. |
-| **Pruebas completas de aceptación** (RNF-17, tarea S4-17) | Automatizar los escenarios PA-02 a PA-18 del Paso 1 (sección 9) contra el sistema funcionando de verdad. Hoy hay unas 560 pruebas automáticas, pero cada una prueba una pieza suelta. Sugerencia: usar datos de prueba propios (por ejemplo, con el prefijo «E2E») y ocultarlos al terminar. |
-| **Revisión de seguridad** | Revisar el servidor de S4: permisos, datos que se aceptan y mensajes de error. |
-| **Completar el README** | Añadir `s4-asignacion-rubrica-proceso.sql` a la tabla de scripts del `README.md` principal. El orden completo ya está en PRIMEROS-PASOS.md. |
-
-## 2. Depende de otras personas
-
-| Tarea | Qué falta | Con quién |
-| --- | --- | --- |
-| **Usuarios reales y permisos** | Hoy se entra con una identidad de prueba que lo ve todo. Falta el inicio de sesión institucional, los roles y que cada persona vea solo su carrera. Mientras no exista, el guardado y el cierre de evaluaciones solo funcionan en el modo de pruebas, y no se comprueba quién firma. | Institución y responsable del repositorio común (la carpeta `auth/` es compartida). |
-| **Llevar S4 al repositorio común** | Hoy esta rama es una aplicación independiente. Hay que pasar solo las carpetas de S4, sin reemplazar archivos compartidos, mediante solicitudes de integración revisadas (Paso 5). | Responsable de integración. |
-| **Actas oficiales** | Las actas en PDF se generan, pero sin los códigos académicos reales. | Institución. |
-| **Nota mínima** | 70 % de la escala. El resultado publicado se compara con el umbral. La migración 005 convierte el valor histórico; la emisión sigue usando el flujo de documentos internos. | Verificado en la base local de desarrollo. Para otras bases existentes, consultar la guía de instalación. |
-| **Trabajos terminados** | Confirmar si S2 cambia el estado de una asignación cuando el trabajo termina, para la consulta del historial. | Equipo de S2. |
-| **Correos automáticos** | No están en los requisitos aprobados. Hay que confirmar si se piden. | Coordinación. |
-| **Acuerdos con otros equipos** (Paso 2, D-05 a D-08) | Cerrar por escrito: <br>· cómo llega la identidad; <br>· quién crea los trabajos y sus estudiantes; <br>· qué parte del historial lee S3; <br>· si S3 consultará los resultados de S4; <br>· qué se hace con la tabla antigua `s3.defensa`. <br>Conviene guardarlos en `docs/contracts/`. | Equipos de S2 y S3, e identidad. |
-| **Respuestas de las autoridades** | Quién autoriza las correcciones y con qué documento, de dónde salen los datos de las actas, qué acta va con cada período, la regla de redondeo en pasos y el modo sin conexión. Ver la sección 4, «Preguntas para las autoridades». | Coordinación y autoridades de la facultad. |
-| **Ambiente de aceptación** | Publicar el sistema con HTTPS, repetir ahí la prueba de rendimiento y probar en tablet Android e iPad. | Responsable de despliegue. |
-
-La configuraci?n general ya est? implementada y disponible en la rama de integraci?n. La [gu?a de Configuraci?n general](configuracion-general.md) describe el alcance, las opciones y ejemplos de uso. La [gu?a de instalaci?n](instalacion/local.md) detalla los scripts que requiere cada base existente.
-
 ## 3. Experiencia e interfaz (UX/UI)
 
 Observaciones de revisar las pantallas principales a 1440 px. La accesibilidad básica ya se corrigió; ver RNF-14 en [estado-paso-1.md](estado-paso-1.md).
@@ -236,7 +276,7 @@ Observaciones de revisar las pantallas principales a 1440 px. La accesibilidad b
 
 ## 4. Revisión de pantallas (16/11/2026)
 
-Observaciones de Josué al probar el sistema, revisadas contra el código. Ninguna está hecha todavía.
+Observaciones de Josué al probar el sistema el 16/11/2026. Las notas fechadas documentan los cambios posteriores, y la tabla inicial recoge lo que falta.
 
 ### Errores encontrados
 
@@ -268,7 +308,7 @@ Observaciones de Josué al probar el sistema, revisadas contra el código. Ningu
    - ordenar por fecha y hora, en orden ascendente o descendente.
 7. **PDF del cronograma** con los mismos filtros y el mismo orden que la tabla. Hoy respeta carrera, período, estado y búsqueda, pero no tendrá los filtros nuevos.
 8. **Botón «Borrar filtros»**, en el Cronograma y en todas las pantallas con filtros.
-9. Lo ya anotado en la sección 1: el estado según la hora, quitar las opciones de estado que no dan resultados y buscar por sala.
+9. Mostrar el estado según la hora, retirar las opciones de estado sin resultados y buscar por sala. Ver la tarea «Corregir los estados y la búsqueda del Cronograma».
 
 ### Mis evaluaciones
 
@@ -547,7 +587,7 @@ Ya existe: Auditoría › Solicitudes de corrección.
 
 ## 6. Otros puntos a tener en cuenta (16/11/2026)
 
-Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resueltos.
+Riesgos y preguntas registrados al repasar el plan del núcleo. La tabla inicial incorpora las comprobaciones y decisiones que siguen pendientes.
 
 ### Pueden bloquear el plan del núcleo
 
@@ -592,3 +632,5 @@ Riesgos y preguntas que salieron al repasar el plan del núcleo. No están resue
 ### Organización
 
 12. **Poner una fecha límite.** El plan del núcleo tiene orden, pero no fechas. Con la fecha de entrega o de la primera sustentación real se sabe qué es obligatorio y qué queda para si hay tiempo. Por ahora, los pasos 1 y 2 del plan son los imprescindibles.
+
+</details>

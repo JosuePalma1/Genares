@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Patch,
   Param,
   ParseUUIDPipe,
@@ -16,6 +17,7 @@ import { ActualizarProgramacionDto } from './dto/actualizar-programacion.dto';
 import { CambiarEstadoProgramacionDto } from './dto/cambiar-estado-programacion.dto';
 import { ConsultarProgramacionesDto } from './dto/consultar-programaciones.dto';
 import { CrearProgramacionDto } from './dto/crear-programacion.dto';
+import { ConsultarDisponibilidadSalaDto } from './dto/horario-sala.dto';
 import { ProgramacionesSustentacionService } from './programaciones-sustentacion.service';
 
 @Controller({ path: 'programaciones-sustentacion', version: '1' })
@@ -57,6 +59,13 @@ export class ProgramacionesSustentacionController {
 
   private rolProgramacion(solicitud: SolicitudConIdentidad) {
     return solicitud.identidadApi?.rol ?? (solicitud.identidadApi?.tipo === 'DESARROLLO_LOCAL' ? 'SUPERUSUARIO' : '');
+  }
+
+  @Post('disponibilidad-sala')
+  @HttpCode(200)
+  @RequiereCapacidades('programaciones:administrar')
+  consultarDisponibilidadSala(@Body() dto: ConsultarDisponibilidadSalaDto) {
+    return this.programaciones.consultarDisponibilidadSala(dto);
   }
 
   @Post()

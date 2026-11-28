@@ -4,10 +4,13 @@ import { Ban, CalendarDays, Clock3, FilePlus2, MapPin, Pencil, Printer, RefreshC
 import { DialogoGenares as Swal } from '../components/dialogos';
 import { AlertaInstitucional, EncabezadoPagina, InsigniaEstadoRegistro } from '../components/interfaz';
 import { Paginador } from '../components/Paginador';
+import { fechaHoyInstitucional, HORARIO_PROGRAMACION_PREDETERMINADO } from '../../domain/horarioProgramacion';
+import { codigoVisibleTrabajo, referenciaTrabajo } from '../../domain/etiquetasAcademicas';
 import {
   actualizarProgramacionApi,
   capacidadesProgramacionesApi,
   cambiarEstadoProgramacionApi,
+  consultarDisponibilidadSalaApi,
   crearProgramacionApi,
   listarPaginaProgramacionesApi,
   listarTrabajosDisponiblesApi,
@@ -29,11 +32,6 @@ export function periodoEfectivoCronograma(periodoElegido, periodoAplicado) {
   return periodoAplicado ?? TODOS_LOS_PERIODOS;
 }
 
-function fechaHoyLocal() {
-  const fecha = new Date();
-  return [fecha.getFullYear(), String(fecha.getMonth() + 1).padStart(2, '0'), String(fecha.getDate()).padStart(2, '0')].join('-');
-}
-
 function mostrarFecha(fecha) {
   if (!fecha) return '—';
   return new Date(`${fecha}T12:00:00`).toLocaleDateString('es-EC', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -50,7 +48,9 @@ function personaLista(personas) {
 function etiquetaEstado(estado) {
   return ({
     PROGRAMADA: 'Programada',
-    EN_SUSTENTACION: 'En sustentación',
+    PROXIMA: 'Programada',
+    EN_SUSTENTACION: 'En curso o pendiente',
+    EN_CURSO_O_PENDIENTE: 'En curso o pendiente',
     FINALIZADA: 'Finalizada',
     CANCELADA: 'Cancelada',
   })[estado] ?? estado;
@@ -67,18 +67,6 @@ function rangoEstimado(fecha, hora, duracionMinutos) {
   return `${hora}–${horaFin}${diaFin !== diaInicio ? ` (${diaFin})` : ''}`;
 }
 
-function fechaHoraReal(valor) {
-  return valor ? new Date(valor).toLocaleString('es-EC', { dateStyle: 'short', timeStyle: 'short' }) : null;
-}
-
-function resumenTiempoReal(elemento) {
-  if (elemento.finalizacionRealEn) {
-    return `Real: ${fechaHoraReal(elemento.inicioRealEn)} – ${fechaHoraReal(elemento.finalizacionRealEn)}`;
-  }
-  if (elemento.inicioRealEn) return `Inicio real: ${fechaHoraReal(elemento.inicioRealEn)} · en curso`;
-  return 'Sin inicio real registrado';
-}
-
 function nombreCarrera(filtros, id) {
   return filtros.carreras.find((carrera) => carrera.id === id)?.nombre ?? 'Todas las carreras';
 }
@@ -93,7 +81,7 @@ export default function PaginaCronograma() {
   const buscarUrl = parametrosUrl.get('buscar') || '';
   const nuevaUrl = parametrosUrl.get('nueva') === '1';
 
-  const [estado, establecerEstado] = useState('PROGRAMADA');
+  const [estado, establecerEstado] = useState('');
   const [carreraId, establecerCarreraId] = useState('');
   // null: el servidor aplica el periodo activo; TODOS: todos los periodos.
   const [periodoId, establecerPeriodoId] = useState(null);
@@ -113,10 +101,11 @@ export default function PaginaCronograma() {
   const [cargandoTrabajos, establecerCargandoTrabajos] = useState(false);
   const [idTrabajo, establecerIdTrabajo] = useState(trabajoIdUrl);
   const [idEdicion, establecerIdEdicion] = useState(null);
-  const [formulario, establecerFormulario] = useState({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
+  const [formulario, establecerFormulario] = useState(() => ({ fechaProgramada: fechaHoyInstitucional(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' }));
   // RN-28: estudiantes de la sesión nueva; por defecto, todos los que aún no tienen programación.
   const [participantes, establecerParticipantes] = useState([]);
   const [guardando, establecerGuardando] = useState(false);
+  const [disponibilidadSala, establecerDisponibilidadSala] = useState(null);
   const [actualizandoEstadoId, establecerActualizandoEstadoId] = useState(null);
   const [impresion, establecerImpresion] = useState(null);
 
@@ -126,13 +115,61 @@ export default function PaginaCronograma() {
     if (idTrabajo) {
       return {};
     }
-    return { carreraId, periodoId: periodoEfectivo, buscar: buscarServidor };
-  }, [idTrabajo, carreraId, periodoEfectivo, buscarServidor]);
+    return { carreraId, periodoId: periodoEfectivo };
+  }, [idTrabajo, carreraId, periodoEfectivo]);
   const trabajoSeleccionado = trabajosDisponibles.find((trabajo) => trabajo.idTrabajo === idTrabajo);
   const programacionEnEdicion = elementos.find((elemento) => elemento.id === idEdicion);
+  const horarioProgramacion = (idEdicion ? programacionEnEdicion : trabajoSeleccionado)?.horarioProgramacion
+    ?? HORARIO_PROGRAMACION_PREDETERMINADO;
   const puedeEditar = Boolean(capacidad?.puedeAdministrar);
+  const { fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos } = formulario;
+  const consultaSala = useMemo(() => {
+    const duracion = Number(duracionEstimadaMinutos);
+    if (!mostrarFormulario || !puedeEditar || (!idTrabajo && !idEdicion)
+      || !fechaProgramada || !horaProgramada || !sala.trim()
+      || !Number.isInteger(duracion) || duracion < 1 || duracion > 240) return null;
+    return {
+      fechaProgramada, horaProgramada, sala: sala.trim(), duracionEstimadaMinutos: duracion,
+      idProgramacion: idEdicion, idTrabajo,
+    };
+  }, [mostrarFormulario, puedeEditar, idTrabajo, idEdicion, fechaProgramada, horaProgramada, sala, duracionEstimadaMinutos]);
+  const resultadoSala = disponibilidadSala?.consulta === consultaSala ? disponibilidadSala : null;
+  const comprobandoSala = Boolean(consultaSala && !resultadoSala);
+  const horarioOcupado = resultadoSala?.disponible === false;
+  const salaOcupada = horarioOcupado && resultadoSala.motivo !== 'LIMITE_SIMULTANEAS';
   const pendientesSeleccionado = trabajoSeleccionado?.estudiantesPendientes ?? [];
   const idsPendientesSeleccionado = pendientesSeleccionado.map(({ id }) => id).join(',');
+
+  useEffect(() => {
+    if (!consultaSala) return undefined;
+    const controlador = new AbortController();
+    const { signal } = controlador;
+    const temporizador = window.setTimeout(async () => {
+      try {
+        const resultado = await consultarDisponibilidadSalaApi(consultaSala, { signal });
+        if (signal.aborted) return;
+        const { disponible, motivo } = resultado;
+        if (disponible) {
+          establecerDisponibilidadSala({ consulta: consultaSala, disponible });
+          return;
+        }
+        const titulo = motivo === 'LIMITE_SIMULTANEAS' ? 'Límite de sustentaciones alcanzado' : 'Sala ocupada';
+        const mensaje = resultado.mensaje ?? 'Otra sustentación coincide con ese horario. Cambie la sala, la hora o la duración.';
+        establecerDisponibilidadSala({ consulta: consultaSala, disponible, motivo, titulo, mensaje });
+        void Swal.fire({ icon: 'warning', title: titulo, text: mensaje, toast: true, position: 'top-end',
+          timer: 5500, timerProgressBar: true, showConfirmButton: false, showCloseButton: true });
+      } catch (error) {
+        if (signal.aborted) return;
+        establecerDisponibilidadSala({ consulta: consultaSala, error: error.message });
+        void Swal.fire({ icon: 'warning', title: 'Disponibilidad sin confirmar', text: error.message,
+          toast: true, position: 'top-end', timer: 5500, showConfirmButton: false, showCloseButton: true });
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(temporizador);
+      controlador.abort();
+    };
+  }, [consultaSala]);
 
   useEffect(() => {
     establecerParticipantes(idsPendientesSeleccionado ? idsPendientesSeleccionado.split(',') : []);
@@ -230,7 +267,7 @@ export default function PaginaCronograma() {
   function abrirNuevaProgramacion() {
     establecerIdEdicion(null);
     establecerIdTrabajo('');
-    establecerFormulario({ fechaProgramada: fechaHoyLocal(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
+    establecerFormulario({ fechaProgramada: fechaHoyInstitucional(), horaProgramada: '10:00', sala: '', duracionEstimadaMinutos: 60, motivo: '' });
     establecerMostrarFormulario(true);
   }
 
@@ -253,14 +290,31 @@ export default function PaginaCronograma() {
     establecerIdTrabajo('');
   }
 
+  function avisarCampoInvalido(evento) {
+    evento.preventDefault();
+    const campo = evento.currentTarget.querySelector('input:invalid, select:invalid, textarea:invalid');
+    if (!campo || evento.target !== campo) return;
+    void Swal.fire({ icon: 'warning', title: 'Revise los datos de la sustentación', text: campo.validationMessage })
+      .then(() => campo.focus());
+  }
+
   async function guardar(evento) {
     evento.preventDefault();
     const campos = new FormData(evento.currentTarget);
-    if (!puedeEditar || guardando) return;
+    if (!puedeEditar || guardando || comprobandoSala || horarioOcupado) return;
     if (!formulario.fechaProgramada || !formulario.horaProgramada || !formulario.sala.trim() || (!idEdicion && !idTrabajo)
       || !Number.isInteger(Number(formulario.duracionEstimadaMinutos))
       || Number(formulario.duracionEstimadaMinutos) < 1 || Number(formulario.duracionEstimadaMinutos) > 240) {
       await Swal.fire({ icon: 'warning', title: 'Complete la programación', text: 'Seleccione el trabajo, ingrese fecha, hora y sala, y defina una duración estimada entera entre 1 y 240 minutos.' });
+      return;
+    }
+    if (horarioProgramacion.bloquearFechasPasadas && formulario.fechaProgramada < fechaHoyInstitucional()) {
+      await Swal.fire({ icon: 'warning', title: 'Fecha fuera del rango', text: 'No se pueden programar sustentaciones en fechas pasadas.' });
+      return;
+    }
+    const { horaMinima, horaMaxima } = horarioProgramacion;
+    if (formulario.horaProgramada < horaMinima || formulario.horaProgramada > horaMaxima) {
+      await Swal.fire({ icon: 'warning', title: 'Hora fuera del rango', text: `La hora de inicio debe estar entre ${horaMinima} y ${horaMaxima}.` });
       return;
     }
     if (idEdicion && !formulario.motivo.trim()) {
@@ -337,7 +391,7 @@ export default function PaginaCronograma() {
   async function imprimir() {
     try {
       const resultado = await obtenerImpresionProgramacionesApi(filtros);
-      establecerImpresion(resultado);
+      establecerImpresion({ ...resultado, consulta: filtros });
       window.setTimeout(() => window.print(), 30);
     } catch (error) {
       await Swal.fire({ icon: 'error', title: 'No se pudo preparar el cronograma', text: error.message });
@@ -393,7 +447,7 @@ export default function PaginaCronograma() {
               <button className="icon-button" type="button" aria-label="Cerrar formulario" onClick={cerrarFormulario}><X size={19} /></button>
             </header>
 
-            <form onSubmit={guardar} className="cronograma-form">
+            <form onSubmit={guardar} onInvalid={avisarCampoInvalido} className="cronograma-form">
               {!idEdicion ? (
                 <div className="field">
                   <label htmlFor="cronograma-trabajo">Trabajo habilitado</label>
@@ -401,7 +455,7 @@ export default function PaginaCronograma() {
                     <option value="">{cargandoTrabajos ? 'Cargando trabajos…' : 'Seleccione un trabajo'}</option>
                     {trabajosDisponibles.map((trabajo) => (
                       <option key={trabajo.idTrabajo} value={trabajo.idTrabajo}>
-                        {trabajo.trabajo.codigo} · {trabajo.trabajo.titulo} — {trabajo.carrera.nombre}
+                        {referenciaTrabajo(trabajo.trabajo)} — {trabajo.carrera.nombre}
                       </option>
                     ))}
                   </select>
@@ -409,7 +463,7 @@ export default function PaginaCronograma() {
                 </div>
               ) : (
                 <div className="cronograma-selected-work">
-                  <strong>{programacionEnEdicion?.trabajo.codigo} · {programacionEnEdicion?.trabajo.titulo}</strong>
+                  <strong>{referenciaTrabajo(programacionEnEdicion?.trabajo)}</strong>
                   <span>{programacionEnEdicion?.carrera.nombre} · período {programacionEnEdicion?.periodo.codigo}</span>
                 </div>
               )}
@@ -461,15 +515,25 @@ export default function PaginaCronograma() {
               <div className="cronograma-form-fields">
                 <div className="field">
                   <label htmlFor="cronograma-fecha"><CalendarDays size={16} /> Fecha</label>
-                  <input id="cronograma-fecha" className="input" type="date" value={formulario.fechaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, fechaProgramada: evento.target.value }))} required />
+                  <input id="cronograma-fecha" className="input" type="date"
+                    min={horarioProgramacion.bloquearFechasPasadas ? fechaHoyInstitucional() : undefined}
+                    aria-describedby={horarioProgramacion.bloquearFechasPasadas ? 'cronograma-fecha-ayuda' : undefined}
+                    value={formulario.fechaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, fechaProgramada: evento.target.value }))} required />
+                  {horarioProgramacion.bloquearFechasPasadas && <small id="cronograma-fecha-ayuda">Desde hoy, hora de Ecuador continental.</small>}
                 </div>
                 <div className="field">
                   <label htmlFor="cronograma-hora"><Clock3 size={16} /> Hora</label>
-                  <input id="cronograma-hora" className="input" type="time" value={formulario.horaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, horaProgramada: evento.target.value }))} required />
+                  <input id="cronograma-hora" className="input" type="time"
+                    min={horarioProgramacion.horaMinima} max={horarioProgramacion.horaMaxima}
+                    aria-describedby="cronograma-hora-ayuda"
+                    value={formulario.horaProgramada} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, horaProgramada: evento.target.value }))} required />
+                  <small id="cronograma-hora-ayuda">Inicio entre {horarioProgramacion.horaMinima} y {horarioProgramacion.horaMaxima}.</small>
                 </div>
                 <div className="field">
                   <label htmlFor="cronograma-sala"><MapPin size={16} /> Sala</label>
-                  <input id="cronograma-sala" className="input" maxLength={160} value={formulario.sala} onChange={(evento) => establecerFormulario((actual) => ({ ...actual, sala: evento.target.value }))} placeholder="Ej. Sala 2" required />
+                  <input id="cronograma-sala" className="input" maxLength={160} value={formulario.sala}
+                    aria-invalid={salaOcupada} aria-describedby="cronograma-disponibilidad-sala"
+                    onChange={(evento) => establecerFormulario((actual) => ({ ...actual, sala: evento.target.value }))} placeholder="Ej. Sala 2" required />
                 </div>
                 <div className="field">
                   <label htmlFor="cronograma-duracion"><Clock3 size={16} /> Duración estimada (minutos)</label>
@@ -492,10 +556,20 @@ export default function PaginaCronograma() {
                   <small>Queda en el historial del trabajo junto con la fecha, hora y sala anteriores.</small>
                 </div>
               )}
-              <p className="cronograma-conflict-note">Los horarios de una misma sala no pueden solaparse. Se permiten horarios consecutivos; las salas distintas no se bloquean entre sí.</p>
+              <div id="cronograma-disponibilidad-sala" role="status" hidden={!consultaSala}>
+                {comprobandoSala && <small>Comprobando disponibilidad de la sala…</small>}
+                {horarioOcupado && <AlertaInstitucional tono="warning" titulo={resultadoSala.titulo}>
+                  {resultadoSala.mensaje}
+                </AlertaInstitucional>}
+                {resultadoSala?.disponible === true && <small>Sala disponible para el horario indicado.</small>}
+                {resultadoSala?.error && <AlertaInstitucional tono="warning" titulo="Disponibilidad sin confirmar">
+                  {resultadoSala.error}
+                </AlertaInstitucional>}
+              </div>
+              <p className="cronograma-conflict-note">Se permiten horarios consecutivos. Si se solapan, cada sustentación necesita su propia sala y debe haber cupo simultáneo.</p>
               <div className="cronograma-form-actions">
                 <button className="button button-outline" type="button" onClick={cerrarFormulario} disabled={guardando}>Cancelar</button>
-                <button className="button button-primary" type="submit" disabled={guardando || !puedeEditar || (!idEdicion && (cargandoTrabajos || trabajosDisponibles.length === 0))}>
+                <button className="button button-primary" type="submit" disabled={guardando || !puedeEditar || comprobandoSala || horarioOcupado || (!idEdicion && (cargandoTrabajos || trabajosDisponibles.length === 0))}>
                   <Save size={17} aria-hidden="true" /> {guardando ? 'Guardando…' : 'Guardar programación'}
                 </button>
               </div>
@@ -511,7 +585,7 @@ export default function PaginaCronograma() {
 
           <div className="cronograma-filters">
             <label className="field cronograma-search" htmlFor="cronograma-buscar">
-              <span>Buscar trabajo, estudiante o tribunal</span>
+              <span>Buscar trabajo, estudiante, tribunal o sala</span>
               <span className="cronograma-search-input"><Search size={17} aria-hidden="true" /><input id="cronograma-buscar" className="input" value={buscar} onChange={(evento) => establecerBuscar(evento.target.value)} /></span>
             </label>
             <label className="field" htmlFor="cronograma-carrera"><span>Carrera</span>
@@ -528,11 +602,10 @@ export default function PaginaCronograma() {
             </label>
             <label className="field" htmlFor="cronograma-estado"><span>Estado</span>
               <select id="cronograma-estado" className="input" value={estado} onChange={(evento) => { establecerEstado(evento.target.value); establecerPagina(1); }}>
-                <option value="PROGRAMADA">Programadas</option>
-                <option value="EN_SUSTENTACION">En sustentación</option>
-                <option value="FINALIZADA">Finalizadas</option>
-                <option value="CANCELADA">Canceladas</option>
                 <option value="">Todos los estados</option>
+                <option value="PROXIMA">Programadas</option>
+                <option value="EN_CURSO_O_PENDIENTE">En curso o pendientes</option>
+                <option value="CANCELADA">Canceladas</option>
               </select>
             </label>
           </div>
@@ -545,17 +618,22 @@ export default function PaginaCronograma() {
             <div className="cronograma-table-wrap" role="region" aria-label="Tabla de sustentaciones programadas" tabIndex="0">
               <table className="cronograma-table">
                 <caption className="sr-only">Sustentaciones programadas y acciones disponibles</caption>
-                <thead><tr><th>Fecha</th><th>Horario estimado</th><th>Estudiante(s)</th><th>Trabajo</th><th>Tribunal</th><th>Sala</th><th>Estado y hora real</th><th>Acciones</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Horario estimado</th><th>Estudiante(s)</th><th>Trabajo</th><th>Tribunal</th><th>Sala</th><th>Estado</th><th>Acciones</th></tr></thead>
                 <tbody>
                   {elementos.map((elemento) => (
                     <tr key={elemento.id}>
                       <td data-label="Fecha">{mostrarFecha(elemento.fechaProgramada)}</td>
                       <td data-label="Horario estimado"><strong>{rangoEstimado(elemento.fechaProgramada, elemento.horaProgramada, elemento.duracionEstimadaMinutos)}</strong><small>{elemento.duracionEstimadaMinutos} min estimados</small></td>
                       <td data-label="Estudiante(s)">{personaLista(elemento.estudiantes)}</td>
-                      <td data-label="Trabajo"><Link className="cronograma-work-link" to={`/trabajos/${elemento.idTrabajo}`}>{elemento.trabajo.codigo}</Link><span>{elemento.trabajo.titulo}</span><small>{elemento.carrera.nombre} · {elemento.periodo.codigo}</small></td>
+                      <td data-label="Trabajo"><Link className="cronograma-work-link" to={`/trabajos/${elemento.idTrabajo}`}>{referenciaTrabajo(elemento.trabajo)}</Link><small>{elemento.carrera.nombre} · {elemento.periodo.codigo}</small></td>
                       <td data-label="Tribunal">{elemento.tribunal.length ? elemento.tribunal.map((miembro) => <span className="cronograma-persona" key={miembro.id}><UsersRound size={14} /> {miembro.posicion}. {nombre(miembro)}</span>) : 'Sin tribunal confirmado'}</td>
                       <td data-label="Sala">{elemento.sala}</td>
-                      <td data-label="Estado y hora real"><InsigniaEstadoRegistro estadoRegistro={elemento.estadoRegistro} /><span className={`cronograma-status cronograma-status-${elemento.estado.toLowerCase()}`}>{etiquetaEstado(elemento.estado)}</span><small className="cronograma-actual-time">{resumenTiempoReal(elemento)}</small></td>
+                      <td data-label="Estado">
+                        <InsigniaEstadoRegistro estadoRegistro={elemento.estadoRegistro} />
+                        <span className={`cronograma-status cronograma-status-${(elemento.estadoCronograma ?? elemento.estado).toLowerCase()}`}>
+                          {etiquetaEstado(elemento.estadoCronograma ?? elemento.estado)}
+                        </span>
+                      </td>
                       <td data-label="Acciones"><div className="cronograma-row-actions">
                         {elemento.estado === 'PROGRAMADA' && puedeEditar && <>
                           <button className="button button-outline cronograma-edit-button" type="button" onClick={() => abrirEdicion(elemento)}><Pencil size={15} aria-hidden="true" /> Editar</button>
@@ -579,17 +657,18 @@ export default function PaginaCronograma() {
             <p>GESTIÓN DE TITULACIÓN</p>
             <h1>CRONOGRAMA DE SUSTENTACIONES</h1>
             <p>Facultad de Ciencias de la Vida y Tecnologías</p>
-            <p>Carrera: {nombreCarrera(impresion.filtros, filtros.carreraId)} · Período: {codigoPeriodo(impresion.filtros, filtros.periodoId)}</p>
+            <p>Carrera: {nombreCarrera(impresion.filtros, impresion.consulta.carreraId)} · Período: {codigoPeriodo(impresion.filtros, impresion.consulta.periodoId)}</p>
+            <p>Estado: {etiquetaEstado(impresion.consulta.estado) || 'Todos los estados'}{impresion.consulta.buscar && ` · Búsqueda: ${impresion.consulta.buscar}`}</p>
             <p>Generado: {new Date(impresion.generadoEn).toLocaleString('es-EC')}</p>
           </header>
           <table className="cronograma-print-table">
-            <thead><tr><th>Fecha</th><th>Horario estimado</th><th>Horario real registrado</th><th>Estudiantes</th><th>Tema del trabajo</th><th>Tribunal</th><th>Sala</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Horario estimado</th><th>Estado</th><th>Estudiantes</th><th>Tema del trabajo</th><th>Tribunal</th><th>Sala</th></tr></thead>
             <tbody>{impresion.elementos.map((elemento) => (
               <tr key={elemento.id}>
                 <td>{mostrarFecha(elemento.fechaProgramada)}</td><td>{rangoEstimado(elemento.fechaProgramada, elemento.horaProgramada, elemento.duracionEstimadaMinutos)}<br /><small>{elemento.duracionEstimadaMinutos} min estimados</small></td>
-                <td>{resumenTiempoReal(elemento)}</td>
+                <td>{etiquetaEstado(elemento.estadoCronograma ?? elemento.estado)}</td>
                 <td>{personaLista(elemento.estudiantes)}</td>
-                <td>{elemento.trabajo.titulo}<br /><small>{elemento.trabajo.codigo} · {elemento.carrera.nombre} · período {elemento.periodo.codigo}</small></td>
+                <td>{elemento.trabajo.titulo}<br /><small>{[codigoVisibleTrabajo(elemento.trabajo.codigo), elemento.carrera.nombre, `período ${elemento.periodo.codigo}`].filter(Boolean).join(' · ')}</small></td>
                 <td>{elemento.tribunal.map((miembro) => `${miembro.posicion}. ${nombre(miembro)}`).join('; ')}</td>
                 <td>{elemento.sala}</td>
               </tr>

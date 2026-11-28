@@ -8,6 +8,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
+  IsObject,
   IsUUID,
   IsOptional,
   IsString,
@@ -19,6 +20,15 @@ import {
 } from 'class-validator';
 
 import { CAPACIDADES_POR_ROL } from '../../../common/api/capacidades-por-rol';
+import { FORMATO_HORA_PROGRAMACION, HorarioProgramacion } from '../sustentaciones/reglas-programacion-sustentacion';
+
+class HorarioProgramacionDto implements HorarioProgramacion {
+  @IsBoolean() bloquearFechasPasadas!: boolean;
+  @Matches(FORMATO_HORA_PROGRAMACION) horaMinima!: string;
+  @Matches(FORMATO_HORA_PROGRAMACION) horaMaxima!: string;
+  @IsOptional() @IsInt() @Min(1) @Max(2147483647)
+  limiteSimultaneas?: number | null;
+}
 
 export class PermisosRolDto {
   @IsIn(Object.keys(CAPACIDADES_POR_ROL).filter((r) => r !== 'SUPERUSUARIO')) rol!: Exclude<
@@ -77,6 +87,8 @@ export class PasoDto {
   @IsBoolean() obligatorio!: boolean;
 }
 export class PublicarFlujoDto {
+  @IsOptional() @IsObject() @ValidateNested() @Type(() => HorarioProgramacionDto)
+  horarioProgramacion?: HorarioProgramacionDto;
   @IsOptional() @IsIn(['HALF_UP', 'TRUNCAR']) redondeo?: string;
   @IsOptional() @Matches(/^(?:100(?:\.0{1,2})?|[1-9]?\d(?:\.\d{1,2})?)$/) umbral?: string;
   @IsOptional() @IsBoolean() oralSinSesion?: boolean;

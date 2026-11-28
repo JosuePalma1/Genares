@@ -125,6 +125,7 @@ export function adaptarPaginaTrabajosApi(respuesta, adaptarLista = adaptarListaT
 /** Ruta de la página pedida; omite los filtros vacíos o «Todos». */
 export function rutaPaginaTrabajos({
   pagina = 1, limite = 25, periodo, buscar, estado, tribunal, carrera, modalidad, estudiante, tema, tutor,
+  vista, etapaEvaluacion, estadoEvaluacion,
 } = {}) {
   const parametros = new URLSearchParams({ limite: String(limite), pagina: String(pagina) });
   if (periodo) parametros.set('periodo', periodo);
@@ -136,5 +137,8 @@ export function rutaPaginaTrabajos({
   if (estudiante?.trim()) parametros.set('estudiante', estudiante.trim());
   if (tema?.trim()) parametros.set('tema', tema.trim());
   if (tutor?.trim()) parametros.set('tutor', tutor.trim());
+  if (vista) parametros.set('vista', vista);
+  if (etapaEvaluacion) parametros.set('etapaEvaluacion', etapaEvaluacion);
+  if (estadoEvaluacion) parametros.set('estadoEvaluacion', estadoEvaluacion);
   return `/trabajos?${parametros}`;
 }

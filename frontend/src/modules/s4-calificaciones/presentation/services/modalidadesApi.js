@@ -5,6 +5,7 @@ import {
   mapearCrearModalidad,
   mapearEstadoModalidad,
 } from '../../infrastructure/repositories/modalidadesApi';
+import { esUuidPostgres } from '../../infrastructure/repositories/uuidPostgres';
 import {
   getJsonApi,
   patchJsonModalidadesApi,
@@ -18,7 +19,7 @@ export async function cargarModalidadesApi({ signal, disponiblesParaFamilia = fa
 }
 
 export async function cargarModalidadApi(id, { signal, solicitarJson = getJsonApi } = {}) {
-  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+  if (!esUuidPostgres(id)) {
     throw new TypeError('Seleccione una modalidad válida.');
   }
   return adaptarModalidadApi(await solicitarJson(`/modalidades/${encodeURIComponent(id)}`, { signal }));

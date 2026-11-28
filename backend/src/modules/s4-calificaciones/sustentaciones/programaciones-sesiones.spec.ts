@@ -1,6 +1,7 @@
 import { DataSource } from 'typeorm';
 import { TrabajosService } from '../trabajos/trabajos.service';
 import { CONSULTA_ESTUDIANTES_PROGRAMABLES, ProgramacionesSustentacionService } from './programaciones-sustentacion.service';
+import { HorarioProgramacion } from './reglas-programacion-sustentacion';
 
 /** RN-27 (motivo de reprogramación) y RN-28 (sesiones separadas para una bina). */
 const TRABAJO = '11111111-1111-4111-8111-111111111111';
@@ -8,16 +9,24 @@ const SESION = 'aaaaaaaa-0000-4000-8000-000000000001';
 const A = '55555555-5555-4555-8555-555555555551';
 const B = '55555555-5555-4555-8555-555555555552';
 
-function preparar(estudiantes: Array<{ id: string; programado: boolean }>, oralIniciada = false) {
+function preparar(
+  estudiantes: Array<{ id: string; programado: boolean }>,
+  oralIniciada = false,
+  horarioProgramacion?: HorarioProgramacion,
+  limiteAlcanzado = false,
+) {
   const query = jest.fn(async (sql: string, _parametros?: unknown[]) => {
     if (sql === CONSULTA_ESTUDIANTES_PROGRAMABLES) return estudiantes;
-    if (sql.includes('FROM s4.procesos_evaluacion p') && sql.includes('JOIN s2.asignacion_tema a')) return [{ id: 'p1' }];
+    if (sql.includes('FROM s4.procesos_evaluacion p') && sql.includes('JOIN s2.asignacion_tema a')) {
+      return [{ id: 'p1', idAsignacion: TRABAJO, horarioProgramacion }];
+    }
     if (sql.includes('AS tribunal')) return [{ tribunal: 2, cerradas: 2 }];
     if (sql.includes('INSERT INTO s4.programaciones_sustentacion')) return [{ id: SESION }];
     if (sql.includes('FROM s4.programaciones_sustentacion WHERE "id" = $1')) {
       return [{ id: SESION, idTrabajo: 'p1', estado: 'PROGRAMADA', duracionEstimadaMinutos: 60 }];
     }
     if (sql.includes('AS "iniciada"')) return [{ iniciada: oralIniciada }];
+    if (sql.includes('AS "limiteAlcanzado"') && limiteAlcanzado) return [{ limiteAlcanzado, limite: 2, carrera: null }];
     return [];
   });
   const manager = { query };
@@ -32,7 +41,22 @@ function preparar(estudiantes: Array<{ id: string; programado: boolean }>, oralI
 
 const base = { idTrabajo: TRABAJO, fechaProgramada: '2026-12-15', horaProgramada: '09:00', sala: 'Sala 1' };
 
+beforeEach(() => jest.useFakeTimers({ now: new Date('2026-12-01T12:00:00Z') }));
+afterEach(() => jest.useRealTimers());
+
 describe('creación de sesiones por estudiante', () => {
+  it('rechaza una tercera sustentación aunque se use otra sala', async () => {
+    const { servicio, llamada } = preparar([{ id: A, programado: false }], false, undefined, true);
+    await expect(servicio.crear(base, 'actor', true)).rejects.toThrow('límite de 2 sustentaciones simultáneas');
+    expect(llamada('INSERT INTO s4.programaciones_sustentacion')).toBeUndefined();
+  });
+  it('rechaza una hora fuera de la política vigente antes de insertar la sesión', async () => {
+    const { servicio, llamada } = preparar([{ id: A, programado: false }], false, {
+      bloquearFechasPasadas: true, horaMinima: '10:00', horaMaxima: '18:00',
+    });
+    await expect(servicio.crear(base, 'actor', true)).rejects.toThrow('10:00 y 18:00');
+    expect(llamada('INSERT INTO s4.programaciones_sustentacion')).toBeUndefined();
+  });
   it('sin selección programa a toda la bina en una sesión conjunta', async () => {
     const { servicio, llamada } = preparar([{ id: A, programado: false }, { id: B, programado: false }]);
     await servicio.crear(base, 'actor', true);
@@ -63,6 +87,22 @@ describe('creación de sesiones por estudiante', () => {
 describe('reprogramación', () => {
   const cambio = { fechaProgramada: '2026-12-16', horaProgramada: '10:00', sala: 'Sala 2' };
 
+  it('comprueba el cupo al reprogramar y excluye la propia sustentación', async () => {
+    const { servicio, llamada } = preparar([], false, undefined, true);
+    await expect(servicio.actualizar(SESION, { ...cambio, motivo: 'Cambio' }, 'actor'))
+      .rejects.toThrow('límite de 2 sustentaciones simultáneas');
+    expect(llamada('AS "limiteAlcanzado"')?.[1]).toEqual([cambio.fechaProgramada, cambio.horaProgramada, 60, SESION, TRABAJO, 2]);
+    expect(llamada('UPDATE s4.programaciones_sustentacion')).toBeUndefined();
+  });
+
+  it('permite una fecha anterior si la política vigente la habilita', async () => {
+    const fechaProgramada = '2026-11-30';
+    const { servicio, llamada } = preparar([], false, {
+      bloquearFechasPasadas: false, horaMinima: '09:00', horaMaxima: '18:00',
+    });
+    await servicio.actualizar(SESION, { ...cambio, fechaProgramada, motivo: 'Cambio' }, 'actor');
+    expect(llamada('UPDATE s4.programaciones_sustentacion')?.[1]?.[1]).toBe(fechaProgramada);
+  });
   it('exige motivo antes de abrir la transacción', async () => {
     const { servicio, query } = preparar([]);
     await expect(servicio.actualizar(SESION, { ...cambio, motivo: '  ' }, 'actor')).rejects.toThrow('motivo');

@@ -47,6 +47,25 @@ const filtros = {
 afterEach(() => vi.restoreAllMocks());
 
 describe('servicio API de cronogramas', () => {
+  it('envía solo los datos del cruce y la sesión a excluir al reprogramar', async () => {
+    const cliente = { postJson: vi.fn().mockResolvedValue({ disponible: false }) };
+    const servicio = crearServicioProgramacionesApi(cliente);
+    const { fechaProgramada, horaProgramada, duracionEstimadaMinutos } = programacion;
+    const signal = new AbortController().signal;
+    const datos = { fechaProgramada, horaProgramada, duracionEstimadaMinutos, sala: ' Sala 1 ', idProgramacion: ids.schedule };
+    await expect(servicio.consultarDisponibilidadSala(datos, { signal })).resolves.toEqual({ disponible: false });
+    expect(cliente.postJson).toHaveBeenCalledWith('/programaciones-sustentacion/disponibilidad-sala', {
+      ...datos, sala: 'Sala 1',
+    }, { signal });
+  });
+  it('envía el trabajo al crear y conserva el motivo del límite simultáneo', async () => {
+    const respuesta = { disponible: false, motivo: 'LIMITE_SIMULTANEAS', mensaje: 'Límite alcanzado.' };
+    const cliente = { postJson: vi.fn().mockResolvedValue(respuesta) };
+    const servicio = crearServicioProgramacionesApi(cliente);
+    const datos = { idTrabajo: ids.work, fechaProgramada: '2026-12-07', horaProgramada: '10:00', sala: 'Sala 1', duracionEstimadaMinutos: 60 };
+    await expect(servicio.consultarDisponibilidadSala(datos)).resolves.toEqual(respuesta);
+    expect(cliente.postJson).toHaveBeenCalledWith('/programaciones-sustentacion/disponibilidad-sala', datos, undefined);
+  });
   it('serializa filtros de carrera y período sin fixtures alternativos', async () => {
     expect(crearQueryProgramacion({ carreraId: ids.career, periodoId: ids.period, buscar: 'TT 1' }))
       .toBe(`?carreraId=${ids.career}&periodoId=${ids.period}&buscar=TT+1`);

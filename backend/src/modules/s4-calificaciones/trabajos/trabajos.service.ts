@@ -2,8 +2,10 @@ import { ORAL_SIN_SESION_VIGENTE_SQL } from '../configuracion/oral-sin-sesion.sq
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ConsultarTrabajosDto } from './consultar-trabajos.dto';
-import { leerPaginacion, normalizarBusqueda, periodoAplicado, TODOS_LOS_PERIODOS } from './paginacion-trabajos';
-import { conAlcance, filtroAlcance, identidadActual } from '../../../common/api/contexto-alcance';
+import { leerPaginacion, normalizarBusqueda, normalizarSql, periodoAplicado, TODOS_LOS_PERIODOS } from './paginacion-trabajos';
+import { alcanceActual, conAlcance, filtroAlcance, hayRestriccionDeAlcance, identidadActual } from '../../../common/api/contexto-alcance';
+import { puedeGuardarBorradoresMer } from '../evaluaciones/mer/permisos-evaluacion-mer';
+import { RESUMEN_MIS_EVALUACIONES, ResumenMisEvaluaciones } from './mis-evaluaciones.sql';
 
 /** Los ocho estados del Paso 1 §3.1, en orden de avance (posición 1 a 8). */
 export const ESTADOS_PROCESO_ORDENADOS = [
@@ -241,10 +243,6 @@ WHERE a.estado = 'VIGENTE'
   ${filtroAlcance()}
 `;
 
-/** Minúsculas y sin tildes, igual que normalizarBusqueda en el servidor y en el frontend. */
-const normalizarSql = (expresion: string) => `translate(lower(${expresion}),
-  'áàäâéèëêíìïîóòöôúùüûñçÁÀÄÂÉÈËÊÍÌÏÎÓÒÖÔÚÙÜÛÑÇ', 'aaaaeeeeiiiioooouuuuncaaaaeeeeiiiioooouuuunc')`;
-
 /** Nombres de los estudiantes de la asignación `a` (individual o bina activa en S2). */
 const NOMBRES_ESTUDIANTES = `(SELECT string_agg(concat_ws(' ', per.nombres, per.apellidos), ' ')
      FROM gen.estudiante est JOIN gen.persona per ON per.id = est.persona_id
@@ -274,9 +272,7 @@ export const TEXTO_BUSCABLE_TRABAJO = normalizarSql(`concat_ws(' ', a.id::text, 
   ${NOMBRES_TUTORES},
   ${NOMBRES_TRIBUNAL})`);
 
-export const CONSULTA_PAGINA_TRABAJOS_MER = `
-WITH filtrados AS (
-  SELECT a.id, t.titulo
+const FILTROS_PAGINA_TRABAJOS = `
   ${FILTRO_TRABAJOS_MER}
     AND ($2::text IS NULL OR estado_calculado.estado = $2::text)
     AND ($3::text IS NULL OR ($3::text = 'con') = EXISTS (
@@ -292,12 +288,41 @@ WITH filtrados AS (
     AND ($9::text IS NULL OR strpos(${normalizarSql(`COALESCE(${NOMBRES_ESTUDIANTES}, '')`)}, $9::text) > 0)
     AND ($10::text IS NULL OR strpos(${normalizarSql("COALESCE(t.titulo, '')")}, $10::text) > 0)
     AND ($11::text IS NULL OR strpos(${normalizarSql(`COALESCE(${NOMBRES_TUTORES}, '')`)}, $11::text) > 0)
+`;
+
+export const CONSULTA_PAGINA_TRABAJOS_MER = `
+WITH filtrados AS (
+  SELECT a.id, t.titulo
+  ${FILTROS_PAGINA_TRABAJOS}
 )
 SELECT
   (SELECT count(*)::integer FROM filtrados) AS total,
   COALESCE((SELECT array_agg(pagina.id ORDER BY pagina.titulo, pagina.id) FROM (
     SELECT id, titulo FROM filtrados ORDER BY titulo, id LIMIT $5 OFFSET $6
   ) pagina), '{}'::uuid[]) AS ids
+`;
+
+export const CONSULTA_PAGINA_MIS_EVALUACIONES = `
+WITH candidatos AS (
+  SELECT a.id, t.titulo, a.estudiante_id, a.grupo_id, p.id AS proceso, vr.id AS version
+  ${FILTROS_PAGINA_TRABAJOS}
+), filtrados AS (
+  SELECT a.id, a.titulo, resumen.etapas, resumen."conResultado"
+  FROM candidatos a
+  ${RESUMEN_MIS_EVALUACIONES}
+  WHERE ($12::text IS NULL AND $13::text IS NULL) OR EXISTS (
+    SELECT 1 FROM jsonb_array_elements(resumen.etapas) etapa
+    WHERE etapa->>'estado' <> 'NO_ASIGNADA'
+      AND ($12::text IS NULL OR etapa->>'tipo' = $12::text)
+      AND ($13::text IS NULL OR etapa->>'estado' = $13::text)
+  )
+), pagina AS (
+  SELECT * FROM filtrados ORDER BY titulo, id LIMIT $5 OFFSET $6
+)
+SELECT (SELECT count(*)::integer FROM filtrados) AS total,
+  COALESCE(array_agg(id ORDER BY titulo, id), '{}'::uuid[]) AS ids,
+  COALESCE(jsonb_object_agg(id, jsonb_build_object('etapas', etapas, 'conResultado', "conResultado")), '{}'::jsonb) AS resumenes
+FROM pagina
 `;
 
 const CONSULTA_ESTADOS_TRABAJOS_MER = `
@@ -400,19 +425,33 @@ export class TrabajosService {
     const { limite, pagina, desplazamiento } = leerPaginacion(filtros.limite, filtros.pagina);
     const periodos = await this.dataSource.query<PaginaTrabajosMer['filtros']['periodos']>(CONSULTA_PERIODOS);
     const periodo = periodoAplicado(filtros.periodo, periodos);
-    const [[{ total, ids }], estados, [catalogos]] = await Promise.all([
-      this.dataSource.query<Array<{ total: number; ids: string[] }>>(...conAlcance(CONSULTA_PAGINA_TRABAJOS_MER, [
-        periodo, filtros.estado ?? null, filtros.tribunal ?? null,
-        normalizarBusqueda(filtros.buscar), limite, desplazamiento, filtros.carrera ?? null,
-        filtros.modalidad ?? null, normalizarBusqueda(filtros.estudiante),
-        normalizarBusqueda(filtros.tema), normalizarBusqueda(filtros.tutor),
-      ])),
+    const misEvaluaciones = filtros.vista === 'mis-evaluaciones';
+    const puedeCalificar = misEvaluaciones && puedeGuardarBorradoresMer();
+    const parametros: unknown[] = [
+      periodo, filtros.estado ?? null, filtros.tribunal ?? null,
+      normalizarBusqueda(filtros.buscar), limite, desplazamiento, filtros.carrera ?? null,
+      filtros.modalidad ?? null, normalizarBusqueda(filtros.estudiante),
+      normalizarBusqueda(filtros.tema), normalizarBusqueda(filtros.tutor),
+    ];
+    if (misEvaluaciones) {
+      const evaluador = alcanceActual().tribunalDe
+        ?? (puedeCalificar && hayRestriccionDeAlcance() ? identidadActual()?.sujeto : null);
+      parametros.push(filtros.etapaEvaluacion ?? null, filtros.estadoEvaluacion ?? null, evaluador ?? null);
+    }
+    const [[{ total, ids, resumenes }], estados, [catalogos]] = await Promise.all([
+      this.dataSource.query<Array<{ total: number; ids: string[]; resumenes?: Record<string, ResumenMisEvaluaciones> }>>(
+        ...conAlcance(misEvaluaciones ? CONSULTA_PAGINA_MIS_EVALUACIONES : CONSULTA_PAGINA_TRABAJOS_MER, parametros),
+      ),
       this.dataSource.query<Array<{ estado: string }>>(...conAlcance(CONSULTA_ESTADOS_TRABAJOS_MER, [periodo])),
       this.dataSource.query<Array<CatalogosTrabajos>>(...conAlcance(CONSULTA_CATALOGOS_TRABAJOS_MER, [periodo])),
     ]);
     const porId = new Map((ids.length ? await this.consultar(null, ids) : []).map((trabajo) => [trabajo.id, trabajo]));
     return {
-      elementos: ids.map((id) => porId.get(id)).filter((trabajo): trabajo is TrabajoMer => Boolean(trabajo)),
+      elementos: ids.flatMap((id) => {
+        const trabajo = porId.get(id);
+        if (!trabajo) return [];
+        return resumenes?.[id] ? [{ ...trabajo, resumenEvaluaciones: { ...resumenes[id], puedeCalificar } }] : [trabajo];
+      }),
       paginacion: { pagina, limite, total, paginas: Math.max(1, Math.ceil(total / limite)) },
       filtros: {
         periodo: periodo ?? TODOS_LOS_PERIODOS, periodos, estados: estados.map(({ estado }) => estado),

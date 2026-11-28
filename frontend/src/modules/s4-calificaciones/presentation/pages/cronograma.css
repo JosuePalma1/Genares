@@ -45,12 +45,11 @@
 .cronograma-persona svg { flex: 0 0 auto; margin-top: 2px; }
 .cronograma-status { display: inline-flex; padding: 5px 9px; border-radius: 20px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
 .cronograma-status-programada { background: #e1f2e9; color: #17693c; }
-.cronograma-status-en_sustentacion { background: #fff3d6; color: #875b08; }
+.cronograma-status-en_sustentacion, .cronograma-status-en_curso_o_pendiente { background: #fff3d6; color: #875b08; }
 .cronograma-status-finalizada { background: #e9eef4; color: #425b74; }
 .cronograma-status-cancelada { background: #fde8e8; color: #9c2929; }
 .cronograma-edit-button { padding: 7px 10px; white-space: nowrap; }
 .cronograma-row-actions { display: flex; flex-wrap: wrap; gap: 6px; min-width: 220px; }
-.cronograma-actual-time { display: block; margin-top: 7px; min-width: 190px; color: #60758a; font-size: .8rem; }
 .cronograma-table td:nth-child(2) small { display: block; margin-top: 4px; color: #63788c; }
 .cronograma-table th:last-child, .cronograma-table td:last-child { min-width: 220px; }
 .cronograma-readonly { color: #74869a; font-size: .85rem; }

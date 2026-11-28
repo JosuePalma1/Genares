@@ -9,6 +9,7 @@ import { FormularioRubrica } from '../components/FormularioRubrica';
 import { DialogoGenares } from '../components/dialogos';
 import { usarAdvertenciaCambiosSinGuardar } from '../../domain/cambiosSinGuardar';
 import { etiquetaEstadoTrabajo } from '../../domain/seguimientoAcademico';
+import { estadoAcademicoLegible } from '../../domain/etiquetasAcademicas';
 import { adaptarEtapaRubricaMer, obtenerCalificacionesEditables, obtenerObservacionesEditables } from '../../domain/adaptacionRubricaMer';
 import { cerrarEvaluacionOralMerDev, construirPuntajesOrales, guardarBorradorOralMerDev,
   obtenerEvaluacionesMerDev, validarPuntajesOrales } from '../services/evaluacionesMerDev';
@@ -472,7 +473,7 @@ function EvaluacionIntegrada({ tipo = 'ORAL', etapaInicial, evaluadorInicial }) 
         {escritas.length === 0 ? <EstadoVacio title="Sin evaluaciones escritas" description="No existen notas escritas para esta asignación." /> :
           <div className="em-lista">{escritas.map((e) => <div key={e.id} className="em-fila">
             <span>{(datos.evaluadoresTribunal ?? datos.evaluadores).find((v) => v.id === e.idAsignacionTribunal)?.nombre ?? 'Evaluador'}</span>
-            <strong>{e.total == null ? 'Pendiente' : `${e.total} puntos`}</strong><span>{e.estado}</span>
+            <strong>{e.total == null ? 'Pendiente' : `${e.total} puntos`}</strong><span>{estadoAcademicoLegible(e.estado)}</span>
           </div>)}</div>}
       </details>
       {modelos.filter((m) => m.estudiante).map(({ estudiante, consolidado, escalaConsolidado, resultadoEstudiante }) => <section key={estudiante.id} className="card em-seccion">

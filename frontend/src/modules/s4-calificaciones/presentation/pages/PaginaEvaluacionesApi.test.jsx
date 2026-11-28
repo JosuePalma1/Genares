@@ -28,7 +28,7 @@ function consolidatedStage(id, order, scope, state = 'COMPLETA', presented = '9.
   return {
     id, tipo: 'PERSONALIZADA', codigo: `P-${order}`, nombre: `Etapa personalizada ${order}`,
     orden: order, alcance: scope, calificacionMaxima: '10.00', estado: state,
-    evaluadoresEsperados: [{ idMiembroTribunal: ids.member, posicion: 1 }],
+    evaluadoresEsperados: [{ idMiembroTribunal: ids.member, posicion: 1, nombres: 'Rosa', apellidos: 'Vera' }],
     evaluadoresPendientes: state === 'EN_PROGRESO' ? [{ idMiembroTribunal: ids.member, posicion: 1, causa: 'EVALUACION_NO_CERRADA' }] : [],
     evaluaciones: scope === 'TRABAJO_COMPARTIDO' ? [{
       id: ids.evalShared, idMiembroTribunal: ids.member, posicionEvaluador: 1,
@@ -51,7 +51,7 @@ function evalDetail(id, stage, student, score) {
     etapaRubrica: { id: stage, codigo: `P-${shared ? 1 : 2}`, nombre: shared ? 'Documento compartido' : 'Exposición', orden: shared ? 1 : 2 },
     calificacionTotal: score, calificacionMaxima: '10.00',
     instantaneaRubrica: {
-      version: 'V10', stages: [{ id: stage, scope: shared ? 'TRABAJO_COMPARTIDO' : 'ESTUDIANTE_INDIVIDUAL' }],
+      version: 'V10', rubricName: 'Rúbrica del proyecto', stages: [{ id: stage, scope: shared ? 'TRABAJO_COMPARTIDO' : 'ESTUDIANTE_INDIVIDUAL' }],
       categories: [{
         id: '88000000-0000-4000-8000-000000000001', stageId: stage, nombre: 'Análisis', calificacionMaxima: '10.00',
         indicators: [{ id: '99000000-0000-4000-8000-000000000001', label: 'Argumentación', calificacionMaxima: '10.00' }],
@@ -108,8 +108,10 @@ describe('presentación de consulta API de evaluaciones', () => {
     const markup = html(createElement(PanelEvaluacionesTrabajoApi, { evaluaciones, consolidacion }));
     expect(markup.indexOf('Etapa personalizada 1')).toBeLessThan(markup.indexOf('Etapa personalizada 2'));
     expect(markup.indexOf('Etapa personalizada 2')).toBeLessThan(markup.indexOf('Etapa personalizada 3'));
-    expect(markup).toContain('ESTUDIANTE_INDIVIDUAL');
-    expect(markup).toContain('TRABAJO_COMPARTIDO');
+    expect(markup).toContain('Individual por estudiante');
+    expect(markup).toContain('Compartida por trabajo');
+    expect(markup).not.toContain('ESTUDIANTE_INDIVIDUAL');
+    expect(markup).not.toContain('TRABAJO_COMPARTIDO');
     expect(markup).toContain('Observación autorizada');
   });
 
@@ -120,8 +122,8 @@ describe('presentación de consulta API de evaluaciones', () => {
     }));
     expect(markup.match(/Evaluación compartida del trabajo/g)).toHaveLength(1);
     expect(markup).toContain('La evaluación original no se duplica');
-    expect(markup).toContain(ids.studentA);
-    expect(markup).toContain(ids.studentB);
+    expect(markup).toContain('<li>Ana Paz</li>');
+    expect(markup).toContain('<li>Luis Paz</li>');
   });
 
   it('separa las evaluaciones individuales de estudiantes distintos', () => {
@@ -132,8 +134,11 @@ describe('presentación de consulta API de evaluaciones', () => {
       ],
       consolidacion: workConsolidation(),
     }));
-    expect(markup).toContain(`Estudiante · ${ids.studentA}`);
-    expect(markup).toContain(`Estudiante · ${ids.studentB}`);
+    expect(markup).toContain('Estudiante · Ana Paz');
+    expect(markup).toContain('Estudiante · Luis Paz');
+    expect(markup).toContain('Rosa Vera');
+    expect(markup).toContain('Rúbrica del proyecto · V10');
+    expect(markup).not.toContain(`Estudiante · ${ids.studentA}`);
     expect(markup).toContain('8.70');
     expect(markup).toContain('9.00');
   });
@@ -157,7 +162,9 @@ describe('presentación de consulta API de evaluaciones', () => {
     const resultado = consolidacion.estudiantes[0];
     const markup = html(createElement(PanelResultadoIndividualApi, { resultado }));
     // Es un botón que abre el PDF en el visor del navegador, no un enlace a otra pantalla de Genares.
-    expect(markup).toMatch(/<button type="button" class="button button-outline">[^]*Ver rúbrica PDF · Miembro 1/);
+    expect(markup).toMatch(/<button type="button" class="button button-outline">[^]*Ver rúbrica PDF · Rosa Vera/);
+    expect(markup).not.toContain(ids.studentA);
+    expect(markup).not.toContain(resultado.versionRubrica.id);
     expect(markup).not.toContain('/rubrica/');
   });
 
